@@ -221,4 +221,14 @@ async function seedData() {
     });
     console.log("Seeded Sample Exam");
   }
+
+  // Seed violations for testing if needed
+  const sessions = await storage.getSessions();
+  if (sessions.length > 0) {
+     const violations = await storage.getViolations();
+     if (violations.length === 0) {
+        await storage.logViolation({ sessionId: sessions[0].id, type: 'tab_switch' });
+        console.log("Seeded sample violation");
+     }
+  }
 }
