@@ -1,11 +1,8 @@
 import { useState } from "react";
 import { useAdminLogin, useStudentLogin } from "@/hooks/use-auth";
 import { Button, Input, Card, CardHeader, CardTitle, CardContent, Label } from "@/components/ui-kit";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Need to create a quick tabs or use from wouter/standard
 import { GraduationCap, ShieldCheck, Loader2 } from "lucide-react";
 
-// Minimal Tabs implementation since we don't have the full radix stack installed by default in the generated code
-// but I will simulate it with state for simplicity and robustness in this file
 function AuthTabs() {
   const [activeTab, setActiveTab] = useState<"student" | "admin">("student");
 
@@ -42,7 +39,13 @@ function StudentLoginForm() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    login.mutate({ accessCode: code, password });
+    login.mutate({ accessCode: code, password }, {
+      onSuccess: (data: any) => {
+        localStorage.setItem("student_session", JSON.stringify(data.session || data));
+        const sessionId = data.session?.id || data.id;
+        window.location.href = `/exam/${sessionId}`;
+      }
+    });
   };
 
   return (
@@ -78,10 +81,10 @@ function StudentLoginForm() {
               required
             />
           </div>
-          
+
           {login.error && (
             <div className="p-3 text-sm bg-destructive/10 text-destructive rounded-lg">
-              {login.error.message}
+              {(login.error as any).message || "Login failed"}
             </div>
           )}
 
@@ -101,7 +104,16 @@ function AdminLoginForm() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    login.mutate({ username, password });
+
+    login.mutate({ username, password }, {
+      onSuccess: (data: any) => {
+        localStorage.setItem("user", JSON.stringify(data.user || data));
+        window.location.href = "/admin";
+      },
+      onError: (error: any) => {
+        console.error("Login Error:", error);
+      }
+    });
   };
 
   return (
@@ -123,6 +135,7 @@ function AdminLoginForm() {
               value={username} 
               onChange={(e) => setUsername(e.target.value)} 
               required
+              placeholder="admin"
             />
           </div>
           <div className="space-y-2">
@@ -132,16 +145,17 @@ function AdminLoginForm() {
               value={password} 
               onChange={(e) => setPassword(e.target.value)} 
               required
+              placeholder="••••••••"
             />
           </div>
 
           {login.error && (
             <div className="p-3 text-sm bg-destructive/10 text-destructive rounded-lg">
-              {login.error.message}
+              {(login.error as any).message || "Invalid credentials"}
             </div>
           )}
 
-          <Button className="w-full bg-slate-900 hover:bg-slate-800" disabled={login.isPending}>
+          <Button className="w-full bg-slate-900 hover:bg-slate-800 h-12" disabled={login.isPending}>
              {login.isPending ? <Loader2 className="animate-spin mr-2" /> : "Access Dashboard"}
           </Button>
         </form>
@@ -159,11 +173,11 @@ export default function AuthPage() {
         </h1>
         <p className="text-slate-600">Secure, reliable testing environment.</p>
       </div>
-      
+
       <AuthTabs />
-      
+
       <div className="mt-12 text-center text-xs text-muted-foreground">
-        &copy; 2024 Educational Testing Services. All rights reserved. <br/>
+        &copy; 2026 Educational Testing Services. All rights reserved. <br/>
         System optimized for Chrome & Firefox.
       </div>
     </div>
