@@ -82,7 +82,7 @@ export default function AdminSessions() {
                       required
                     >
                       <option value="">-- Choose Exam --</option>
-                      {exams?.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}
+                      {exams?.map((e: any) => <option key={e.id} value={e.id}>{e.title}</option>)}
                     </select>
                   </div>
                   <div className="flex items-end">
