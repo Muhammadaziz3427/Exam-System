@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, type LoginRequest, type StudentLoginRequest } from "@shared/routes";
+import { api } from "@shared/routes";
+import { type LoginRequest, type StudentLoginRequest } from "@shared/schema";
 import { useLocation } from "wouter";
 
 export function useAdminLogin() {

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, buildUrl, type InsertSession } from "@shared/routes";
+import { api, buildUrl } from "@shared/routes";
+import { type InsertSession } from "@shared/schema";
 
 export function useSessions() {
   return useQuery({

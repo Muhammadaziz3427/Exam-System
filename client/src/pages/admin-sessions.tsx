@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { Card, CardContent, Button, Input, Label, Badge, Select } from "@/components/ui-kit"; // Assume Select exists or use HTML select
+import { Card, CardContent, Button, Input, Label, Badge } from "@/components/ui-kit"; 
 import { useSessions, useCreateSession } from "@/hooks/use-sessions";
 import { useExams } from "@/hooks/use-exams";
 import { Loader2, RefreshCw, UserPlus, AlertCircle, Clock } from "lucide-react";
@@ -57,14 +57,14 @@ export default function AdminSessions() {
                 <form onSubmit={handleGenerate} className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Student Name</Label>
-                    <Input value={studentName} onChange={e => setStudentName(e.target.value)} required />
+                    <Input value={studentName} onChange={(e: any) => setStudentName(e.target.value)} required />
                   </div>
                   <div className="space-y-2">
                     <Label>Select Exam</Label>
                     <select 
                       className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
                       value={selectedExamId}
-                      onChange={e => setSelectedExamId(e.target.value)}
+                      onChange={(e: any) => setSelectedExamId(e.target.value)}
                       required
                     >
                       <option value="">-- Choose Exam --</option>
@@ -91,7 +91,7 @@ export default function AdminSessions() {
              <div className="p-8 text-center"><Loader2 className="animate-spin mx-auto" /></div>
            ) : (
              <div className="space-y-4">
-               {sessions?.map((session) => (
+               {sessions?.map((session: any) => (
                  <div 
                     key={session.id} 
                     className={`
@@ -141,7 +141,7 @@ export default function AdminSessions() {
                     <p className="text-center text-slate-400 text-sm italic py-8">No violations recorded.</p>
                   )}
                   {allViolations?.map((v: any) => {
-                    const session = sessions?.find(s => s.id === v.sessionId);
+                    const session = sessions?.find((s: any) => s.id === v.sessionId);
                     return (
                       <div key={v.id} className="p-3 bg-red-50 border border-red-100 rounded-lg space-y-1">
                         <div className="flex justify-between items-start">

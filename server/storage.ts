@@ -81,7 +81,7 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(examSessions);
   }
 
-  async updateSessionStatus(id: number, status: string): Promise<ExamSession> {
+  async updateSessionStatus(id: number, status: "created" | "in_progress" | "completed" | "pending_grading" | "graded"): Promise<ExamSession> {
     const [updated] = await db.update(examSessions)
       .set({ status })
       .where(eq(examSessions.id, id))

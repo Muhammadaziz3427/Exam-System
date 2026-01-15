@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, buildUrl, type InsertExam } from "@shared/routes";
+import { api, buildUrl } from "@shared/routes";
+import { type Exam, type InsertExam } from "@shared/schema";
 
 export function useExams() {
   return useQuery({

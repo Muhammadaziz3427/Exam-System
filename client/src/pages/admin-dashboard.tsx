@@ -8,8 +8,8 @@ export default function AdminDashboard() {
   const { data: exams } = useExams();
   const { data: sessions } = useSessions();
 
-  const activeSessions = sessions?.filter(s => s.status === 'in_progress') || [];
-  const completedSessions = sessions?.filter(s => s.status === 'completed' || s.status === 'graded') || [];
+  const activeSessions = sessions?.filter((s: any) => s.status === 'in_progress') || [];
+  const completedSessions = sessions?.filter((s: any) => s.status === 'completed' || s.status === 'graded') || [];
 
   const stats = [
     { label: "Total Exams", value: exams?.length || 0, icon: FileText, color: "text-blue-500", bg: "bg-blue-50" },

@@ -32,7 +32,7 @@ export const examSessions = pgTable("exam_sessions", {
   accessCode: text("access_code").notNull().unique(), // The "Test ID"
   password: text("password").notNull(), // One-time password
   examId: integer("exam_id").notNull(), // Linked exam
-  status: text("status", { enum: ["created", "in_progress", "completed", "pending_grading", "graded"] }).default("created"),
+  status: text("status", { enum: ["created", "in_progress", "completed", "pending_grading", "graded"] }).notNull().default("created"),
   startTime: timestamp("start_time"),
   endTime: timestamp("end_time"),
   currentSection: text("current_section").default("listening"),
@@ -89,6 +89,8 @@ export type Violation = typeof violations.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertExam = z.infer<typeof insertExamSchema>;
 export type InsertSession = z.infer<typeof insertSessionSchema>;
+export type InsertSubmission = z.infer<typeof insertSubmissionSchema>;
+export type InsertViolation = z.infer<typeof insertViolationSchema>;
 
 // Auth Login Types
 export const loginSchema = z.object({

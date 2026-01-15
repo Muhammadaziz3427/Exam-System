@@ -110,7 +110,7 @@ export default function AdminExams() {
         <div className="flex justify-center p-12"><Loader2 className="animate-spin text-primary" size={40} /></div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {exams?.map((exam) => (
+          {exams?.map((exam: any) => (
             <Card key={exam.id} className="hover:border-primary/50 transition-colors group">
               <CardHeader>
                 <div className="flex justify-between items-start">
