@@ -32,10 +32,11 @@ export const examSessions = pgTable("exam_sessions", {
   accessCode: text("access_code").notNull().unique(), // The "Test ID"
   password: text("password").notNull(), // One-time password
   examId: integer("exam_id").notNull(), // Linked exam
-  status: text("status", { enum: ["created", "in_progress", "completed", "graded"] }).default("created"),
+  status: text("status", { enum: ["created", "in_progress", "completed", "pending_grading", "graded"] }).default("created"),
   startTime: timestamp("start_time"),
   endTime: timestamp("end_time"),
   currentSection: text("current_section").default("listening"),
+  resultsReleased: boolean("results_released").default(false),
 });
 
 // Student Answers
@@ -44,6 +45,17 @@ export const submissions = pgTable("submissions", {
   sessionId: integer("session_id").notNull(),
   // JSON structure: { listening: { q1: "a", ... }, reading: { ... }, writing: "text..." }
   answers: jsonb("answers").default({}),
+  // Grading details
+  grading: jsonb("grading").default({
+    writing: {
+      taskResponse: 0,
+      cohesion: 0,
+      vocabulary: 0,
+      grammar: 0,
+      average: 0,
+      feedback: ""
+    }
+  }),
   lastSavedAt: timestamp("last_saved_at").defaultNow(),
 });
 

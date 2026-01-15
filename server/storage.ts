@@ -24,10 +24,13 @@ export interface IStorage {
   getSessions(): Promise<ExamSession[]>;
   updateSessionStatus(id: number, status: string): Promise<ExamSession>;
   startSession(id: number): Promise<ExamSession>;
+  releaseResults(id: number): Promise<ExamSession>;
   
   // Submissions
   upsertSubmission(submission: InsertSubmission): Promise<Submission>;
   getSubmission(sessionId: number): Promise<Submission | undefined>;
+  updateGrading(sessionId: number, grading: any): Promise<Submission>;
+  getPendingGradingSubmissions(): Promise<(Submission & { session: ExamSession })[]>;
   
   // Violations
   logViolation(violation: InsertViolation): Promise<Violation>;
@@ -93,6 +96,14 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async releaseResults(id: number): Promise<ExamSession> {
+    const [updated] = await db.update(examSessions)
+      .set({ resultsReleased: true })
+      .where(eq(examSessions.id, id))
+      .returning();
+    return updated;
+  }
+
   async upsertSubmission(submission: InsertSubmission): Promise<Submission> {
     // Check if exists
     const [existing] = await db.select().from(submissions).where(eq(submissions.sessionId, submission.sessionId));
@@ -112,6 +123,28 @@ export class DatabaseStorage implements IStorage {
   async getSubmission(sessionId: number): Promise<Submission | undefined> {
     const [sub] = await db.select().from(submissions).where(eq(submissions.sessionId, sessionId));
     return sub;
+  }
+
+  async updateGrading(sessionId: number, grading: any): Promise<Submission> {
+    const [updated] = await db.update(submissions)
+      .set({ grading })
+      .where(eq(submissions.sessionId, sessionId))
+      .returning();
+    
+    await this.updateSessionStatus(sessionId, 'graded');
+    return updated;
+  }
+
+  async getPendingGradingSubmissions(): Promise<(Submission & { session: ExamSession })[]> {
+    const results = await db.select({
+      submission: submissions,
+      session: examSessions
+    })
+    .from(submissions)
+    .innerJoin(examSessions, eq(submissions.sessionId, examSessions.id))
+    .where(eq(examSessions.status, 'pending_grading'));
+
+    return results.map(r => ({ ...r.submission, session: r.session }));
   }
 
   async logViolation(violation: InsertViolation): Promise<Violation> {
