@@ -3,13 +3,15 @@ import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Card, CardContent, Button, Input, Label, Badge } from "@/components/ui-kit"; 
 import { useSessions, useCreateSession } from "@/hooks/use-sessions";
 import { useExams } from "@/hooks/use-exams";
-import { Loader2, RefreshCw, UserPlus, AlertCircle, Clock } from "lucide-react";
+import { Loader2, RefreshCw, UserPlus, AlertCircle, Clock, Eye, Bold, Italic } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function AdminSessions() {
   const { data: sessions, isLoading, refetch } = useSessions();
   const { data: exams } = useExams();
   const createSession = useCreateSession();
+  const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
 
   const { data: allViolations } = useQuery({
     queryKey: ['/api/violations'],
@@ -19,6 +21,18 @@ export default function AdminSessions() {
     },
     refetchInterval: 5000 // Poll every 5s
   });
+
+  const handleWritingFormatting = (type: 'bold' | 'italic') => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const span = document.createElement('span');
+      if (type === 'bold') span.style.fontWeight = 'bold';
+      if (type === 'italic') span.style.fontStyle = 'italic';
+      span.className = type === 'bold' ? 'text-primary' : 'text-secondary';
+      range.surroundContents(span);
+    }
+  };
 
   // Generator State
   const [studentName, setStudentName] = useState("");
@@ -114,13 +128,20 @@ export default function AdminSessions() {
                      </p>
                    </div>
                    
-                   <div className="text-right text-xs text-slate-500">
+                   <div className="flex items-center gap-2">
                      {session.status === 'in_progress' && (
-                       <span className="flex items-center gap-1 text-green-600 font-medium animate-pulse">
+                       <span className="flex items-center gap-1 text-green-600 font-medium animate-pulse text-xs mr-4">
                          <span className="w-2 h-2 rounded-full bg-green-600"/>
                          Active Now
                        </span>
                      )}
+                     <Button 
+                       variant="ghost" 
+                       size="sm" 
+                       onClick={() => setSelectedSubmission(session)}
+                     >
+                       <Eye size={16} />
+                     </Button>
                    </div>
                  </div>
                ))}
@@ -162,6 +183,50 @@ export default function AdminSessions() {
             </Card>
          </div>
        </div>
+
+       {selectedSubmission && (
+          <Dialog open={!!selectedSubmission} onOpenChange={() => setSelectedSubmission(null)}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Review Submission: {selectedSubmission.studentName}</DialogTitle>
+              </DialogHeader>
+              
+              <div className="space-y-6 py-4">
+                <div className="bg-slate-50 p-6 rounded-lg border border-slate-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-bold text-lg">Writing Task Response</h3>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => handleWritingFormatting('bold')} className="gap-1">
+                        <Bold size={14} /> Bold
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleWritingFormatting('italic')} className="gap-1">
+                        <Italic size={14} /> Italic
+                      </Button>
+                    </div>
+                  </div>
+                  <div 
+                    className="bg-white p-6 rounded border font-serif text-lg leading-relaxed min-h-[300px] whitespace-pre-wrap focus:outline-none"
+                    contentEditable
+                    suppressContentEditableWarning
+                  >
+                    Select student text and use the tools above to highlight errors. This editor allows bolding and italicizing parts of the student's writing to provide clear feedback.
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Card className="p-4 border-l-4 border-l-primary">
+                    <h4 className="font-bold mb-1 text-sm text-slate-500 uppercase tracking-wider">Listening Score</h4>
+                    <p className="text-3xl font-bold text-slate-900">-- / 40</p>
+                  </Card>
+                  <Card className="p-4 border-l-4 border-l-primary">
+                    <h4 className="font-bold mb-1 text-sm text-slate-500 uppercase tracking-wider">Reading Score</h4>
+                    <p className="text-3xl font-bold text-slate-900">-- / 40</p>
+                  </Card>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
     </AdminLayout>
   );
 }
