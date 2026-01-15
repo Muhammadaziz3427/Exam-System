@@ -18,6 +18,11 @@ const Modal = ({ open, onOpenChange, children }: any) => {
   );
 };
 
+export default function AdminExams() {
+  const { data: exams, isLoading } = useExams();
+  const createExam = useCreateExam();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   const [gradingState, setGradingState] = useState({
     taskResponse: 0,
     cohesion: 0,
