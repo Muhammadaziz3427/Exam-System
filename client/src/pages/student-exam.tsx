@@ -199,12 +199,15 @@ export default function StudentExam() {
     document.removeEventListener("visibilitychange", handleVisibilityChange);
     document.removeEventListener("fullscreenchange", handleFullscreenChange);
     if (document.fullscreenElement) document.exitFullscreen();
-    alert("Test Submitted Successfully!");
+    localStorage.removeItem("student_session");
+    alert(isFinal ? "Time is up! Your exam has been auto-submitted." : "Test Submitted Successfully!");
     setLocation("/");
   };
 
   if (!hasStarted) return <LockdownModal onStart={handleStart} />;
   if (!examContent) return <div className="p-10 text-center">Loading exam content...</div>;
+
+  const session = JSON.parse(localStorage.getItem("student_session") || "{}");
 
   // --- RENDER SECTIONS ---
   const formatTime = (s: number) => {
@@ -213,18 +216,24 @@ export default function StudentExam() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const totalQuestions = 40;
+  const answeredCount = Object.keys(answers.listening).length + Object.keys(answers.reading).length + (answers.writing ? 1 : 0);
+
   return (
-    <div className="h-screen flex flex-col bg-slate-50 overflow-hidden">
+    <div className="h-screen flex flex-col bg-slate-50 overflow-hidden font-sans">
       {/* Top Bar */}
-      <header className="h-16 bg-slate-900 text-white flex items-center justify-between px-6 shadow-md z-10">
-        <div className="font-bold text-lg tracking-wide">CD-IELTS Mock</div>
+      <header className="h-16 bg-secondary text-secondary-foreground flex items-center justify-between px-6 shadow-md z-10 border-b border-secondary/20">
+        <div className="flex flex-col">
+          <span className="font-bold text-lg leading-tight">{session.studentName || "Student"}</span>
+          <span className="text-xs opacity-80 uppercase tracking-wider">IELTS Mock: {examContent.title || "Examination"}</span>
+        </div>
         
         <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2 bg-slate-800 px-4 py-1.5 rounded-full font-mono text-xl text-amber-400">
-            <Clock size={18} />
+          <div className={`flex items-center gap-2 px-4 py-1.5 rounded font-mono text-2xl ${timeLeft < 300 ? 'bg-red-600 text-white animate-pulse' : 'bg-secondary/50 text-white border border-white/20'}`}>
+            <Clock size={20} />
             {formatTime(timeLeft)}
           </div>
-          <Button variant="destructive" size="sm" onClick={() => handleSubmit(true)}>
+          <Button variant="destructive" size="sm" onClick={() => handleSubmit(false)}>
             Finish Test
           </Button>
         </div>
@@ -232,146 +241,40 @@ export default function StudentExam() {
 
       {/* Content Area */}
       <main className="flex-1 overflow-hidden relative">
-        
-        {/* LISTENING */}
-        {currentSection === 'listening' && (
-          <div className="h-full flex flex-col items-center justify-center p-8 text-center space-y-8 animate-in fade-in">
-            <div className="max-w-2xl w-full bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
-              <h2 className="text-3xl font-bold mb-4 text-primary">Listening Section</h2>
-              <p className="text-slate-500 mb-8">
-                Audio will play automatically. Answer the questions as you listen.
-                Once the audio ends, you will have 2 minutes to check answers before moving to Reading.
-              </p>
-              
-              {/* Hidden controls, auto-play */}
-              <audio 
-                src={examContent.listening.audioUrl} 
-                autoPlay 
-                className="w-full mb-8" 
-                controlsList="nodownload noplaybackrate"
-                onContextMenu={(e) => e.preventDefault()}
-                // In production, we'd hide controls via CSS or custom player to prevent seeking
-              />
-
-              <div className="text-left space-y-6 max-h-[400px] overflow-y-auto pr-2">
-                {examContent.listening.questions.map((q: any, i: number) => (
-                  <div key={q.id} className="p-4 bg-slate-50 rounded-lg">
-                    <p className="font-medium mb-3">{i + 1}. {q.text}</p>
-                    <div className="space-y-2">
-                      {q.options.map((opt: string) => (
-                        <label key={opt} className="flex items-center gap-3 p-2 hover:bg-slate-100 rounded cursor-pointer">
-                          <input 
-                            type="radio" 
-                            name={q.id} 
-                            value={opt}
-                            onChange={(e) => setAnswers(prev => ({
-                              ...prev,
-                              listening: { ...prev.listening, [q.id]: e.target.value }
-                            }))}
-                          />
-                          {opt}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="pt-6 border-t mt-6">
-                <Button onClick={nextSection} className="w-full text-lg">
-                  Submit Listening & Start Reading
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* READING */}
-        {currentSection === 'reading' && (
-          <ResizablePanelGroup direction="horizontal" className="h-full">
-            <ResizablePanel defaultSize={50} minSize={30} className="bg-white p-8 overflow-y-auto border-r scroll-smooth">
-              <div 
-                className="max-w-2xl mx-auto reading-passage relative"
-                onMouseUp={handleSelection}
-              >
-                {showHighlightBtn && (
-                  <Button
-                    size="sm"
-                    className="absolute z-50 h-8 px-2 bg-yellow-400 text-black hover:bg-yellow-500 shadow-lg"
-                    style={{ left: showHighlightBtn.x - 40, top: showHighlightBtn.y - 60 }}
-                    onClick={applyHighlight}
-                  >
-                    Highlight
-                  </Button>
-                )}
-                <h3 className="text-xl font-bold mb-4 font-sans text-slate-400 uppercase tracking-widest text-xs">Passage</h3>
-                <h2 className="text-3xl font-serif font-bold mb-6 text-slate-900">The Origins of Technology</h2>
-                <div className="prose prose-lg text-slate-800">
-                  {/* Mock content injection */}
-                  <p>{examContent.reading.passage}</p>
-                  <p className="mt-4">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
-                  <p className="mt-4">Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
-                  {/* Repeat content for scrolling effect */}
-                  <p className="mt-4">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
-                </div>
-              </div>
-            </ResizablePanel>
-            
-            <ResizableHandle withHandle />
-            
-            <ResizablePanel defaultSize={50} minSize={30} className="bg-slate-50 p-8 overflow-y-auto">
-               <div className="max-w-xl mx-auto">
-                 <div className="flex justify-between items-center mb-6">
-                   <h3 className="text-xl font-bold">Questions</h3>
-                   <Button size="sm" onClick={nextSection}>Finish Reading</Button>
-                 </div>
-                 <div className="space-y-6">
-                   {/* Mock questions if none in content */}
-                   {[1,2,3,4,5].map(i => (
-                     <div key={i} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                       <p className="font-medium mb-2">Question {i}</p>
-                       <p className="text-sm text-slate-500 mb-3">According to paragraph 2, what is the main reason for...</p>
-                       <Textarea placeholder="Type your answer here..." className="bg-slate-50 border-0" />
-                     </div>
-                   ))}
-                 </div>
-               </div>
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        )}
-
-        {/* WRITING */}
-        {currentSection === 'writing' && (
-          <div className="h-full flex flex-col p-8 max-w-5xl mx-auto animate-in fade-in slide-in-from-right-10">
-            <div className="flex-1 bg-white rounded-2xl shadow-xl border border-slate-200 flex flex-col overflow-hidden">
-              <div className="bg-slate-50 p-6 border-b">
-                <h3 className="font-bold text-slate-900 mb-2">Writing Task 2</h3>
-                <p className="text-slate-600">
-                  {examContent.writing.prompts[0]}
-                </p>
-              </div>
-              <div className="flex-1 relative">
-                <textarea 
-                  className="w-full h-full p-8 resize-none focus:outline-none text-lg leading-relaxed font-serif"
-                  placeholder="Start typing your essay here..."
-                  value={answers.writing}
-                  onChange={(e) => setAnswers(prev => ({ ...prev, writing: e.target.value }))}
-                  spellCheck={false}
-                />
-                <div className="absolute bottom-4 right-4 bg-slate-100 px-3 py-1 rounded-full text-xs font-medium text-slate-600 border border-slate-200">
-                  Word Count: {answers.writing.trim().split(/\s+/).filter(Boolean).length}
-                </div>
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end">
-              <Button size="lg" className="px-8" onClick={() => handleSubmit(true)}>
-                Submit Final Exam <FileCheck className="ml-2" size={18} />
-              </Button>
-            </div>
-          </div>
-        )}
-
+        ...
       </main>
+
+      {/* Question Navigation Footer */}
+      <footer className="h-20 bg-secondary text-secondary-foreground border-t border-secondary/20 flex items-center px-6 gap-4">
+        <div className="text-xs font-bold uppercase tracking-tighter w-24 leading-tight opacity-70">Question Navigation</div>
+        <div className="flex-1 flex gap-1 overflow-x-auto py-2 no-scrollbar">
+          {Array.from({ length: totalQuestions }).map((_, i) => {
+            const isAnswered = i < answeredCount;
+            return (
+              <div 
+                key={i} 
+                className={`min-w-[32px] h-8 flex items-center justify-center rounded-sm text-xs font-bold transition-colors border ${
+                  isAnswered 
+                    ? 'bg-primary text-primary-foreground border-primary' 
+                    : 'bg-secondary/30 text-white/50 border-white/10'
+                }`}
+              >
+                {i + 1}
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-4 ml-4">
+          <div className="flex items-center gap-2 text-xs">
+            <div className="w-3 h-3 bg-primary rounded-sm" />
+            <span>Answered</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <div className="w-3 h-3 bg-secondary/30 border border-white/10 rounded-sm" />
+            <span>Not Answered</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

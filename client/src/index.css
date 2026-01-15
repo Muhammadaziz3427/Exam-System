@@ -5,18 +5,18 @@
 @tailwind utilities;
 
 :root {
-  --font-display: 'Outfit', sans-serif;
-  --font-body: 'Inter', sans-serif;
-  --font-reading: 'Lora', serif;
+  --font-display: 'Arial', sans-serif;
+  --font-body: 'Verdana', sans-serif;
+  --font-reading: 'Verdana', sans-serif;
 
-  --background: 210 20% 98%;
+  --background: 210 20% 95%; /* #ecf0f1 light grey */
   --foreground: 222 47% 11%;
   
-  --primary: 221 83% 53%;
+  --primary: 204 70% 53%; /* #3498db */
   --primary-foreground: 210 40% 98%;
   
-  --secondary: 210 40% 96%;
-  --secondary-foreground: 222 47% 11%;
+  --secondary: 210 29% 24%; /* #2c3e50 dark blue */
+  --secondary-foreground: 210 40% 98%;
   
   --muted: 210 40% 96%;
   --muted-foreground: 215 16% 47%;
@@ -29,9 +29,9 @@
   
   --border: 214 32% 91%;
   --input: 214 32% 91%;
-  --ring: 221 83% 53%;
+  --ring: 204 70% 53%;
   
-  --radius: 0.75rem;
+  --radius: 0.25rem;
 }
 
 .dark {
