@@ -1,38 +1,123 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
 
-// modify the interface with any CRUD methods
-// you might need
+import { db } from "./db";
+import {
+  users, exams, examSessions, submissions, violations,
+  type User, type Exam, type ExamSession, type Submission, type Violation,
+  type InsertUser, type InsertExam, type InsertSession, type InsertSubmission, type InsertViolation
+} from "@shared/schema";
+import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
+  // Users
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  
+  // Exams
+  getExams(): Promise<Exam[]>;
+  getExam(id: number): Promise<Exam | undefined>;
+  createExam(exam: InsertExam): Promise<Exam>;
+  
+  // Sessions
+  createSession(session: InsertSession): Promise<ExamSession>;
+  getSessionByCode(code: string): Promise<ExamSession | undefined>;
+  getSession(id: number): Promise<ExamSession | undefined>;
+  getSessions(): Promise<ExamSession[]>;
+  updateSessionStatus(id: number, status: string): Promise<ExamSession>;
+  startSession(id: number): Promise<ExamSession>;
+  
+  // Submissions
+  upsertSubmission(submission: InsertSubmission): Promise<Submission>;
+  getSubmission(sessionId: number): Promise<Submission | undefined>;
+  
+  // Violations
+  logViolation(violation: InsertViolation): Promise<Violation>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
-  }
-
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
-  }
-
+export class DatabaseStorage implements IStorage {
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db.select().from(users).where(eq(users.username, username));
     return user;
   }
+
+  async createUser(user: InsertUser): Promise<User> {
+    const [newUser] = await db.insert(users).values(user).returning();
+    return newUser;
+  }
+
+  async getExams(): Promise<Exam[]> {
+    return await db.select().from(exams);
+  }
+
+  async getExam(id: number): Promise<Exam | undefined> {
+    const [exam] = await db.select().from(exams).where(eq(exams.id, id));
+    return exam;
+  }
+
+  async createExam(exam: InsertExam): Promise<Exam> {
+    const [newExam] = await db.insert(exams).values(exam).returning();
+    return newExam;
+  }
+
+  async createSession(session: InsertSession): Promise<ExamSession> {
+    const [newSession] = await db.insert(examSessions).values(session).returning();
+    return newSession;
+  }
+
+  async getSessionByCode(code: string): Promise<ExamSession | undefined> {
+    const [session] = await db.select().from(examSessions).where(eq(examSessions.accessCode, code));
+    return session;
+  }
+  
+  async getSession(id: number): Promise<ExamSession | undefined> {
+    const [session] = await db.select().from(examSessions).where(eq(examSessions.id, id));
+    return session;
+  }
+
+  async getSessions(): Promise<ExamSession[]> {
+    return await db.select().from(examSessions);
+  }
+
+  async updateSessionStatus(id: number, status: string): Promise<ExamSession> {
+    const [updated] = await db.update(examSessions)
+      .set({ status })
+      .where(eq(examSessions.id, id))
+      .returning();
+    return updated;
+  }
+  
+  async startSession(id: number): Promise<ExamSession> {
+    const [updated] = await db.update(examSessions)
+      .set({ status: 'in_progress', startTime: new Date() })
+      .where(eq(examSessions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async upsertSubmission(submission: InsertSubmission): Promise<Submission> {
+    // Check if exists
+    const [existing] = await db.select().from(submissions).where(eq(submissions.sessionId, submission.sessionId));
+    
+    if (existing) {
+      const [updated] = await db.update(submissions)
+        .set({ answers: submission.answers, lastSavedAt: new Date() })
+        .where(eq(submissions.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [newSub] = await db.insert(submissions).values(submission).returning();
+      return newSub;
+    }
+  }
+  
+  async getSubmission(sessionId: number): Promise<Submission | undefined> {
+    const [sub] = await db.select().from(submissions).where(eq(submissions.sessionId, sessionId));
+    return sub;
+  }
+
+  async logViolation(violation: InsertViolation): Promise<Violation> {
+    const [v] = await db.insert(violations).values(violation).returning();
+    return v;
+  }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
