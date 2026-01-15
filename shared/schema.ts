@@ -54,6 +54,10 @@ export const submissions = pgTable("submissions", {
       grammar: 0,
       average: 0,
       feedback: ""
+    },
+    autoGraded: {
+      listening: { score: 0, total: 0 },
+      reading: { score: 0, total: 0 }
     }
   }),
   lastSavedAt: timestamp("last_saved_at").defaultNow(),

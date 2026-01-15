@@ -145,8 +145,52 @@ export default function StudentExam() {
 
   // --- NAVIGATION ---
   const nextSection = () => {
-    if (currentSection === 'listening') setCurrentSection('reading');
-    else if (currentSection === 'reading') setCurrentSection('writing');
+    if (currentSection === 'listening') {
+      setCurrentSection('reading');
+      // Prevent going back
+      window.history.pushState(null, "", window.location.href);
+    }
+    else if (currentSection === 'reading') {
+      setCurrentSection('writing');
+      window.history.pushState(null, "", window.location.href);
+    }
+  };
+
+  // Add back button prevention
+  useEffect(() => {
+    const preventBack = () => {
+      window.history.pushState(null, "", window.location.href);
+    };
+    window.addEventListener("popstate", preventBack);
+    return () => window.removeEventListener("popstate", preventBack);
+  }, []);
+
+  const [highlights, setHighlights] = useState<{start: number, end: number, text: string}[]>([]);
+  const [showHighlightBtn, setShowHighlightBtn] = useState<{x: number, y: number} | null>(null);
+
+  const handleSelection = () => {
+    const selection = window.getSelection();
+    if (selection && selection.toString().trim().length > 0) {
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      setShowHighlightBtn({
+        x: rect.left + window.scrollX + (rect.width / 2),
+        y: rect.top + window.scrollY - 40
+      });
+    } else {
+      setShowHighlightBtn(null);
+    }
+  };
+
+  const applyHighlight = () => {
+    const selection = window.getSelection();
+    if (!selection) return;
+    const text = selection.toString();
+    // In a real app, we'd wrap with a span. For this mock, we'll just track it
+    // or use a more robust highlighter library.
+    // For now, let's just alert or use a simple visual cue.
+    document.execCommand('backColor', false, 'yellow');
+    setShowHighlightBtn(null);
   };
 
   const handleSubmit = async (isFinal = false) => {
@@ -246,7 +290,20 @@ export default function StudentExam() {
         {currentSection === 'reading' && (
           <ResizablePanelGroup direction="horizontal" className="h-full">
             <ResizablePanel defaultSize={50} minSize={30} className="bg-white p-8 overflow-y-auto border-r scroll-smooth">
-              <div className="max-w-2xl mx-auto reading-passage">
+              <div 
+                className="max-w-2xl mx-auto reading-passage relative"
+                onMouseUp={handleSelection}
+              >
+                {showHighlightBtn && (
+                  <Button
+                    size="sm"
+                    className="absolute z-50 h-8 px-2 bg-yellow-400 text-black hover:bg-yellow-500 shadow-lg"
+                    style={{ left: showHighlightBtn.x - 40, top: showHighlightBtn.y - 60 }}
+                    onClick={applyHighlight}
+                  >
+                    Highlight
+                  </Button>
+                )}
                 <h3 className="text-xl font-bold mb-4 font-sans text-slate-400 uppercase tracking-widest text-xs">Passage</h3>
                 <h2 className="text-3xl font-serif font-bold mb-6 text-slate-900">The Origins of Technology</h2>
                 <div className="prose prose-lg text-slate-800">

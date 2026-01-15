@@ -97,12 +97,66 @@ export async function registerRoutes(
     const sessionId = Number(req.params.id);
     const { answers, isFinal } = req.body;
     
+    // Auto-grading logic for Listening and Reading
+    let autoGrading: any = {};
+    if (isFinal) {
+      const session = await storage.getSession(sessionId);
+      if (session) {
+        const exam = await storage.getExam(session.examId);
+        if (exam) {
+          const content = exam.content as any;
+          
+          // Grade Listening
+          let listeningScore = 0;
+          if (content.listening && content.listening.questions) {
+            content.listening.questions.forEach((q: any) => {
+              const studentAnswer = answers.listening?.[q.id];
+              const correctAnswer = q.answer;
+              if (studentAnswer && correctAnswer && 
+                  studentAnswer.toString().trim().toLowerCase() === correctAnswer.toString().trim().toLowerCase()) {
+                listeningScore++;
+              }
+            });
+            autoGrading.listening = {
+              score: listeningScore,
+              total: content.listening.questions.length
+            };
+          }
+
+          // Grade Reading
+          let readingScore = 0;
+          if (content.reading && content.reading.questions) {
+            content.reading.questions.forEach((q: any) => {
+              const studentAnswer = answers.reading?.[q.id];
+              const correctAnswer = q.answer;
+              if (studentAnswer && correctAnswer && 
+                  studentAnswer.toString().trim().toLowerCase() === correctAnswer.toString().trim().toLowerCase()) {
+                readingScore++;
+              }
+            });
+            autoGrading.reading = {
+              score: readingScore,
+              total: content.reading.questions.length
+            };
+          }
+        }
+      }
+    }
+
     await storage.upsertSubmission({
       sessionId,
       answers
     });
 
     if (isFinal) {
+      const submission = await storage.getSubmission(sessionId);
+      if (submission) {
+        const currentGrading = (submission.grading as any) || {};
+        await storage.updateGrading(sessionId, {
+          ...currentGrading,
+          autoGraded: autoGrading
+        });
+      }
       await storage.updateSessionStatus(sessionId, 'completed');
     }
 
@@ -114,6 +168,11 @@ export async function registerRoutes(
     const { type } = req.body;
     const violation = await storage.logViolation({ sessionId, type });
     res.status(201).json(violation);
+  });
+
+  app.get('/api/violations', async (req, res) => {
+    const allViolations = await storage.getViolations();
+    res.json(allViolations);
   });
 
 

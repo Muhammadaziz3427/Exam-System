@@ -34,6 +34,7 @@ export interface IStorage {
   
   // Violations
   logViolation(violation: InsertViolation): Promise<Violation>;
+  getViolations(): Promise<Violation[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -150,6 +151,10 @@ export class DatabaseStorage implements IStorage {
   async logViolation(violation: InsertViolation): Promise<Violation> {
     const [v] = await db.insert(violations).values(violation).returning();
     return v;
+  }
+
+  async getViolations(): Promise<Violation[]> {
+    return await db.select().from(violations).orderBy(violations.timestamp);
   }
 }
 
