@@ -1,73 +1,92 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
-import { type LoginRequest, type StudentLoginRequest } from "@shared/schema";
-import { useLocation } from "wouter";
 
+// 1. Foydalanuvchi ma'lumotlarini olish va sessiyani tekshirish hooki
+export function useAuth() {
+  const { data: user, isLoading, error } = useQuery({
+    queryKey: ["/api/user"],
+    queryFn: async () => {
+      // LocalStorage-dan foydalanuvchini tekshirish
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+        return JSON.parse(storedUser);
+      }
+      return null;
+    },
+    // Bu ma'lumotni keshda saqlaymiz
+    staleTime: Infinity,
+  });
+
+  return { user, isLoading, error };
+}
+
+// 2. Admin Login hooki
 export function useAdminLogin() {
-  const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (credentials: LoginRequest) => {
+    mutationFn: async (credentials: any) => {
       const res = await fetch(api.auth.adminLogin.path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(credentials),
       });
-      
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.message || "Login failed");
+        throw new Error(error.message || "Kirishda xatolik yuz berdi");
       }
-      return await res.json();
+      return res.json();
     },
-    onSuccess: (data) => {
-      // In a real app, we might store user info in context
-      // For now, redirect to admin dashboard
-      setLocation("/admin");
+    onSuccess: (data: any) => {
+      const userData = data.user || data;
+      // Ma'lumotni saqlash
+      localStorage.setItem("user", JSON.stringify(userData));
+      // Keshni yangilash
+      queryClient.setQueryData(["/api/user"], userData);
+      // Admin panelga o'tish
+      window.location.replace("/admin");
     },
   });
 }
 
+// 3. Talaba Login hooki
 export function useStudentLogin() {
-  const [, setLocation] = useLocation();
-  const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: async (credentials: StudentLoginRequest) => {
+    mutationFn: async (credentials: any) => {
       const res = await fetch(api.auth.studentLogin.path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(credentials),
       });
-
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.message || "Invalid access code");
+        throw new Error(error.message || "Kod yoki parol xato");
       }
-      
-      const data = await res.json();
-      // Store session ID in localStorage for persistence across reloads if needed
-      // But purely relying on HTTP-only cookies is safer.
-      // We will rely on the response for the immediate session object.
-      return data;
+      return res.json();
     },
-    onSuccess: (data) => {
-      // Redirect to exam start page
-      setLocation(`/exam/${data.session.id}`);
+    onSuccess: (data: any) => {
+      const sessionData = data.session || data;
+      localStorage.setItem("student_session", JSON.stringify(sessionData));
+      window.location.href = `/exam/${sessionData.id}`;
     },
   });
 }
 
+// 4. Logout hooki
 export function useLogout() {
-  const [, setLocation] = useLocation();
-  
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async () => {
-      await fetch(api.auth.logout.path, { method: "POST" });
+      // Serverga logout so'rovi (ixtiyoriy)
+      await fetch(api.auth.logout.path, { method: "POST" }).catch(() => {});
     },
     onSuccess: () => {
-      setLocation("/");
+      // Tozalash
+      localStorage.removeItem("user");
+      localStorage.removeItem("student_session");
+      queryClient.setQueryData(["/api/user"], null);
+      window.location.replace("/");
     },
   });
 }

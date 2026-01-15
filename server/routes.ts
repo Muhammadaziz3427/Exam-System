@@ -1,19 +1,19 @@
 import type { Express } from "express";
-import { type Server } from "http"; // createServer olib tashlandi, chunki ishlatilmayapti
+import { type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
-// z olib tashlandi, chunki pastda api.exams... orqali ishlatilyapti
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
 
-  // --- Auth Routes ---
+  // --- AUTH ROUTES ---
   app.post(api.auth.adminLogin.path, async (req, res) => {
     const { username, password } = req.body;
-    console.log(`Login attempt - User: ${username}`);
+    console.log(`Admin login attempt: ${username}`);
 
+    // Avval maxsus adminni tekshiramiz (Hardcoded logic saqlab qolindi)
     if (username === "admin" && password === "password123") {
       const user = await storage.getUserByUsername("admin");
       return res.json({ user });
@@ -21,7 +21,7 @@ export async function registerRoutes(
 
     const user = await storage.getUserByUsername(username);
     if (!user || user.password !== password) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({ message: "Xato foydalanuvchi nomi yoki parol" });
     }
 
     res.json({ user });
@@ -32,21 +32,21 @@ export async function registerRoutes(
     const session = await storage.getSessionByCode(accessCode);
 
     if (!session) {
-      return res.status(401).json({ message: "Invalid access code" });
+      return res.status(401).json({ message: "Kirish kodi noto'g'ri" });
     }
 
     if (session.password !== password) {
-       return res.status(401).json({ message: "Invalid password" });
+      return res.status(401).json({ message: "Parol noto'g'ri" });
     }
 
     if (session.status === 'completed') {
-      return res.status(403).json({ message: "This exam has already been completed." });
+      return res.status(403).json({ message: "Bu imtihon allaqachon yakunlangan." });
     }
 
     res.json({ session });
   });
 
-  // --- Exam Management ---
+  // --- EXAM MANAGEMENT ---
   app.get(api.exams.list.path, async (_req, res) => {
     const exams = await storage.getExams();
     res.json(exams);
@@ -57,28 +57,28 @@ export async function registerRoutes(
       const input = api.exams.create.input.parse(req.body);
       const exam = await storage.createExam(input);
       res.status(201).json(exam);
-    } catch (_e) {
-      res.status(400).json({ message: "Invalid exam data" });
+    } catch (e) {
+      res.status(400).json({ message: "Imtihon ma'lumotlari xato" });
     }
   });
 
   app.get(api.exams.get.path, async (req, res) => {
     const exam = await storage.getExam(Number(req.params.id));
-    if (!exam) return res.status(404).json({ message: "Exam not found" });
+    if (!exam) return res.status(404).json({ message: "Imtihon topilmadi" });
     res.json(exam);
   });
 
-  // --- Session Management ---
+  // --- SESSION MANAGEMENT (MONITORING) ---
   app.post(api.sessions.create.path, async (req, res) => {
     try {
       const input = api.sessions.create.input.parse(req.body);
       const existing = await storage.getSessionByCode(input.accessCode);
-      if (existing) return res.status(400).json({ message: "Access code already in use" });
+      if (existing) return res.status(400).json({ message: "Ushbu kod band" });
 
       const session = await storage.createSession(input);
       res.status(201).json(session);
-    } catch (_e) {
-      res.status(400).json({ message: "Invalid session data" });
+    } catch (e) {
+      res.status(400).json({ message: "Sessiya ma'lumotlari xato" });
     }
   });
 
@@ -92,11 +92,13 @@ export async function registerRoutes(
     res.json(session);
   });
 
+  // --- SUBMISSION & AUTO-GRADING ---
   app.post(api.sessions.submit.path, async (req, res) => {
     const sessionId = Number(req.params.id);
     const { answers, isFinal } = req.body;
 
     let autoGrading: any = {};
+
     if (isFinal) {
       const session = await storage.getSession(sessionId);
       if (session) {
@@ -104,30 +106,28 @@ export async function registerRoutes(
         if (exam) {
           const content = exam.content as any;
 
-          let listeningScore = 0;
-          if (content.listening && content.listening.questions) {
+          // 1. Listening Auto-grading
+          if (content.listening?.questions) {
+            let lScore = 0;
             content.listening.questions.forEach((q: any) => {
-              const studentAnswer = answers.listening?.[q.id];
-              const correctAnswer = q.answer;
-              if (studentAnswer && correctAnswer && 
-                  studentAnswer.toString().trim().toLowerCase() === correctAnswer.toString().trim().toLowerCase()) {
-                listeningScore++;
+              const studentAns = answers.listening?.[q.id];
+              if (studentAns?.toString().trim().toLowerCase() === q.answer?.toString().trim().toLowerCase()) {
+                lScore++;
               }
             });
-            autoGrading.listening = { score: listeningScore, total: content.listening.questions.length };
+            autoGrading.listening = { score: lScore, total: content.listening.questions.length };
           }
 
-          let readingScore = 0;
-          if (content.reading && content.reading.questions) {
+          // 2. Reading Auto-grading
+          if (content.reading?.questions) {
+            let rScore = 0;
             content.reading.questions.forEach((q: any) => {
-              const studentAnswer = answers.reading?.[q.id];
-              const correctAnswer = q.answer;
-              if (studentAnswer && correctAnswer && 
-                  studentAnswer.toString().trim().toLowerCase() === correctAnswer.toString().trim().toLowerCase()) {
-                readingScore++;
+              const studentAns = answers.reading?.[q.id];
+              if (studentAns?.toString().trim().toLowerCase() === q.answer?.toString().trim().toLowerCase()) {
+                rScore++;
               }
             });
-            autoGrading.reading = { score: readingScore, total: content.reading.questions.length };
+            autoGrading.reading = { score: rScore, total: content.reading.questions.length };
           }
         }
       }
@@ -147,9 +147,10 @@ export async function registerRoutes(
       await storage.updateSessionStatus(sessionId, 'completed');
     }
 
-    res.json({ message: "Saved" });
+    res.json({ message: "Muvaffaqiyatli saqlandi" });
   });
 
+  // --- VIOLATIONS ---
   app.post(api.sessions.logViolation.path, async (req, res) => {
     const sessionId = Number(req.params.id);
     const { type } = req.body;
@@ -162,16 +163,17 @@ export async function registerRoutes(
     res.json(allViolations);
   });
 
+  // Seed data initial load
   try {
     await seedData();
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : "Unknown error";
-    console.error("Seeding failed:", errorMessage);
+    console.error("Seeding failed:", err);
   }
 
   return httpServer;
 }
 
+// SEED DATA LOGIC (Siz yuborgan eski mantiq saqlab qolindi)
 async function seedData() {
   const admin = await storage.getUserByUsername("admin");
   if (!admin) {

@@ -3,29 +3,34 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/not-found";
 
-// Pages
+// Sahifalar
 import AuthPage from "@/pages/auth-page";
 import AdminDashboard from "@/pages/admin-dashboard";
 import AdminExams from "@/pages/admin-exams";
 import AdminSessions from "@/pages/admin-sessions";
 import StudentExam from "@/pages/student-exam";
+import NotFound from "@/pages/not-found";
 
-// ProtectedRoute komponenti
-function ProtectedRoute({ component: Component, allowedRoles, type }: any) {
-  const user = JSON.parse(localStorage.getItem("user") || "null");
+// Himoyalangan yo'nalishlar (Rolga asoslangan)
+function ProtectedRoute({ component: Component, type }: { component: React.ComponentType, type: "admin" | "exam" }) {
+  const storedUser = localStorage.getItem("user");
   const session = JSON.parse(localStorage.getItem("student_session") || "null");
 
   if (type === "admin") {
-    if (!user) return <Redirect to="/" />;
-    if (allowedRoles && !allowedRoles.includes(user.role)) return <Redirect to="/" />;
-    return <Component />;
+    if (!storedUser) return <Redirect to="/" />;
+
+    const user = JSON.parse(storedUser);
+    // Role tekshiruvi: serverdan kelgan formatga moslash
+    const userData = user.user ? user.user : user;
+
+    if (userData.role !== "admin" && userData.role !== "teacher") {
+      return <Redirect to="/" />;
+    }
   }
 
   if (type === "exam") {
     if (!session) return <Redirect to="/" />;
-    return <Component />;
   }
 
   return <Component />;
@@ -36,20 +41,19 @@ function Router() {
     <Switch>
       <Route path="/" component={AuthPage} />
 
+      {/* Admin yo'llari eng tepada bo'lishi kerak */}
       <Route path="/admin">
-        <ProtectedRoute component={AdminDashboard} allowedRoles={["admin"]} type="admin" />
+        {() => <ProtectedRoute component={AdminDashboard} type="admin" />}
       </Route>
-
       <Route path="/admin/exams">
-        <ProtectedRoute component={AdminExams} allowedRoles={["admin"]} type="admin" />
+        {() => <ProtectedRoute component={AdminExams} type="admin" />}
       </Route>
-
       <Route path="/admin/sessions">
-        <ProtectedRoute component={AdminSessions} allowedRoles={["admin", "teacher"]} type="admin" />
+        {() => <ProtectedRoute component={AdminSessions} type="admin" />}
       </Route>
 
       <Route path="/exam/:id">
-        <ProtectedRoute component={StudentExam} type="exam" />
+        {() => <ProtectedRoute component={StudentExam} type="exam" />}
       </Route>
 
       <Route component={NotFound} />
