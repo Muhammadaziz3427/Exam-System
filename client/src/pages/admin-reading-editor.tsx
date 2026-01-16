@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Plus, Trash, ArrowLeft, Save, GripVertical } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-type QuestionType = "multiple_choice" | "tfng" | "drag_drop";
+type QuestionType = "multiple_choice" | "tfng" | "drag_drop" | "gap_fill" | "map_labeling";
 
 interface Question {
   id: string;
@@ -19,6 +19,8 @@ interface Question {
   questionText: string;
   options: string[];
   correctAnswer: string | string[];
+  imageUrl?: string;
+  coordinates?: { x: number; y: number; label: string }[];
 }
 
 interface Passage {
@@ -195,6 +197,12 @@ export default function AdminReadingEditor() {
                   <Button variant="outline" size="sm" onClick={() => addQuestion(pIndex, "drag_drop")}>
                     <Plus className="w-4 h-4 mr-1" /> Drag & Drop
                   </Button>
+                  <Button variant="outline" size="sm" onClick={() => addQuestion(pIndex, "gap_fill")}>
+                    <Plus className="w-4 h-4 mr-1" /> Gap Fill
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => addQuestion(pIndex, "map_labeling")}>
+                    <Plus className="w-4 h-4 mr-1" /> Map Labeling
+                  </Button>
                 </div>
               </div>
 
@@ -203,15 +211,64 @@ export default function AdminReadingEditor() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1 space-y-2">
                       <Label>Savol matni</Label>
-                      <Input 
-                        value={q.questionText} 
-                        onChange={(e) => updateQuestion(pIndex, qIndex, "questionText", e.target.value)}
-                      />
+                      {q.type === "gap_fill" ? (
+                        <div className="space-y-1">
+                          <Input 
+                            value={q.questionText} 
+                            onChange={(e) => updateQuestion(pIndex, qIndex, "questionText", e.target.value)}
+                            placeholder="Use [___] for gaps, e.g. The [___] is red."
+                          />
+                          <p className="text-[10px] text-muted-foreground">Pro tip: Each [___] corresponds to one answer.</p>
+                        </div>
+                      ) : (
+                        <Input 
+                          value={q.questionText} 
+                          onChange={(e) => updateQuestion(pIndex, qIndex, "questionText", e.target.value)}
+                        />
+                      )}
                     </div>
                     <Button variant="ghost" size="icon" onClick={() => removeQuestion(pIndex, qIndex)}>
                       <Trash className="w-4 h-4 text-destructive" />
                     </Button>
                   </div>
+
+                  {q.type === "gap_fill" && (
+                    <div className="space-y-2">
+                      <Label>To'g'ri javoblar (vergul bilan)</Label>
+                      <Input 
+                        value={Array.isArray(q.correctAnswer) ? q.correctAnswer.join(", ") : q.correctAnswer as string} 
+                        onChange={(e) => updateQuestion(pIndex, qIndex, "correctAnswer", e.target.value.split(",").map(s => s.trim()))}
+                        placeholder="javob1, javob2"
+                      />
+                    </div>
+                  )}
+
+                  {q.type === "map_labeling" && (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Map/Diagram Image URL</Label>
+                        <Input 
+                          value={q.imageUrl || ""} 
+                          onChange={(e) => updateQuestion(pIndex, qIndex, "imageUrl", e.target.value)}
+                          placeholder="https://example.com/map.jpg"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Labels (Format: Label,X,Y per line)</Label>
+                        <Textarea 
+                          value={q.coordinates?.map(c => `${c.label},${c.x},${c.y}`).join("\n") || ""} 
+                          onChange={(e) => {
+                            const coords = e.target.value.split("\n").map(line => {
+                              const [label, x, y] = line.split(",");
+                              return { label: label?.trim(), x: parseFloat(x), y: parseFloat(y) };
+                            }).filter(c => c.label);
+                            updateQuestion(pIndex, qIndex, "coordinates", coords);
+                          }}
+                          placeholder="Entrance,10,20\nExit,80,90"
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   {q.type === "multiple_choice" && (
                     <div className="space-y-2">

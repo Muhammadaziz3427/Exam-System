@@ -58,6 +58,92 @@ function LockdownModal({ onStart }: { onStart: () => void }) {
   );
 }
 
+// --- QUESTION RENDERER ---
+function QuestionRenderer({ q, answer, onChange }: { q: any, answer: any, onChange: (val: any) => void }) {
+  if (q.type === 'gap_fill') {
+    const parts = q.text.split('[___]');
+    return (
+      <div className="leading-loose text-lg">
+        {parts.map((part: string, i: number) => (
+          <span key={i}>
+            {part}
+            {i < parts.length - 1 && (
+              <input
+                type="text"
+                className="mx-2 px-2 py-1 border-b-2 border-slate-300 focus:border-primary outline-none min-w-[80px] bg-slate-50 transition-colors"
+                value={(answer as string[])?.[i] || ""}
+                onChange={(e) => {
+                  const newAnswers = Array.isArray(answer) ? [...answer] : [];
+                  newAnswers[i] = e.target.value;
+                  onChange(newAnswers);
+                }}
+              />
+            )}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
+  if (q.type === 'map_labeling') {
+    return (
+      <div className="space-y-6">
+        <div className="relative inline-block border rounded-lg overflow-hidden bg-white shadow-sm">
+          <img src={q.imageUrl} alt="Map/Diagram" className="max-w-full h-auto" />
+          {q.coordinates?.map((coord: any, i: number) => (
+            <div
+              key={i}
+              className="absolute w-6 h-6 bg-primary text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white shadow-md font-bold"
+              style={{ left: `${coord.x}%`, top: `${coord.y}%`, transform: 'translate(-50%, -50%)' }}
+              title={coord.label}
+            >
+              {i + 1}
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {q.coordinates?.map((coord: any, i: number) => (
+            <div key={i} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200 shadow-sm">
+              <span className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full font-bold text-slate-500 text-sm">{i + 1}</span>
+              <div className="flex-1">
+                <p className="text-xs font-medium text-slate-500 mb-1">{coord.label}</p>
+                <input
+                  type="text"
+                  className="w-full px-3 py-1.5 border rounded-md focus:ring-1 focus:ring-primary outline-none transition-all"
+                  placeholder="Enter label..."
+                  value={(answer as Record<string, string>)?.[coord.label] || ""}
+                  onChange={(e) => {
+                    const newAnswers = typeof answer === 'object' && answer !== null ? { ...answer } : {};
+                    newAnswers[coord.label] = e.target.value;
+                    onChange(newAnswers);
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-2">
+      {q.options?.map((opt: string) => (
+        <label key={opt} className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
+          <input
+            type="radio"
+            name={`q-${q.id}`}
+            className="w-4 h-4 text-primary"
+            checked={answer === opt}
+            onChange={() => onChange(opt)}
+          />
+          <span className="text-slate-700">{opt}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
 // --- MAIN EXAM COMPONENT ---
 export default function StudentExam() {
   const { id } = useParams();
@@ -298,13 +384,52 @@ export default function StudentExam() {
         )}
 
         {currentSection === 'listening' && (
-          <div className="h-full flex flex-col items-center justify-center p-8 text-center space-y-6">
-            <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center text-primary">
-              <Clock size={48} />
+          <div className="h-full flex flex-col items-center p-8 overflow-y-auto space-y-8">
+            <div className="max-w-4xl w-full bg-white rounded-2xl p-8 shadow-sm border border-slate-200 space-y-6">
+              <div className="flex items-center justify-between border-b pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+                    <Clock size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">Listening Section</h2>
+                    <p className="text-slate-500 text-sm">Audio will play. Answer the questions as you listen.</p>
+                  </div>
+                </div>
+                <div className="bg-slate-100 px-4 py-2 rounded-lg">
+                  <audio 
+                    controls 
+                    className="h-10" 
+                    onPlay={() => {
+                      // Logic to track audio plays if needed
+                    }}
+                  >
+                    <source src={examContent.listening?.audioUrl} type="audio/mpeg" />
+                    Your browser does not support the audio element.
+                  </audio>
+                </div>
+              </div>
+
+              <div className="space-y-8 py-4">
+                {examContent.listening?.questions?.map((q: any) => (
+                  <div key={q.id} className="p-6 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+                    <p className="font-bold text-slate-900 text-lg">{q.id}. {q.type === 'gap_fill' ? "Complete the gaps below:" : q.text}</p>
+                    <QuestionRenderer 
+                      q={q} 
+                      answer={answers.listening[q.id]} 
+                      onChange={(val) => setAnswers(prev => ({
+                        ...prev,
+                        listening: { ...prev.listening, [q.id]: val }
+                      }))}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-center pt-8">
+                <Button size="lg" className="px-12" onClick={nextSection}>Finish Listening & Continue</Button>
+              </div>
             </div>
-            <h2 className="text-2xl font-bold">Listening Section</h2>
-            <p className="text-slate-500 max-w-md">Audio will play automatically. Answer the questions as you listen.</p>
-            <Button onClick={nextSection}>Continue to Reading</Button>
           </div>
         )}
 
@@ -323,26 +448,37 @@ export default function StudentExam() {
               <div className="h-full overflow-y-auto p-8 bg-slate-50">
                 <h3 className="text-xl font-bold mb-6">Questions</h3>
                 <div className="space-y-8">
-                  {examContent.reading?.questions?.map((q: any) => (
+                  {examContent.reading?.passages?.map((passage: any) => (
+                    <div key={passage.id} className="space-y-6">
+                      <h4 className="font-bold text-lg text-slate-700 border-b pb-2">{passage.title}</h4>
+                      {passage.questions?.map((q: any) => (
+                        <div key={q.id} className="p-6 bg-white rounded-xl border border-slate-200 shadow-sm space-y-4">
+                          <p className="font-bold text-slate-900">{q.id || q.text}. {q.type === 'gap_fill' ? "Complete the gaps:" : q.text}</p>
+                          <QuestionRenderer 
+                            q={q} 
+                            answer={answers.reading[q.id]} 
+                            onChange={(val) => setAnswers(prev => ({
+                              ...prev,
+                              reading: { ...prev.reading, [q.id]: val }
+                            }))}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  
+                  {/* Fallback for legacy structure */}
+                  {!examContent.reading?.passages && examContent.reading?.questions?.map((q: any) => (
                     <div key={q.id} className="p-6 bg-white rounded-xl border border-slate-200 shadow-sm space-y-4">
                       <p className="font-medium text-slate-900">{q.id}. {q.text}</p>
-                      <div className="grid grid-cols-1 gap-2">
-                        {q.options?.map((opt: string) => (
-                          <label key={opt} className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
-                            <input
-                              type="radio"
-                              name={`q-${q.id}`}
-                              className="w-4 h-4 text-primary"
-                              checked={answers.reading[q.id] === opt}
-                              onChange={() => setAnswers(prev => ({
-                                ...prev,
-                                reading: { ...prev.reading, [q.id]: opt }
-                              }))}
-                            />
-                            <span className="text-slate-700">{opt}</span>
-                          </label>
-                        ))}
-                      </div>
+                      <QuestionRenderer 
+                        q={q} 
+                        answer={answers.reading[q.id]} 
+                        onChange={(val) => setAnswers(prev => ({
+                          ...prev,
+                          reading: { ...prev.reading, [q.id]: val }
+                        }))}
+                      />
                     </div>
                   ))}
                   <Button className="w-full mt-8" onClick={nextSection}>Continue to Writing</Button>
