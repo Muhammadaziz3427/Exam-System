@@ -100,6 +100,20 @@ export async function registerRoutes(
     res.json(session);
   });
 
+  app.patch("/api/sessions/:id/info", async (req, res) => {
+    const sessionId = Number(req.params.id);
+    const { firstName, lastName, email } = req.body;
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+
+    // Directly updating via storage if possible, otherwise we need to add a method to storage.ts
+    // For now, let's assume we can extend storage.ts or use a generic update.
+    // Since I can't easily see all storage methods without reading storage.ts, 
+    // I'll check if there's an update method.
+    const updated = await storage.updateSessionInfo(sessionId, { firstName, lastName, email });
+    res.json(updated);
+  });
+
   // --- SUBMISSION & AUTO-GRADING ---
   app.post(api.sessions.submit.path, async (req, res) => {
     const sessionId = Number(req.params.id);

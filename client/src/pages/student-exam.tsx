@@ -185,12 +185,24 @@ export default function StudentExam() {
   const applyHighlight = () => {
     const selection = window.getSelection();
     if (!selection) return;
-    const text = selection.toString();
-    // In a real app, we'd wrap with a span. For this mock, we'll just track it
-    // or use a more robust highlighter library.
-    // For now, let's just alert or use a simple visual cue.
-    document.execCommand('backColor', false, 'yellow');
+    
+    // Use a more modern approach for highlighting if possible, 
+    // but for the sake of the requirement "Text Highlighter tool", 
+    // execCommand is a quick way to show visual feedback in this demo.
+    document.execCommand('backColor', false, '#fef08a'); // yellow-200
     setShowHighlightBtn(null);
+  };
+
+  const [flaggedQuestions, setFlaggedQuestions] = useState<Set<number>>(new Set());
+
+  const toggleFlag = (index: number) => {
+    const newFlagged = new Set(flaggedQuestions);
+    if (newFlagged.has(index)) {
+      newFlagged.delete(index);
+    } else {
+      newFlagged.add(index);
+    }
+    setFlaggedQuestions(newFlagged);
   };
 
   const handleSubmit = async (isFinal = false) => {
@@ -202,6 +214,29 @@ export default function StudentExam() {
     localStorage.removeItem("student_session");
     alert(isFinal ? "Time is up! Your exam has been auto-submitted." : "Test Submitted Successfully!");
     setLocation("/");
+  };
+
+  // Writing Word Counter
+  const getWordCount = (text: string) => {
+    return text.trim().split(/\s+/).filter(Boolean).length;
+  };
+
+  const [violationCount, setViolationCount] = useState(0);
+
+  const handleVisibilityChange = () => {
+    if (document.hidden) {
+      setViolationCount(prev => {
+        const newCount = prev + 1;
+        if (newCount >= 2) {
+          handleSubmit(true);
+          alert("Security violation detected (2nd attempt). Exam terminated.");
+        } else {
+          alert("WARNING: Tab switching is strictly prohibited. Your attempt has been logged.");
+        }
+        return newCount;
+      });
+      logViolation.mutate({ id: sessionId, type: "tab_switch" });
+    }
   };
 
   if (!hasStarted) return <LockdownModal onStart={handleStart} />;
@@ -217,14 +252,24 @@ export default function StudentExam() {
   };
 
   const totalQuestions = 40;
-  const answeredCount = Object.keys(answers.listening).length + Object.keys(answers.reading).length + (answers.writing ? 1 : 0);
+  
+  // Calculate answered status for footer
+  const getIsAnswered = (index: number) => {
+    // This logic depends on how questions are indexed in answers
+    // For simplicity in this mock, we'll check if any answer exists for that index
+    return answers.listening[index + 1] !== undefined || 
+           answers.reading[index + 1] !== undefined ||
+           (currentSection === 'writing' && answers.writing.length > 0);
+  };
 
   return (
     <div className="h-screen flex flex-col bg-slate-50 overflow-hidden font-sans">
       {/* Top Bar */}
       <header className="h-16 bg-secondary text-secondary-foreground flex items-center justify-between px-6 shadow-md z-10 border-b border-secondary/20">
         <div className="flex flex-col">
-          <span className="font-bold text-lg leading-tight">{session.studentName || "Student"}</span>
+          <span className="font-bold text-lg leading-tight">
+            {session.firstName ? `${session.firstName} ${session.lastName}` : (session.studentName || "Student")}
+          </span>
           <span className="text-xs opacity-80 uppercase tracking-wider">IELTS Mock: {examContent.title || "Examination"}</span>
         </div>
         
@@ -240,38 +285,149 @@ export default function StudentExam() {
       </header>
 
       {/* Content Area */}
-      <main className="flex-1 overflow-hidden relative">
-        ...
+      <main className="flex-1 overflow-hidden relative" onMouseUp={handleSelection}>
+        {showHighlightBtn && (
+          <Button
+            size="sm"
+            className="fixed z-50 bg-primary shadow-lg"
+            style={{ left: showHighlightBtn.x, top: showHighlightBtn.y }}
+            onClick={applyHighlight}
+          >
+            Highlight
+          </Button>
+        )}
+
+        {currentSection === 'listening' && (
+          <div className="h-full flex flex-col items-center justify-center p-8 text-center space-y-6">
+            <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+              <Clock size={48} />
+            </div>
+            <h2 className="text-2xl font-bold">Listening Section</h2>
+            <p className="text-slate-500 max-w-md">Audio will play automatically. Answer the questions as you listen.</p>
+            <Button onClick={nextSection}>Continue to Reading</Button>
+          </div>
+        )}
+
+        {currentSection === 'reading' && (
+          <ResizablePanelGroup direction="horizontal">
+            <ResizablePanel defaultSize={50} minSize={30}>
+              <div className="h-full overflow-y-auto p-8 bg-white prose prose-slate max-w-none">
+                <h2 className="text-2xl font-bold mb-4">Reading Passage</h2>
+                <div className="whitespace-pre-wrap leading-relaxed">
+                  {examContent.reading?.passage || "No passage content available."}
+                </div>
+              </div>
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={50} minSize={30}>
+              <div className="h-full overflow-y-auto p-8 bg-slate-50">
+                <h3 className="text-xl font-bold mb-6">Questions</h3>
+                <div className="space-y-8">
+                  {examContent.reading?.questions?.map((q: any) => (
+                    <div key={q.id} className="p-6 bg-white rounded-xl border border-slate-200 shadow-sm space-y-4">
+                      <p className="font-medium text-slate-900">{q.id}. {q.text}</p>
+                      <div className="grid grid-cols-1 gap-2">
+                        {q.options?.map((opt: string) => (
+                          <label key={opt} className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
+                            <input
+                              type="radio"
+                              name={`q-${q.id}`}
+                              className="w-4 h-4 text-primary"
+                              checked={answers.reading[q.id] === opt}
+                              onChange={() => setAnswers(prev => ({
+                                ...prev,
+                                reading: { ...prev.reading, [q.id]: opt }
+                              }))}
+                            />
+                            <span className="text-slate-700">{opt}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <Button className="w-full mt-8" onClick={nextSection}>Continue to Writing</Button>
+                </div>
+              </div>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        )}
+
+        {currentSection === 'writing' && (
+          <ResizablePanelGroup direction="horizontal">
+            <ResizablePanel defaultSize={50} minSize={30}>
+              <div className="h-full overflow-y-auto p-8 bg-white space-y-6">
+                <h2 className="text-2xl font-bold">Writing Task</h2>
+                <div className="p-6 bg-slate-50 rounded-xl border border-slate-200">
+                  <p className="text-slate-700 leading-relaxed">
+                    {examContent.writing?.prompts?.[0] || "No writing prompt available."}
+                  </p>
+                </div>
+                {/* Task Image Placeholder */}
+                <div className="aspect-video bg-slate-100 rounded-lg flex items-center justify-center border-2 border-dashed border-slate-200">
+                  <span className="text-slate-400">Task Image Content</span>
+                </div>
+              </div>
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={50} minSize={30}>
+              <div className="h-full flex flex-col p-8 bg-slate-50">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold">Your Response</h3>
+                  <div className="flex items-center gap-2 px-3 py-1 bg-white border border-slate-200 rounded-full text-sm font-medium text-slate-600 shadow-sm">
+                    Word Count: <span className="text-primary">{getWordCount(answers.writing)}</span>
+                  </div>
+                </div>
+                <Textarea
+                  className="flex-1 bg-white border-slate-200 focus:ring-primary text-lg leading-relaxed p-6"
+                  placeholder="Type your response here..."
+                  value={answers.writing}
+                  onChange={(e) => setAnswers(prev => ({ ...prev, writing: e.target.value }))}
+                />
+              </div>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        )}
       </main>
 
       {/* Question Navigation Footer */}
-      <footer className="h-20 bg-secondary text-secondary-foreground border-t border-secondary/20 flex items-center px-6 gap-4">
+      <footer className="h-24 bg-secondary text-secondary-foreground border-t border-secondary/20 flex items-center px-6 gap-4">
         <div className="text-xs font-bold uppercase tracking-tighter w-24 leading-tight opacity-70">Question Navigation</div>
-        <div className="flex-1 flex gap-1 overflow-x-auto py-2 no-scrollbar">
+        <div className="flex-1 flex gap-1.5 overflow-x-auto py-2 no-scrollbar">
           {Array.from({ length: totalQuestions }).map((_, i) => {
-            const isAnswered = i < answeredCount;
+            const index = i + 1;
+            const isAnswered = getIsAnswered(i);
+            const isFlagged = flaggedQuestions.has(index);
+            
             return (
               <div 
-                key={i} 
-                className={`min-w-[32px] h-8 flex items-center justify-center rounded-sm text-xs font-bold transition-colors border ${
+                key={i}
+                onClick={() => toggleFlag(index)}
+                className={`min-w-[36px] h-9 flex items-center justify-center rounded-md text-sm font-bold transition-all cursor-pointer border-2 relative ${
                   isAnswered 
-                    ? 'bg-primary text-primary-foreground border-primary' 
-                    : 'bg-secondary/30 text-white/50 border-white/10'
+                    ? 'bg-primary text-primary-foreground border-primary shadow-sm' 
+                    : 'bg-secondary/30 text-white/40 border-white/5 hover:border-white/20'
                 }`}
               >
-                {i + 1}
+                {index}
+                {isFlagged && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full border-2 border-secondary shadow-sm" />
+                )}
               </div>
             );
           })}
         </div>
-        <div className="flex items-center gap-4 ml-4">
-          <div className="flex items-center gap-2 text-xs">
-            <div className="w-3 h-3 bg-primary rounded-sm" />
-            <span>Answered</span>
+        <div className="flex items-center gap-6 ml-4">
+          <div className="flex items-center gap-2 text-xs font-medium">
+            <div className="w-4 h-4 bg-primary rounded-sm shadow-sm" />
+            <span className="opacity-80">Answered</span>
           </div>
-          <div className="flex items-center gap-2 text-xs">
-            <div className="w-3 h-3 bg-secondary/30 border border-white/10 rounded-sm" />
-            <span>Not Answered</span>
+          <div className="flex items-center gap-2 text-xs font-medium">
+            <div className="w-4 h-4 bg-secondary/30 border border-white/10 rounded-sm" />
+            <span className="opacity-80">Unanswered</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs font-medium">
+            <div className="w-4 h-4 bg-amber-400 rounded-full shadow-sm" />
+            <span className="opacity-80">Flagged</span>
           </div>
         </div>
       </footer>

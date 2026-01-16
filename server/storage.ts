@@ -25,6 +25,7 @@ export interface IStorage {
   updateSessionStatus(id: number, status: string): Promise<ExamSession>;
   updateSessionResultStatus(id: number, resultStatus: string): Promise<ExamSession>;
   updateSessionScores(id: number, scores: { writingScore?: string, speakingScore?: string, overallBand?: string }): Promise<ExamSession>;
+  updateSessionInfo(id: number, info: { firstName?: string, lastName?: string, email?: string }): Promise<ExamSession>;
   startSession(id: number): Promise<ExamSession>;
   releaseResults(id: number): Promise<ExamSession>;
 
@@ -109,6 +110,14 @@ export class DatabaseStorage implements IStorage {
   async updateSessionScores(id: number, scores: { writingScore?: string, speakingScore?: string, overallBand?: string }): Promise<ExamSession> {
     const [updated] = await db.update(examSessions)
       .set(scores)
+      .where(eq(examSessions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateSessionInfo(id: number, info: { firstName?: string, lastName?: string, email?: string }): Promise<ExamSession> {
+    const [updated] = await db.update(examSessions)
+      .set(info)
       .where(eq(examSessions.id, id))
       .returning();
     return updated;
