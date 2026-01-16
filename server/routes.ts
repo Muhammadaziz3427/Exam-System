@@ -234,7 +234,20 @@ async function seedData() {
           passage: "Sample passage content...",
           questions: [{ id: 1, text: "Reading Question?", options: ["Yes", "No"], answer: "Yes" }]
         },
-        writing: { prompts: ["Writing task 1: Describe the process of making tea."] }
+        writing: { 
+        tasks: [
+          { 
+            type: "task1", 
+            content: "The chart below shows the number of visitors to three different areas between 2000 and 2010.",
+            image: "https://images.unsplash.com/photo-1551288049-bbbda536339a?q=80&w=2070&auto=format&fit=crop"
+          },
+          {
+            type: "task2",
+            content: "Some people think that it is better to educate boys and girls in separate schools. Others, however, believe that mixed schools are more beneficial.",
+            prompts: ["Discuss both views and give your own opinion."]
+          }
+        ]
+      }
       },
       isPublished: true
     });

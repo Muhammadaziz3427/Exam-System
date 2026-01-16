@@ -21,7 +21,9 @@ export const exams = pgTable("exams", {
   // { 
   //   listening: { audioUrl: string, questions: Question[] }, 
   //   reading: { passages: [{id, title, content, questions: Question[] }] }, 
-  //   writing: { prompts: string[] } 
+  //   writing: { 
+  //     tasks: [{ type: 'task1' | 'task2', content: string, image?: string, prompts?: string[] }]
+  //   } 
   // }
   // Question type: { id, type: 'mcq'|'gap_fill'|'map_labeling', text: string, options?: string[], answer: string, coordinates?: {x, y}[] }
   content: jsonb("content").notNull(), 
