@@ -5,6 +5,7 @@ import { api } from "@shared/routes";
 import { db } from "./db";
 import { exams } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { sendExamResultsEmail } from "./email";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -141,6 +142,23 @@ export async function registerRoutes(
     await storage.updateSessionScores(sessionId, scores);
     
     res.json({ message: "Grading saved" });
+  });
+
+  app.post("/api/sessions/:id/release", async (req, res) => {
+    const sessionId = Number(req.params.id);
+    const session = await storage.getSession(sessionId);
+    
+    if (!session) {
+      return res.status(404).json({ message: "Sessiya topilmadi" });
+    }
+
+    const updatedSession = await storage.releaseResults(sessionId);
+    await storage.updateSessionResultStatus(sessionId, 'released');
+    
+    // Send professional HTML email
+    await sendExamResultsEmail(updatedSession);
+    
+    res.json({ message: "Results released and email sent", session: updatedSession });
   });
 
   // --- SUBMISSION & AUTO-GRADING ---
