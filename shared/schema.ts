@@ -29,14 +29,22 @@ export const exams = pgTable("exams", {
 export const examSessions = pgTable("exam_sessions", {
   id: serial("id").primaryKey(),
   studentName: text("student_name").notNull(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  email: text("email"),
   accessCode: text("access_code").notNull().unique(), // The "Test ID"
   password: text("password").notNull(), // One-time password
   examId: integer("exam_id").notNull(), // Linked exam
   status: text("status", { enum: ["created", "in_progress", "completed", "pending_grading", "graded"] }).notNull().default("created"),
+  resultStatus: text("result_status", { enum: ["active", "marking", "completed", "released"] }).notNull().default("active"),
+  writingScore: text("writing_score"),
+  speakingScore: text("speaking_score"),
+  overallBand: text("overall_band"),
   startTime: timestamp("start_time"),
   endTime: timestamp("end_time"),
   currentSection: text("current_section").default("listening"),
   resultsReleased: boolean("results_released").default(false),
+  assignedTeacherId: integer("assigned_teacher_id"), // Teacher assigned for marking
 });
 
 // Student Answers

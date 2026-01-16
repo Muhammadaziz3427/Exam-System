@@ -82,7 +82,15 @@ export async function registerRoutes(
     }
   });
 
-  app.get(api.sessions.list.path, async (_req, res) => {
+  app.get(api.sessions.list.path, async (req, res) => {
+    const userStr = req.headers['x-user-context'] as string;
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      if (user.role === 'teacher') {
+        const sessions = await storage.getSessionsByTeacher(user.id);
+        return res.json(sessions);
+      }
+    }
     const sessions = await storage.getSessions();
     res.json(sessions);
   });

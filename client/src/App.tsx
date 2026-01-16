@@ -9,6 +9,7 @@ import AuthPage from "@/pages/auth-page";
 import AdminDashboard from "@/pages/admin-dashboard";
 import AdminExams from "@/pages/admin-exams";
 import AdminSessions from "@/pages/admin-sessions";
+import TeacherDashboard from "@/pages/teacher-dashboard";
 import StudentExam from "@/pages/student-exam";
 import NotFound from "@/pages/not-found";
 
@@ -50,6 +51,10 @@ function Router() {
       </Route>
       <Route path="/admin/sessions">
         {() => <ProtectedRoute component={AdminSessions} type="admin" />}
+      </Route>
+
+      <Route path="/teacher">
+        {() => <ProtectedRoute component={TeacherDashboard} type="admin" />}
       </Route>
 
       <Route path="/exam/:id">

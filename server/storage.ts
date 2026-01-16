@@ -21,7 +21,10 @@ export interface IStorage {
   getSessionByCode(code: string): Promise<ExamSession | undefined>;
   getSession(id: number): Promise<ExamSession | undefined>;
   getSessions(): Promise<ExamSession[]>;
+  getSessionsByTeacher(teacherId: number): Promise<ExamSession[]>;
   updateSessionStatus(id: number, status: string): Promise<ExamSession>;
+  updateSessionResultStatus(id: number, resultStatus: string): Promise<ExamSession>;
+  updateSessionScores(id: number, scores: { writingScore?: string, speakingScore?: string, overallBand?: string }): Promise<ExamSession>;
   startSession(id: number): Promise<ExamSession>;
   releaseResults(id: number): Promise<ExamSession>;
 
@@ -83,9 +86,29 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(examSessions).orderBy(desc(examSessions.id));
   }
 
+  async getSessionsByTeacher(teacherId: number): Promise<ExamSession[]> {
+    return await db.select().from(examSessions).where(eq(examSessions.assignedTeacherId, teacherId)).orderBy(desc(examSessions.id));
+  }
+
   async updateSessionStatus(id: number, status: string): Promise<ExamSession> {
     const [updated] = await db.update(examSessions)
       .set({ status: status as any })
+      .where(eq(examSessions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateSessionResultStatus(id: number, resultStatus: string): Promise<ExamSession> {
+    const [updated] = await db.update(examSessions)
+      .set({ resultStatus: resultStatus as any })
+      .where(eq(examSessions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateSessionScores(id: number, scores: { writingScore?: string, speakingScore?: string, overallBand?: string }): Promise<ExamSession> {
+    const [updated] = await db.update(examSessions)
+      .set(scores)
       .where(eq(examSessions.id, id))
       .returning();
     return updated;
