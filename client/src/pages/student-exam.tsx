@@ -107,7 +107,7 @@ export default function StudentExam() {
     }
   };
 
-  const handleVisibilityChange = () => {
+  const handleVisibilityChangeOld = () => {
     if (document.hidden) {
       logViolation.mutate({ id: sessionId, type: "tab_switch" });
     }
