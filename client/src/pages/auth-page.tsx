@@ -116,22 +116,74 @@ function AdminLoginForm() {
 function StudentLoginForm() {
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
+  const [step, setStep] = useState<"login" | "info">("login");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [sessionData, setSessionData] = useState<any>(null);
   const login = useStudentLogin();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     login.mutate({ accessCode: code, password }, {
       onSuccess: (data: any) => {
-        // Student sessiyasini saqlash
-        const sessionData = data.session || data;
-        localStorage.setItem("student_session", JSON.stringify(sessionData));
-
-        // Imtihon identifikatorini olish
-        const id = sessionData.id;
-        window.location.href = `/exam/${id}`;
+        setSessionData(data.session || data);
+        setStep("info");
       }
     });
   };
+
+  const handleInfoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      // Update session with candidate info
+      await fetch(`/api/sessions/${sessionData.id}/info`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ firstName, lastName, email }),
+      });
+      
+      const updatedSession = { ...sessionData, firstName, lastName, email };
+      localStorage.setItem("student_session", JSON.stringify(updatedSession));
+      window.location.href = `/exam/${sessionData.id}`;
+    } catch (err) {
+      console.error("Failed to save info", err);
+    }
+  };
+
+  if (step === "info") {
+    return (
+      <Card className="border-t-4 border-t-primary shadow-2xl overflow-hidden">
+        <CardHeader className="text-center pb-2 bg-blue-50/30">
+          <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4 text-primary shadow-sm">
+            <GraduationCap size={24} />
+          </div>
+          <CardTitle className="text-xl text-slate-900">Candidate Information</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <form onSubmit={handleInfoSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="first-name">First Name</Label>
+                <Input id="first-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="last-name">Last Name</Label>
+                <Input id="last-name" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </div>
+            <Button className="w-full shadow-lg shadow-primary/20 mt-2">
+              Proceed to Exam
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="border-t-4 border-t-primary shadow-2xl overflow-hidden">
@@ -142,7 +194,7 @@ function StudentLoginForm() {
         <CardTitle className="text-xl text-slate-900">Start Your Exam</CardTitle>
       </CardHeader>
       <CardContent className="pt-6">
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleLoginSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="st-code">Access Code</Label>
             <Input 
