@@ -1,6 +1,5 @@
-
 import { z } from 'zod';
-import { insertExamSchema, insertSessionSchema, insertUserSchema, insertSubmissionSchema, insertViolationSchema, exams, examSessions, submissions, violations, users } from './schema';
+import { insertExamSchema, insertSessionSchema, exams, examSessions, violations, users } from './schema';
 
 export const errorSchemas = {
   validation: z.object({ message: z.string() }),
@@ -27,7 +26,7 @@ export const api = {
       responses: {
         200: z.object({ session: z.custom<typeof examSessions.$inferSelect>() }),
         401: errorSchemas.unauthorized,
-        403: z.object({ message: z.string() }), // For "already used" or "expired"
+        403: z.object({ message: z.string() }),
       },
     },
     logout: {
@@ -57,7 +56,7 @@ export const api = {
   sessions: {
     create: {
       method: 'POST' as const,
-      path: '/api/sessions/generate', // Admin generates a session code
+      path: '/api/sessions/generate',
       input: insertSessionSchema,
       responses: { 201: z.custom<typeof examSessions.$inferSelect>() },
     },
@@ -75,7 +74,7 @@ export const api = {
       method: 'POST' as const,
       path: '/api/sessions/:id/submit',
       input: z.object({
-        answers: z.any(), // JSON blob
+        answers: z.any(),
         isFinal: z.boolean().optional(),
       }),
       responses: { 200: z.object({ message: z.string() }) },
@@ -86,6 +85,23 @@ export const api = {
       input: z.object({ type: z.enum(['tab_switch', 'fullscreen_exit', 'window_blur']) }),
       responses: { 201: z.custom<typeof violations.$inferSelect>() },
     },
+    // --- YANGI QO'SHILGAN QISM ---
+    terminate: {
+      method: 'POST' as const,
+      path: '/api/sessions/:id/terminate',
+      input: z.object({}),
+      responses: { 
+        200: z.object({ message: z.string() }),
+        404: errorSchemas.notFound 
+      },
+    },
+    release: {
+      method: 'POST' as const,
+      path: '/api/sessions/:id/release',
+      input: z.object({}),
+      responses: { 200: z.object({ message: z.string() }) },
+    }
+    // ----------------------------
   }
 };
 

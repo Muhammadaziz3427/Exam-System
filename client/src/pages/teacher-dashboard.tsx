@@ -15,18 +15,17 @@ import type { ExamSession, Submission } from "@shared/schema";
 export default function TeacherDashboard() {
   const { toast } = useToast();
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
-  const user = JSON.parse(localStorage.getItem("user") || "null");
-  const userData = user?.user || user;
-  
+
+  // User contextni olish
+  const userStr = localStorage.getItem("user");
+  const userData = userStr ? JSON.parse(userStr) : null;
+
+  // Barcha sessionlarni yuklash
   const { data: sessions, isLoading: sessionsLoading } = useQuery<ExamSession[]>({
     queryKey: ["/api/sessions"],
-    meta: {
-      headers: {
-        "x-user-context": JSON.stringify(userData)
-      }
-    }
-  } as any);
+  });
 
+  // Tanlangan sessionning javoblarini yuklash
   const { data: submission, isLoading: submissionLoading } = useQuery<Submission>({
     queryKey: ["/api/sessions", selectedSessionId, "submission"],
     enabled: !!selectedSessionId,
@@ -47,49 +46,55 @@ export default function TeacherDashboard() {
 
   const gradeMutation = useMutation({
     mutationFn: async ({ id, grading, scores }: { id: number, grading: any, scores: any }) => {
-      await apiRequest("POST", `/api/sessions/${id}/grade`, { grading, scores });
+      const res = await apiRequest("POST", `/api/sessions/${id}/grade`, { grading, scores });
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
-      toast({ title: "Success", description: "Grading saved successfully" });
+      toast({ title: "Muvaffaqiyatli", description: "Ballar saqlandi va hisoblandi." });
     },
   });
 
+  // IELTS Rounding mantiqi: 6.25 -> 6.5, 6.75 -> 7.0
   const calculateOverall = (l: number, r: number, w: number, s: number) => {
     const avg = (l + r + w + s) / 4;
-    // IELTS rounding: rounds to nearest 0.5
     return (Math.round(avg * 2) / 2).toFixed(1);
   };
 
   const handleGrade = () => {
     if (!selectedSessionId || !submission) return;
-    
+
     const w = parseFloat(writingScore) || 0;
     const s = parseFloat(speakingScore) || 0;
 
-    const grading = {
-      ...submission.grading as any,
+    const currentGrading = submission.grading as any;
+    const auto = currentGrading?.autoGraded || {};
+
+    // Listening va Readingni band scorega o'girish (taxminiy 40 talik tizimda)
+    const lRaw = auto.listening?.score || 0;
+    const rRaw = auto.reading?.score || 0;
+
+    // Oddiy konvertatsiya (aslida IELTS jadvali murakkabroq, lekin bu mock uchun yetarli)
+    const lBand = Math.min(9, Math.max(0, (lRaw / 40) * 9));
+    const rBand = Math.min(9, Math.max(0, (rRaw / 40) * 9));
+
+    const overall = calculateOverall(lBand, rBand, w, s);
+
+    const updatedGrading = {
+      ...currentGrading,
       writing: { feedback, score: w },
       speaking: { score: s },
       feedback: feedback
     };
 
-    // Calculate band scores from auto-graded sections
-    // Standard IELTS conversion approx: (raw / total) * 9
-    const auto = grading.autoGraded || {};
-    const l = (auto.listening?.score / (auto.listening?.total || 40)) * 9 || 0;
-    const r = (auto.reading?.score / (auto.reading?.total || 40)) * 9 || 0;
-
-    const overall = calculateOverall(l, r, w, s);
-
     gradeMutation.mutate({
       id: selectedSessionId,
-      grading,
+      grading: updatedGrading,
       scores: {
         writingScore: w.toString(),
         speakingScore: s.toString(),
-        readingScore: l.toFixed(1),
-        listeningScore: r.toFixed(1),
+        readingScore: lBand.toFixed(1),
+        listeningScore: rBand.toFixed(1),
         overallBand: overall,
         status: 'graded'
       }
@@ -99,7 +104,7 @@ export default function TeacherDashboard() {
   if (sessionsLoading) {
     return (
       <AdminLayout>
-        <div className="flex items-center justify-center p-8">
+        <div className="flex items-center justify-center p-8 h-screen">
           <Loader2 className="h-8 w-8 animate-spin" />
         </div>
       </AdminLayout>
@@ -110,11 +115,11 @@ export default function TeacherDashboard() {
 
   return (
     <AdminLayout>
-      <div className="grid grid-cols-12 gap-6 h-[calc(100vh-12rem)]">
-        {/* Sessions List */}
+      <div className="grid grid-cols-12 gap-6 h-[calc(100vh-8rem)]">
+        {/* Chap taraf: Studentlar ro'yxati */}
         <Card className="col-span-12 lg:col-span-4 flex flex-col overflow-hidden">
           <CardHeader>
-            <CardTitle>Submissions</CardTitle>
+            <CardTitle>Imtihon topshirganlar</CardTitle>
           </CardHeader>
           <CardContent className="flex-1 p-0 overflow-hidden">
             <ScrollArea className="h-full">
@@ -122,25 +127,18 @@ export default function TeacherDashboard() {
                 {sessions?.map((session) => (
                   <div
                     key={session.id}
-                    data-testid={`card-session-${session.id}`}
                     className={`p-4 rounded-lg border cursor-pointer transition-colors ${
-                      selectedSessionId === session.id
-                        ? "bg-primary/10 border-primary"
-                        : "hover:bg-accent"
+                      selectedSessionId === session.id ? "bg-primary/10 border-primary" : "hover:bg-accent"
                     }`}
                     onClick={() => setSelectedSessionId(session.id)}
                   >
-                    <div className="flex justify-between items-start mb-1">
-                      <span className="font-medium" data-testid={`text-student-name-${session.id}`}>
-                        {session.firstName} {session.lastName}
-                      </span>
+                    <div className="flex justify-between items-start">
+                      <span className="font-medium">{session.firstName} {session.lastName}</span>
                       <Badge variant={session.status === 'graded' ? 'default' : 'secondary'}>
-                        {session.status}
+                        {session.status === 'graded' ? 'Tekshirilgan' : 'Kutilmoqda'}
                       </Badge>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      ID: {session.accessCode}
-                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">ID: {session.accessCode}</div>
                   </div>
                 ))}
               </div>
@@ -148,90 +146,56 @@ export default function TeacherDashboard() {
           </CardContent>
         </Card>
 
-        {/* Grading Area */}
+        {/* O'ng taraf: Tekshirish paneli */}
         <Card className="col-span-12 lg:col-span-8 flex flex-col overflow-hidden">
           {selectedSessionId ? (
             submissionLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <Loader2 className="h-8 w-8 animate-spin" />
-              </div>
+              <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>
             ) : (
               <>
-                <CardHeader className="flex flex-row items-center justify-between border-b pb-4 gap-2 flex-wrap">
-                  <CardTitle className="text-lg">Grading: {selectedSession?.firstName} {selectedSession?.lastName}</CardTitle>
-                  <Button 
-                    data-testid="button-save-grades"
-                    onClick={handleGrade}
-                    disabled={gradeMutation.isPending}
-                  >
+                <CardHeader className="flex flex-row items-center justify-between border-b">
+                  <CardTitle>O'quvchi: {selectedSession?.firstName} {selectedSession?.lastName}</CardTitle>
+                  <Button onClick={handleGrade} disabled={gradeMutation.isPending}>
                     {gradeMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Save Grades
+                    Natijani saqlash
                   </Button>
                 </CardHeader>
                 <CardContent className="flex-1 p-0 overflow-hidden">
                   <ScrollArea className="h-full p-6">
-                    <div className="space-y-6 pb-20">
-                      {/* Writing Content */}
+                    <div className="space-y-6">
                       <section>
-                        <h3 className="text-lg font-semibold mb-2">Writing Essay</h3>
-                        <div className="p-4 rounded-md bg-muted whitespace-pre-wrap min-h-[200px]" data-testid="text-essay-content">
-                          {(submission?.answers as any)?.writing || "No essay submitted."}
+                        <h3 className="text-md font-bold mb-2">Writing Task Javobi:</h3>
+                        <div className="p-4 rounded-md bg-slate-50 border whitespace-pre-wrap text-sm leading-relaxed">
+                          {(submission?.answers as any)?.writing || "Insho yozilmagan."}
                         </div>
                       </section>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-sm font-medium">Writing Band Score (0-9)</label>
-                          <Input 
-                            data-testid="input-writing-score"
-                            type="number" 
-                            min="0" 
-                            max="9" 
-                            step="0.5"
-                            value={writingScore}
-                            onChange={(e) => setWritingScore(e.target.value)}
-                          />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-blue-600">Writing Band (0-9)</label>
+                          <Input type="number" min="0" max="9" step="0.5" value={writingScore} onChange={(e) => setWritingScore(e.target.value)} />
                         </div>
-                        <div>
-                          <label className="text-sm font-medium">Speaking Band Score (0-9)</label>
-                          <Input 
-                            data-testid="input-speaking-score"
-                            type="number" 
-                            min="0" 
-                            max="9" 
-                            step="0.5"
-                            value={speakingScore}
-                            onChange={(e) => setSpeakingScore(e.target.value)}
-                          />
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-blue-600">Speaking Band (0-9)</label>
+                          <Input type="number" min="0" max="9" step="0.5" value={speakingScore} onChange={(e) => setSpeakingScore(e.target.value)} />
                         </div>
                       </div>
 
-                      <section>
-                        <h3 className="text-lg font-semibold mb-2">Teacher Feedback</h3>
-                        <Textarea 
-                          data-testid="input-feedback"
-                          placeholder="Enter feedback for the student..."
-                          className="min-h-[150px]"
-                          value={feedback}
-                          onChange={(e) => setFeedback(e.target.value)}
-                        />
+                      <section className="space-y-2">
+                        <h3 className="text-sm font-bold">O'qituvchi Feedbacki:</h3>
+                        <Textarea className="min-h-[120px]" placeholder="Feedback yozing..." value={feedback} onChange={(e) => setFeedback(e.target.value)} />
                       </section>
 
-                      {/* Auto Graded Results */}
-                      <section className="p-4 border rounded-lg bg-muted/50">
-                        <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">Automatic Scores</h3>
+                      <section className="p-4 border rounded-lg bg-green-50/50">
+                        <h3 className="text-xs font-bold uppercase text-green-700 mb-3">Avtomatik hisoblangan (Listening & Reading):</h3>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <p className="text-sm text-muted-foreground">Listening (Raw)</p>
-                            <p className="text-xl font-bold" data-testid="text-listening-score">
-                              {(submission?.grading as any)?.autoGraded?.listening?.score || 0} / {(submission?.grading as any)?.autoGraded?.listening?.total || 0}
-                            </p>
+                            <p className="text-xs text-muted-foreground">Listening To'g'ri javoblar</p>
+                            <p className="text-lg font-bold">{(submission?.grading as any)?.autoGraded?.listening?.score || 0} / 40</p>
                           </div>
                           <div>
-                            <p className="text-sm text-muted-foreground">Reading (Raw)</p>
-                            <p className="text-xl font-bold" data-testid="text-reading-score">
-                              {(submission?.grading as any)?.autoGraded?.reading?.score || 0} / {(submission?.grading as any)?.autoGraded?.reading?.total || 0}
-                            </p>
+                            <p className="text-xs text-muted-foreground">Reading To'g'ri javoblar</p>
+                            <p className="text-lg font-bold">{(submission?.grading as any)?.autoGraded?.reading?.score || 0} / 40</p>
                           </div>
                         </div>
                       </section>
@@ -241,15 +205,13 @@ export default function TeacherDashboard() {
               </>
             )
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-12">
-              <Clock className="h-12 w-12 mb-4 opacity-20" />
-              <p>Select a student submission to begin grading</p>
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+              <Clock className="h-10 w-10 mb-2 opacity-20" />
+              <p>Tekshirish uchun o'quvchini tanlang</p>
             </div>
           )}
         </Card>
       </div>
     </AdminLayout>
-  );
-}
   );
 }

@@ -3,7 +3,7 @@ import { type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { db } from "./db";
-import { exams } from "@shared/schema";
+import { exams, examSessions } from "@shared/schema"; // DIQQAT: examSessions ishlatilishi shart
 import { eq } from "drizzle-orm";
 import { sendExamResultsEmail } from "./email";
 
@@ -15,41 +15,27 @@ export async function registerRoutes(
   // --- AUTH ROUTES ---
   app.post(api.auth.adminLogin.path, async (req, res) => {
     const { username, password } = req.body;
-    console.log(`Admin login attempt: ${username}`);
-
-    // Avval maxsus adminni tekshiramiz (Hardcoded logic saqlab qolindi)
     if (username === "admin" && password === "password123") {
       const user = await storage.getUserByUsername("admin");
       return res.json({ user });
     }
-
     const user = await storage.getUserByUsername(username);
     if (!user || user.password !== password) {
       return res.status(401).json({ message: "Xato foydalanuvchi nomi yoki parol" });
     }
-
     res.json({ user });
   });
 
   app.post(api.auth.studentLogin.path, async (req, res) => {
     const { accessCode, password } = req.body;
     const session = await storage.getSessionByCode(accessCode);
-
-    if (!session) {
-      return res.status(401).json({ message: "Kirish kodi noto'g'ri" });
-    }
-
-    if (session.password !== password) {
-      return res.status(401).json({ message: "Parol noto'g'ri" });
-    }
-
-    if (session.status === 'completed') {
-      return res.status(403).json({ message: "Bu imtihon allaqachon yakunlangan." });
-    }
-
+    if (!session) return res.status(401).json({ message: "Kirish kodi noto'g'ri" });
+    if (session.password !== password) return res.status(401).json({ message: "Parol noto'g'ri" });
+    if (session.status === 'completed') return res.status(403).json({ message: "Bu imtihon allaqachon yakunlangan." });
     res.json({ session });
   });
 
+  // --- TEACHER MANAGEMENT ---
   app.get("/api/admin/teachers", async (_req, res) => {
     const teachers = await storage.getTeachers();
     res.json(teachers);
@@ -60,13 +46,11 @@ export async function registerRoutes(
     const nouns = ["Mentor", "Coach", "Tutor", "Guide", "Sensei", "Guru"];
     const randomName = `${adjectives[Math.floor(Math.random() * adjectives.length)]}${nouns[Math.floor(Math.random() * nouns.length)]}${Math.floor(Math.random() * 1000)}`;
     const randomPassword = Math.random().toString(36).slice(-8);
-
     const teacher = await storage.createUser({
       username: randomName,
       password: randomPassword,
       role: "teacher"
     });
-
     res.status(201).json(teacher);
   });
 
@@ -111,22 +95,15 @@ export async function registerRoutes(
   app.post(api.sessions.create.path, async (req, res) => {
     try {
       const { firstName, lastName, email, studentName, accessCode, password, examId } = req.body;
-      
       const existing = await storage.getSessionByCode(accessCode);
       if (existing) return res.status(400).json({ message: "Ushbu kod band" });
 
       const session = await storage.createSession({
-        firstName,
-        lastName,
-        email,
-        studentName,
-        accessCode,
-        password,
-        examId: Number(examId)
+        firstName, lastName, email, studentName,
+        accessCode, password, examId: Number(examId)
       } as any);
       res.status(201).json(session);
     } catch (e) {
-      console.error("Session creation error:", e);
       res.status(400).json({ message: "Sessiya ma'lumotlari xato" });
     }
   });
@@ -149,16 +126,30 @@ export async function registerRoutes(
     res.json(session);
   });
 
+  // === TERMINATE SESSION (Majburiy to'xtatish) ===
+  app.post("/api/sessions/:id/terminate", async (req, res) => {
+    const sessionId = Number(req.params.id);
+    console.log(`Terminating session: ${sessionId}`);
+
+    try {
+      // 1. Jadval nomi 'examSessions' bo'lishi kerak (schema.ts bo'yicha)
+      await db.update(examSessions)
+        .set({ 
+          status: 'completed',
+          resultStatus: 'marking' // Result status ham yangilandi
+        })
+        .where(eq(examSessions.id, sessionId));
+
+      res.json({ success: true, message: "Sessiya muvaffaqiyatli yopildi" });
+    } catch (error) {
+      console.error("Terminate API xatosi:", error);
+      res.status(500).json({ message: "Bazani yangilashda xatolik" });
+    }
+  });
+
   app.patch("/api/sessions/:id/info", async (req, res) => {
     const sessionId = Number(req.params.id);
     const { firstName, lastName, email } = req.body;
-    const session = await storage.getSession(sessionId);
-    if (!session) return res.status(404).json({ message: "Session not found" });
-
-    // Directly updating via storage if possible, otherwise we need to add a method to storage.ts
-    // For now, let's assume we can extend storage.ts or use a generic update.
-    // Since I can't easily see all storage methods without reading storage.ts, 
-    // I'll check if there's an update method.
     const updated = await storage.updateSessionInfo(sessionId, { firstName, lastName, email });
     res.json(updated);
   });
@@ -172,27 +163,19 @@ export async function registerRoutes(
   app.post("/api/sessions/:id/grade", async (req, res) => {
     const sessionId = Number(req.params.id);
     const { grading, scores } = req.body;
-    
     await storage.updateGrading(sessionId, grading);
     await storage.updateSessionScores(sessionId, scores);
-    
     res.json({ message: "Grading saved" });
   });
 
   app.post("/api/sessions/:id/release", async (req, res) => {
     const sessionId = Number(req.params.id);
     const session = await storage.getSession(sessionId);
-    
-    if (!session) {
-      return res.status(404).json({ message: "Sessiya topilmadi" });
-    }
+    if (!session) return res.status(404).json({ message: "Sessiya topilmadi" });
 
     const updatedSession = await storage.releaseResults(sessionId);
     await storage.updateSessionResultStatus(sessionId, 'released');
-    
-    // Send professional HTML email
     await sendExamResultsEmail(updatedSession);
-    
     res.json({ message: "Results released and email sent", session: updatedSession });
   });
 
@@ -200,42 +183,24 @@ export async function registerRoutes(
   app.post(api.sessions.submit.path, async (req, res) => {
     const sessionId = Number(req.params.id);
     const { answers, isFinal } = req.body;
-
     let autoGrading: any = {};
 
     if (isFinal) {
       const session = await storage.getSession(sessionId);
-      if (session) {
-        const exam = await storage.getExam(session.examId);
-        if (exam) {
-          const content = exam.content as any;
-
-          // 1. Listening Auto-grading
-          if (content.listening?.questions) {
-            let lScore = 0;
-            content.listening.questions.forEach((q: any) => {
-              const studentAns = answers.listening?.[q.id];
+      const exam = session ? await storage.getExam(session.examId) : null;
+      if (exam) {
+        const content = exam.content as any;
+        ['listening', 'reading'].forEach(skill => {
+          if (content[skill]?.questions) {
+            let score = 0;
+            content[skill].questions.forEach((q: any) => {
+              const studentAns = answers[skill]?.[q.id]?.toString().trim().toLowerCase();
               const correctAns = q.answer?.toString().trim().toLowerCase();
-              if (studentAns && studentAns.toString().trim().toLowerCase() === correctAns) {
-                lScore++;
-              }
+              if (studentAns && studentAns === correctAns) score++;
             });
-            autoGrading.listening = { score: lScore, total: content.listening.questions.length };
+            autoGrading[skill] = { score, total: content[skill].questions.length };
           }
-
-          // 2. Reading Auto-grading
-          if (content.reading?.questions) {
-            let rScore = 0;
-            content.reading.questions.forEach((q: any) => {
-              const studentAns = answers.reading?.[q.id];
-              const correctAns = q.answer?.toString().trim().toLowerCase();
-              if (studentAns && studentAns.toString().trim().toLowerCase() === correctAns) {
-                rScore++;
-              }
-            });
-            autoGrading.reading = { score: rScore, total: content.reading.questions.length };
-          }
-        }
+        });
       }
     }
 
@@ -245,21 +210,14 @@ export async function registerRoutes(
       const submission = await storage.getSubmission(sessionId);
       if (submission) {
         const currentGrading = (submission.grading as any) || {};
-        await storage.updateGrading(sessionId, {
-          ...currentGrading,
-          autoGraded: autoGrading
-        });
+        await storage.updateGrading(sessionId, { ...currentGrading, autoGraded: autoGrading });
       }
-      
-      // Determine if it needs manual grading (e.g. has writing)
       const session = await storage.getSession(sessionId);
       const exam = session ? await storage.getExam(session.examId) : null;
       const hasWriting = (exam?.content as any)?.writing?.tasks?.length > 0;
-      
       await storage.updateSessionStatus(sessionId, hasWriting ? 'pending_grading' : 'graded');
       await storage.updateSessionResultStatus(sessionId, 'marking');
     }
-
     res.json({ message: "Muvaffaqiyatli saqlandi" });
   });
 
@@ -276,59 +234,14 @@ export async function registerRoutes(
     res.json(allViolations);
   });
 
-  // Seed data initial load
-  try {
-    await seedData();
-  } catch (err) {
-    console.error("Seeding failed:", err);
-  }
+  try { await seedData(); } catch (err) { console.error("Seeding failed:", err); }
 
   return httpServer;
 }
 
-// SEED DATA LOGIC (Siz yuborgan eski mantiq saqlab qolindi)
 async function seedData() {
   const admin = await storage.getUserByUsername("admin");
   if (!admin) {
-    await storage.createUser({
-      username: "admin",
-      password: "password123",
-      role: "admin"
-    });
-    console.log("Seeded Admin: admin / password123");
-  }
-
-  const exams = await storage.getExams();
-  if (exams.length === 0) {
-    await storage.createExam({
-      title: "IELTS Mock Test 1",
-      timeLimit: 120,
-      content: {
-        listening: {
-          audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-          questions: [{ id: 1, text: "Sample Question?", options: ["A", "B"], answer: "A" }]
-        },
-        reading: {
-          passage: "Sample passage content...",
-          questions: [{ id: 1, text: "Reading Question?", options: ["Yes", "No"], answer: "Yes" }]
-        },
-        writing: { 
-        tasks: [
-          { 
-            type: "task1", 
-            content: "The chart below shows the number of visitors to three different areas between 2000 and 2010.",
-            image: "https://images.unsplash.com/photo-1551288049-bbbda536339a?q=80&w=2070&auto=format&fit=crop"
-          },
-          {
-            type: "task2",
-            content: "Some people think that it is better to educate boys and girls in separate schools. Others, however, believe that mixed schools are more beneficial.",
-            prompts: ["Discuss both views and give your own opinion."]
-          }
-        ]
-      }
-      },
-      isPublished: true
-    });
-    console.log("Seeded Sample Exam");
+    await storage.createUser({ username: "admin", password: "password123", role: "admin" });
   }
 }

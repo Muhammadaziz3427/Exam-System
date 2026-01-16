@@ -127,8 +127,65 @@ export function Badge({ className, variant = "default", ...props }: React.HTMLAt
     success: "border-transparent bg-green-500 text-white hover:bg-green-600",
     warning: "border-transparent bg-amber-500 text-white hover:bg-amber-600",
   };
-  
+
   return (
     <div className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2", variants[variant], className)} {...props} />
   );
+}
+
+// --- NEW: PROGRESS ---
+export function Progress({ value = 0, className }: { value?: number; className?: string }) {
+  return (
+    <div className={cn("relative h-2 w-full overflow-hidden rounded-full bg-secondary", className)}>
+      <div
+        className="h-full w-full flex-1 bg-primary transition-all"
+        style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
+      />
+    </div>
+  );
+}
+
+// --- NEW: TABS ---
+const TabsContext = React.createContext<{
+  value: string;
+  onValueChange: (v: string) => void;
+} | null>(null);
+
+export function Tabs({ defaultValue, value, onValueChange, children, className }: any) {
+  const [val, setVal] = React.useState(value || defaultValue);
+  const activeValue = value || val;
+  const onChange = onValueChange || setVal;
+
+  return (
+    <TabsContext.Provider value={{ value: activeValue, onValueChange: onChange }}>
+      <div className={cn("w-full", className)}>{children}</div>
+    </TabsContext.Provider>
+  );
+}
+
+export function TabsList({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground", className)} {...props} />;
+}
+
+export function TabsTrigger({ value, className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { value: string }) {
+  const context = React.useContext(TabsContext);
+  const isActive = context?.value === value;
+  return (
+    <button
+      type="button"
+      onClick={() => context?.onValueChange(value)}
+      className={cn(
+        "inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+        isActive ? "bg-background text-foreground shadow-sm" : "hover:text-foreground",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+export function TabsContent({ value, className, ...props }: React.HTMLAttributes<HTMLDivElement> & { value: string }) {
+  const context = React.useContext(TabsContext);
+  if (context?.value !== value) return null;
+  return <div className={cn("mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2", className)} {...props} />;
 }

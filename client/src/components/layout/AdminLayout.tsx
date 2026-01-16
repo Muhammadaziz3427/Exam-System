@@ -1,69 +1,66 @@
-import { Link, useLocation } from "wouter";
-import { LayoutDashboard, FileText, Users, LogOut, Loader2, UserCog } from "lucide-react";
-import { useLogout, useAuth } from "@/hooks/use-auth";
+import { useLocation } from "wouter";
+import { LogOut, Loader2, User } from "lucide-react";
+import { useLogout } from "@/hooks/use-auth";
 import { Button } from "@/components/ui-kit";
 import { AppSidebar } from "@/components/app-sidebar";
-import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const logout = useLogout();
-  const { user, isLoading } = useAuth();
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen w-full">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  // LocalStorage dan ma'lumotni olish
+  const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+  const user = storedUser?.user ? storedUser.user : storedUser;
 
-  if (!user || (user.role !== "admin" && user.role !== "teacher")) {
+  // Agar foydalanuvchi tizimga kirmagan bo'lsa, login sahifasiga yuborish
+  if (!user) {
+    window.location.replace("/");
     return null;
   }
 
   return (
     <div className="flex min-h-screen w-full bg-slate-50">
+      {/* Sidebar */}
       <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4 bg-white sticky top-0 z-50">
-          <SidebarTrigger className="-ml-1" />
-          <div className="flex flex-1 items-center justify-between">
-            <h1 className="text-lg font-semibold text-slate-900">
-              {location.includes("exams") ? "Exams" : 
-               location.includes("sessions") ? "Live Monitoring" : 
-               location.includes("teachers") ? "Manage Teachers" : "Dashboard"}
-            </h1>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-slate-500 font-medium hidden md:inline-block">
-                {user.username} ({user.role})
-              </span>
-              <Button 
-                variant="ghost" 
-                size="sm"
-                className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                onClick={() => {
-                  if (confirm("Tizimdan chiqmoqchimisiz?")) {
-                    logout.mutate();
-                  }
-                }}
-                disabled={logout.isPending}
-              >
-                {logout.isPending ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <LogOut size={16} />
-                )}
-              </Button>
+
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header */}
+        <header className="h-16 flex items-center justify-between px-8 bg-white border-b sticky top-0 z-40">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-lg uppercase tracking-wider">
+              {user.role} Portal
+            </span>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-xl">
+              <User size={16} className="text-slate-500" />
+              <span className="text-sm font-bold text-slate-700">{user.username}</span>
             </div>
+
+            <Button 
+              variant="ghost" 
+              size="sm"
+              className="text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl"
+              onClick={() => {
+                if (confirm("Chiqmoqchimisiz?")) {
+                  localStorage.clear();
+                  window.location.href = "/";
+                }
+              }}
+            >
+              <LogOut size={18} />
+            </Button>
           </div>
         </header>
-        <main className="flex-1 p-6 lg:p-8">
-          <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+        {/* Kontent */}
+        <main className="flex-1 p-8 overflow-y-auto">
+          <div className="max-w-7xl mx-auto animate-in fade-in duration-500">
             {children}
           </div>
         </main>
-      </SidebarInset>
+      </div>
     </div>
   );
 }
