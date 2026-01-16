@@ -52,6 +52,9 @@ export default function AdminSessions() {
 
     await createSession.mutateAsync({
       studentName,
+      firstName: studentName.split(' ')[0] || "",
+      lastName: studentName.split(' ').slice(1).join(' ') || "",
+      email: `${studentName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
       examId: parseInt(selectedExamId),
       accessCode: randomCode,
       password: randomPass
