@@ -298,7 +298,8 @@ export default function StudentExam() {
     document.removeEventListener("fullscreenchange", handleFullscreenChange);
     if (document.fullscreenElement) document.exitFullscreen();
     localStorage.removeItem("student_session");
-    alert(isFinal ? "Time is up! Your exam has been auto-submitted." : "Test Submitted Successfully!");
+    // Show a neutral message instead of scores
+    alert(isFinal ? "Time is up! Your exam has been auto-submitted and is now under review." : "Test Submitted Successfully! Your results will be available after admin approval.");
     setLocation("/");
   };
 

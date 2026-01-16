@@ -146,7 +146,8 @@ export async function registerRoutes(
             let lScore = 0;
             content.listening.questions.forEach((q: any) => {
               const studentAns = answers.listening?.[q.id];
-              if (studentAns?.toString().trim().toLowerCase() === q.answer?.toString().trim().toLowerCase()) {
+              const correctAns = q.answer?.toString().trim().toLowerCase();
+              if (studentAns && studentAns.toString().trim().toLowerCase() === correctAns) {
                 lScore++;
               }
             });
@@ -158,7 +159,8 @@ export async function registerRoutes(
             let rScore = 0;
             content.reading.questions.forEach((q: any) => {
               const studentAns = answers.reading?.[q.id];
-              if (studentAns?.toString().trim().toLowerCase() === q.answer?.toString().trim().toLowerCase()) {
+              const correctAns = q.answer?.toString().trim().toLowerCase();
+              if (studentAns && studentAns.toString().trim().toLowerCase() === correctAns) {
                 rScore++;
               }
             });
@@ -179,7 +181,14 @@ export async function registerRoutes(
           autoGraded: autoGrading
         });
       }
-      await storage.updateSessionStatus(sessionId, 'completed');
+      
+      // Determine if it needs manual grading (e.g. has writing)
+      const session = await storage.getSession(sessionId);
+      const exam = session ? await storage.getExam(session.examId) : null;
+      const hasWriting = (exam?.content as any)?.writing?.tasks?.length > 0;
+      
+      await storage.updateSessionStatus(sessionId, hasWriting ? 'pending_grading' : 'graded');
+      await storage.updateSessionResultStatus(sessionId, 'marking');
     }
 
     res.json({ message: "Muvaffaqiyatli saqlandi" });
