@@ -3,15 +3,19 @@ import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Card, CardContent, Button, Input, Label, Badge } from "@/components/ui-kit"; 
 import { useSessions, useCreateSession } from "@/hooks/use-sessions";
 import { useExams } from "@/hooks/use-exams";
-import { Loader2, RefreshCw, UserPlus, AlertCircle, Clock, Eye, Bold, Italic } from "lucide-react";
+import { Loader2, RefreshCw, UserPlus, AlertCircle, Clock, Eye, Bold, Italic, Send, CheckCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function AdminSessions() {
   const { data: sessions, isLoading, refetch } = useSessions();
   const { data: exams } = useExams();
   const createSession = useCreateSession();
   const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
+  const [isReleasing, setIsReleasing] = useState(false);
+  const { toast } = useToast();
 
   const { data: allViolations } = useQuery({
     queryKey: ['/api/violations'],
@@ -55,6 +59,27 @@ export default function AdminSessions() {
     
     setStudentName("");
     alert(`Generated!\nCode: ${randomCode}\nPassword: ${randomPass}`);
+  };
+
+  const handleRelease = async (sessionId: number) => {
+    setIsReleasing(true);
+    try {
+      await apiRequest("POST", `/api/sessions/${sessionId}/release`, {});
+      toast({
+        title: "Results Released",
+        description: "The results have been approved and emailed to the student.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      setSelectedSubmission(null);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to release results. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsReleasing(false);
+    }
   };
 
   return (
@@ -220,9 +245,33 @@ export default function AdminSessions() {
                   </Card>
                   <Card className="p-4 border-l-4 border-l-primary">
                     <h4 className="font-bold mb-1 text-sm text-slate-500 uppercase tracking-wider">Reading Score</h4>
-                    <p className="text-3xl font-bold text-slate-900">-- / 40</p>
+                    <p className="text-3xl font-bold text-slate-900">{selectedSubmission.readingScore || "--"} / 40</p>
                   </Card>
                 </div>
+
+                {selectedSubmission.status === 'graded' && !selectedSubmission.resultsReleased && (
+                  <div className="flex justify-end pt-4 border-t">
+                    <Button 
+                      onClick={() => handleRelease(selectedSubmission.id)} 
+                      disabled={isReleasing}
+                      className="gap-2"
+                    >
+                      {isReleasing ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                      Approve & Release Results
+                    </Button>
+                  </div>
+                )}
+
+                {selectedSubmission.resultsReleased && (
+                  <div className="flex items-center gap-2 text-green-600 font-medium justify-center p-4 bg-green-50 rounded-lg border border-green-100">
+                    <CheckCircle size={20} />
+                    Results have been released and emailed
+                  </div>
+                )}
               </div>
             </DialogContent>
           </Dialog>
