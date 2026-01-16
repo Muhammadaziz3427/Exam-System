@@ -109,7 +109,13 @@ export class DatabaseStorage implements IStorage {
 
   async updateSessionScores(id: number, scores: { writingScore?: string, speakingScore?: string, readingScore?: string, listeningScore?: string, overallBand?: string }): Promise<ExamSession> {
     const [updated] = await db.update(examSessions)
-      .set(scores)
+      .set({
+        writingScore: scores.writingScore,
+        speakingScore: scores.speakingScore,
+        readingScore: scores.readingScore,
+        listeningScore: scores.listeningScore,
+        overallBand: scores.overallBand,
+      })
       .where(eq(examSessions.id, id))
       .returning();
     return updated;

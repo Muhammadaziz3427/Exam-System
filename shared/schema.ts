@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -36,19 +36,19 @@ export const exams = pgTable("exams", {
 export const examSessions = pgTable("exam_sessions", {
   id: serial("id").primaryKey(),
   studentName: text("student_name").notNull(),
-  firstName: text("first_name"),
-  lastName: text("last_name"),
-  email: text("email"),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  email: text("email").notNull(),
   accessCode: text("access_code").notNull().unique(), // The "Test ID"
   password: text("password").notNull(), // One-time password
   examId: integer("exam_id").notNull(), // Linked exam
-  status: text("status", { enum: ["created", "in_progress", "completed", "pending_grading", "graded"] }).notNull().default("created"),
+  status: text("status", { enum: ["active", "created", "in_progress", "completed", "pending_grading", "graded"] }).notNull().default("active"),
   resultStatus: text("result_status", { enum: ["active", "marking", "completed", "released"] }).notNull().default("active"),
-  writingScore: text("writing_score"),
-  speakingScore: text("speaking_score"),
-  readingScore: text("reading_score"),
-  listeningScore: text("listening_score"),
-  overallBand: text("overall_band"),
+  writingScore: numeric("writing_score"),
+  speakingScore: numeric("speaking_score"),
+  readingScore: numeric("reading_score"),
+  listeningScore: numeric("listening_score"),
+  overallBand: numeric("overall_band"),
   startTime: timestamp("start_time"),
   endTime: timestamp("end_time"),
   currentSection: text("current_section").default("listening"),
