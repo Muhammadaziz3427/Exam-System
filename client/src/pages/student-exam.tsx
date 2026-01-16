@@ -3,7 +3,7 @@ import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import { useStartSession, useSubmitAnswers, useLogViolation } from "@/hooks/use-sessions";
-import { Button, Textarea } from "@/components/ui-kit";
+import { Button, Textarea, Badge } from "@/components/ui-kit";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Clock, AlertOctagon, Maximize2, FileCheck } from "lucide-react";
 
