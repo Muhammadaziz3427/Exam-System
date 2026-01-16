@@ -46,15 +46,15 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
             return (
               <Link key={item.href} href={item.href}>
-                <a className={`
-                  flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200
+                <div className={`
+                  flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 cursor-pointer
                   ${isActive 
                     ? "bg-primary text-white shadow-lg shadow-primary/20" 
                     : "hover:bg-slate-800 hover:text-white"}
                 `}>
                   <item.icon size={18} className={isActive ? "animate-pulse" : ""} />
                   <span className="font-medium">{item.label}</span>
-                </a>
+                </div>
               </Link>
             );
           })}

@@ -39,13 +39,16 @@ export function AppSidebar() {
                     asChild 
                     isActive={location === item.url}
                   >
-                    <a href={item.url} onClick={(e) => {
-                      e.preventDefault();
-                      setLocation(item.url);
-                    }}>
+                    <button 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setLocation(item.url);
+                      }}
+                      className="flex items-center gap-2 w-full"
+                    >
                       <item.icon />
                       <span>{item.title}</span>
-                    </a>
+                    </button>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
