@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import AuthPage from "@/pages/auth-page";
 import AdminDashboard from "@/pages/admin-dashboard";
 import AdminExams from "@/pages/admin-exams";
+import AdminTeachers from "@/pages/admin-teachers";
 import AdminSessions from "@/pages/admin-sessions";
 import AdminReadingEditor from "@/pages/admin-reading-editor";
 import TeacherDashboard from "@/pages/teacher-dashboard";
@@ -49,6 +50,9 @@ function Router() {
       </Route>
       <Route path="/admin/exams">
         {() => <ProtectedRoute component={AdminExams} type="admin" />}
+      </Route>
+      <Route path="/admin/teachers">
+        {() => <ProtectedRoute component={AdminTeachers} type="admin" />}
       </Route>
       <Route path="/admin/sessions">
         {() => <ProtectedRoute component={AdminSessions} type="admin" />}

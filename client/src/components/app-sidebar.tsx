@@ -1,5 +1,5 @@
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
-import { LayoutDashboard, BookOpen, Users, LogOut } from "lucide-react";
+import { LayoutDashboard, BookOpen, Users, LogOut, UserCog } from "lucide-react";
 import { useLocation } from "wouter";
 
 export function AppSidebar() {
@@ -13,6 +13,7 @@ export function AppSidebar() {
     ...(isAdmin ? [
       { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
       { title: "Exams", url: "/admin/exams", icon: BookOpen },
+      { title: "Teachers", url: "/admin/teachers", icon: UserCog },
       { title: "Sessions", url: "/admin/sessions", icon: Users },
     ] : [
       { title: "Teacher Tasks", url: "/teacher", icon: LayoutDashboard },

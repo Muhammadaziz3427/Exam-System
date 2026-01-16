@@ -50,6 +50,31 @@ export async function registerRoutes(
     res.json({ session });
   });
 
+  app.get("/api/admin/teachers", async (_req, res) => {
+    const teachers = await storage.getTeachers();
+    res.json(teachers);
+  });
+
+  app.post("/api/admin/teachers/generate", async (_req, res) => {
+    const adjectives = ["Smart", "Quick", "Wise", "Kind", "Bright", "Super", "Cool"];
+    const nouns = ["Mentor", "Coach", "Tutor", "Guide", "Sensei", "Guru"];
+    const randomName = `${adjectives[Math.floor(Math.random() * adjectives.length)]}${nouns[Math.floor(Math.random() * nouns.length)]}${Math.floor(Math.random() * 1000)}`;
+    const randomPassword = Math.random().toString(36).slice(-8);
+
+    const teacher = await storage.createUser({
+      username: randomName,
+      password: randomPassword,
+      role: "teacher"
+    });
+
+    res.status(201).json(teacher);
+  });
+
+  app.delete("/api/admin/teachers/:id", async (req, res) => {
+    await storage.deleteUser(Number(req.params.id));
+    res.sendStatus(204);
+  });
+
   // --- EXAM MANAGEMENT ---
   app.get(api.exams.list.path, async (_req, res) => {
     const exams = await storage.getExams();
