@@ -24,7 +24,7 @@ export interface IStorage {
   getSessionsByTeacher(teacherId: number): Promise<ExamSession[]>;
   updateSessionStatus(id: number, status: string): Promise<ExamSession>;
   updateSessionResultStatus(id: number, resultStatus: string): Promise<ExamSession>;
-  updateSessionScores(id: number, scores: { writingScore?: string, speakingScore?: string, overallBand?: string }): Promise<ExamSession>;
+  updateSessionScores(id: number, scores: { writingScore?: string, speakingScore?: string, readingScore?: string, listeningScore?: string, overallBand?: string }): Promise<ExamSession>;
   updateSessionInfo(id: number, info: { firstName?: string, lastName?: string, email?: string }): Promise<ExamSession>;
   startSession(id: number): Promise<ExamSession>;
   releaseResults(id: number): Promise<ExamSession>;
@@ -107,7 +107,7 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async updateSessionScores(id: number, scores: { writingScore?: string, speakingScore?: string, overallBand?: string }): Promise<ExamSession> {
+  async updateSessionScores(id: number, scores: { writingScore?: string, speakingScore?: string, readingScore?: string, listeningScore?: string, overallBand?: string }): Promise<ExamSession> {
     const [updated] = await db.update(examSessions)
       .set(scores)
       .where(eq(examSessions.id, id))
@@ -202,7 +202,6 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getViolations(): Promise<Violation[]> {
-    // Eng so'nggi qoidabuzarliklar birinchi ko'rinishi uchun timestamp bo'yicha tartiblaymiz
     return await db.select().from(violations).orderBy(desc(violations.timestamp));
   }
 }

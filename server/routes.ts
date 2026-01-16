@@ -127,6 +127,22 @@ export async function registerRoutes(
     res.json(updated);
   });
 
+  app.get("/api/sessions/:id/submission", async (req, res) => {
+    const submission = await storage.getSubmission(Number(req.params.id));
+    if (!submission) return res.status(404).json({ message: "Submission not found" });
+    res.json(submission);
+  });
+
+  app.post("/api/sessions/:id/grade", async (req, res) => {
+    const sessionId = Number(req.params.id);
+    const { grading, scores } = req.body;
+    
+    await storage.updateGrading(sessionId, grading);
+    await storage.updateSessionScores(sessionId, scores);
+    
+    res.json({ message: "Grading saved" });
+  });
+
   // --- SUBMISSION & AUTO-GRADING ---
   app.post(api.sessions.submit.path, async (req, res) => {
     const sessionId = Number(req.params.id);

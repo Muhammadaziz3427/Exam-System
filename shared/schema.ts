@@ -46,6 +46,8 @@ export const examSessions = pgTable("exam_sessions", {
   resultStatus: text("result_status", { enum: ["active", "marking", "completed", "released"] }).notNull().default("active"),
   writingScore: text("writing_score"),
   speakingScore: text("speaking_score"),
+  readingScore: text("reading_score"),
+  listeningScore: text("listening_score"),
   overallBand: text("overall_band"),
   startTime: timestamp("start_time"),
   endTime: timestamp("end_time"),
@@ -58,16 +60,18 @@ export const examSessions = pgTable("exam_sessions", {
 export const submissions = pgTable("submissions", {
   id: serial("id").primaryKey(),
   sessionId: integer("session_id").notNull(),
-  // JSON structure: { listening: { q1: "a", ... }, reading: { ... }, writing: "text..." }
+  // JSON structure: { listening: { q1: "a", ... }, reading: { ... }, writing: { task1: "text...", task2: "text..." } }
   answers: jsonb("answers").default({}),
   // Grading details
   grading: jsonb("grading").default({
     writing: {
-      taskResponse: 0,
-      cohesion: 0,
-      vocabulary: 0,
-      grammar: 0,
-      average: 0,
+      task1: { feedback: "", score: 0 },
+      task2: { feedback: "", score: 0 },
+      overall: 0,
+      feedback: ""
+    },
+    speaking: {
+      score: 0,
       feedback: ""
     },
     autoGraded: {
