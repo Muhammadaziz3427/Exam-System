@@ -68,6 +68,16 @@ export async function registerRoutes(
     res.json(exam);
   });
 
+  app.patch("/api/exams/:id", async (req, res) => {
+    const id = Number(req.params.id);
+    const { title, content, timeLimit } = req.body;
+    const [updated] = await db.update(exams)
+      .set({ title, content, timeLimit })
+      .where(eq(exams.id, id))
+      .returning();
+    res.json(updated);
+  });
+
   // --- SESSION MANAGEMENT (MONITORING) ---
   app.post(api.sessions.create.path, async (req, res) => {
     try {

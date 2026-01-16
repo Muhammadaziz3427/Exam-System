@@ -1,4 +1,3 @@
-
 import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -18,7 +17,7 @@ export const users = pgTable("users", {
 export const exams = pgTable("exams", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
-  // JSON structure for sections: { listening: { audioUrl, questions: [] }, reading: { passage, questions: [] }, writing: { prompts: [] } }
+  // JSON structure for sections: { listening: { audioUrl, questions: [] }, reading: { passages: [{id, title, content, questions: [] }] }, writing: { prompts: [] } }
   content: jsonb("content").notNull(), 
   timeLimit: integer("time_limit").notNull(), // in minutes
   isPublished: boolean("is_published").default(false),

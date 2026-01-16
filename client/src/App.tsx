@@ -9,6 +9,7 @@ import AuthPage from "@/pages/auth-page";
 import AdminDashboard from "@/pages/admin-dashboard";
 import AdminExams from "@/pages/admin-exams";
 import AdminSessions from "@/pages/admin-sessions";
+import AdminReadingEditor from "@/pages/admin-reading-editor";
 import TeacherDashboard from "@/pages/teacher-dashboard";
 import StudentExam from "@/pages/student-exam";
 import NotFound from "@/pages/not-found";
@@ -51,6 +52,9 @@ function Router() {
       </Route>
       <Route path="/admin/sessions">
         {() => <ProtectedRoute component={AdminSessions} type="admin" />}
+      </Route>
+      <Route path="/admin/reading/:id">
+        {() => <ProtectedRoute component={AdminReadingEditor} type="admin" />}
       </Route>
 
       <Route path="/teacher">
