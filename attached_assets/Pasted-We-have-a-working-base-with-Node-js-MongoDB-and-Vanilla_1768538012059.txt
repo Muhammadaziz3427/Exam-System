@@ -1,0 +1,51 @@
+We have a working base with Node.js, MongoDB, and Vanilla JS. We need to upgrade this into a high-end, professional CD-IELTS platform.
+
+1. Database & Role Expansion (MongoDB):
+
+Models Update: Update Student and ExamSession schemas to include firstName, lastName, email, writingScore, speakingScore, overallBand, and resultStatus (Values: active, marking, completed, released).
+
+Teacher Role: Ensure Teachers have a dedicated dashboard to view only assigned writing/speaking tasks.
+
+2. Visual Exam Builder (No-Code Admin UI):
+
+Remove JSON dependency: Create a UI where Admin can:
+
+Add Reading Passages via text editor and add question blocks (Multiple Choice, Drag-and-drop, T/F/NG) next to them.
+
+Upload Listening MP3s and create synced question sections.
+
+Writing Task 1: Add an "Image Upload" field for charts/maps and a prompt text area.
+
+Writing Task 2: Standard text prompt area.
+
+Preview Mode: Admin should be able to preview the exam exactly as a student would see it.
+
+3. The 1:1 Student Experience (Frontend):
+
+Registration Flow: After entering the Unique Test ID/Password, show a "Candidate Information" form (First Name, Last Name, Email).
+
+Authentic UI: * Reading: 50/50 vertical split. Left: passage (scrollable), Right: questions. Add a Text Highlighter tool.
+
+Writing: Split screen. Task 1 image on the left, editor on the right with a live Word Counter.
+
+Navigation: A numbered footer (1-40) showing attempted/flagged questions.
+
+Lockdown 2.0: Trigger full-screen on start. If visibilitychange detects a tab switch, show a modal warning. On 2nd attempt, end the test and notify Admin.
+
+4. Grading & Result Pipeline:
+
+Auto-Marking: System grades Listening/Reading immediately but keeps them hidden.
+
+Teacher Marking Portal: * Teachers view student essays, type feedback, and enter a band score (0-9).
+
+A field for Speaking Score (entered manually after the interview).
+
+Admin Approval: A "Release Results" dashboard where Admin reviews the final calculated Overall Band.
+
+Email System: When "Release" is clicked, send a professional HTML email to the student's registered email address with their full score breakdown.
+
+5. UI/UX Style Guide:
+
+Apply the official IELTS color palette: White background, Slate/Grey text, and Primary Blue for buttons/headers.
+
+Ensure all transitions are smooth and the platform feels like a desktop application.
