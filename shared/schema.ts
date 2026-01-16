@@ -17,7 +17,13 @@ export const users = pgTable("users", {
 export const exams = pgTable("exams", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
-  // JSON structure for sections: { listening: { audioUrl, questions: [] }, reading: { passages: [{id, title, content, questions: [] }] }, writing: { prompts: [] } }
+  // JSON structure for sections: 
+  // { 
+  //   listening: { audioUrl: string, questions: Question[] }, 
+  //   reading: { passages: [{id, title, content, questions: Question[] }] }, 
+  //   writing: { prompts: string[] } 
+  // }
+  // Question type: { id, type: 'mcq'|'gap_fill'|'map_labeling', text: string, options?: string[], answer: string, coordinates?: {x, y}[] }
   content: jsonb("content").notNull(), 
   timeLimit: integer("time_limit").notNull(), // in minutes
   isPublished: boolean("is_published").default(false),
