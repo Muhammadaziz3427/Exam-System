@@ -94,7 +94,15 @@ export const violations = pgTable("violations", {
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertExamSchema = createInsertSchema(exams).omit({ id: true, createdAt: true });
-export const insertSessionSchema = createInsertSchema(examSessions).omit({ id: true, status: true, startTime: true, endTime: true, currentSection: true });
+export const insertSessionSchema = createInsertSchema(examSessions).omit({ 
+  id: true, 
+  status: true, 
+  startTime: true, 
+  endTime: true, 
+  currentSection: true,
+  resultsReleased: true,
+  resultStatus: true
+});
 export const insertSubmissionSchema = createInsertSchema(submissions).omit({ id: true, lastSavedAt: true });
 export const insertViolationSchema = createInsertSchema(violations).omit({ id: true, timestamp: true });
 

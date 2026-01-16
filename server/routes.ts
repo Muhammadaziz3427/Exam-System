@@ -85,13 +85,23 @@ export async function registerRoutes(
   // --- SESSION MANAGEMENT (MONITORING) ---
   app.post(api.sessions.create.path, async (req, res) => {
     try {
-      const input = api.sessions.create.input.parse(req.body);
-      const existing = await storage.getSessionByCode(input.accessCode);
+      const { firstName, lastName, email, studentName, accessCode, password, examId } = req.body;
+      
+      const existing = await storage.getSessionByCode(accessCode);
       if (existing) return res.status(400).json({ message: "Ushbu kod band" });
 
-      const session = await storage.createSession(input);
+      const session = await storage.createSession({
+        firstName,
+        lastName,
+        email,
+        studentName,
+        accessCode,
+        password,
+        examId: Number(examId)
+      } as any);
       res.status(201).json(session);
     } catch (e) {
+      console.error("Session creation error:", e);
       res.status(400).json({ message: "Sessiya ma'lumotlari xato" });
     }
   });
