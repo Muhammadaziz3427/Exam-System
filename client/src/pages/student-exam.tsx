@@ -491,17 +491,43 @@ export default function StudentExam() {
         {currentSection === 'writing' && (
           <ResizablePanelGroup direction="horizontal">
             <ResizablePanel defaultSize={50} minSize={30}>
-              <div className="h-full overflow-y-auto p-8 bg-white space-y-6">
-                <h2 className="text-2xl font-bold">Writing Task</h2>
-                <div className="p-6 bg-slate-50 rounded-xl border border-slate-200">
-                  <p className="text-slate-700 leading-relaxed">
-                    {examContent.writing?.prompts?.[0] || "No writing prompt available."}
-                  </p>
-                </div>
-                {/* Task Image Placeholder */}
-                <div className="aspect-video bg-slate-100 rounded-lg flex items-center justify-center border-2 border-dashed border-slate-200">
-                  <span className="text-slate-400">Task Image Content</span>
-                </div>
+              <div className="h-full overflow-y-auto p-8 bg-white space-y-8">
+                <h2 className="text-2xl font-bold">Writing Section</h2>
+                {examContent.writing?.tasks?.map((task: any, idx: number) => (
+                  <div key={idx} className="space-y-6 border-b pb-8 last:border-0">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="uppercase tracking-wider">
+                        {task.type === 'task1' ? 'Task 1' : 'Task 2'}
+                      </Badge>
+                    </div>
+                    
+                    <div className="p-6 bg-slate-50 rounded-xl border border-slate-200">
+                      <p className="text-slate-700 leading-relaxed font-medium">
+                        {task.content || "No writing prompt available."}
+                      </p>
+                    </div>
+
+                    {task.image && (
+                      <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100">
+                        <img 
+                          src={task.image} 
+                          alt="Writing Task Illustration" 
+                          className="w-full h-auto object-contain max-h-[400px]"
+                        />
+                      </div>
+                    )}
+
+                    {task.prompts && task.prompts.length > 0 && (
+                      <div className="space-y-2">
+                        {task.prompts.map((p: string, pIdx: number) => (
+                          <p key={pIdx} className="text-slate-600 italic border-l-4 border-primary/20 pl-4 py-1">
+                            {p}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </ResizablePanel>
             <ResizableHandle withHandle />

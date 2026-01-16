@@ -72,7 +72,18 @@ export default function AdminExams() {
       questions: []
     },
     writing: {
-      prompts: ["Write about technology."]
+      tasks: [
+        { 
+          type: "task1", 
+          content: "Describe the chart.", 
+          image: "https://images.unsplash.com/photo-1551288049-bbbda536339a?q=80&w=2070&auto=format&fit=crop" 
+        },
+        { 
+          type: "task2", 
+          content: "Discuss technology.", 
+          prompts: ["Give your opinion."] 
+        }
+      ]
     }
   }, null, 2));
 
@@ -167,7 +178,12 @@ export default function AdminExams() {
                 if (contentJson.length < 10) setContentJson(JSON.stringify({
                   listening: { audioUrl: "", questions: [{ id: 1, text: "Q1", options: ["A", "B"], answer: "A" }] },
                   reading: { passage: "", questions: [{ id: 1, text: "Q1", options: ["A", "B"], answer: "A" }] },
-                  writing: { prompts: ["Prompt"] }
+                  writing: { 
+                  tasks: [
+                    { type: "task1", content: "Prompt 1", image: "" },
+                    { type: "task2", content: "Prompt 2", prompts: [""] }
+                  ] 
+                }
                 }, null, 2));
               }}>Use Template</Button>
             </div>
