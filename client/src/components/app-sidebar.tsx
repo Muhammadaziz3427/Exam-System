@@ -21,7 +21,8 @@ export function AppSidebar() {
 
   const handleLogout = () => {
     localStorage.removeItem("user");
-    setLocation("/");
+    localStorage.removeItem("student_session");
+    window.location.href = "/";
   };
 
   return (
@@ -48,7 +49,7 @@ export function AppSidebar() {
                 </SidebarMenuItem>
               ))}
               <SidebarMenuItem>
-                <SidebarMenuButton onClick={handleLogout} className="text-destructive">
+                <SidebarMenuButton onClick={handleLogout} className="text-destructive hover:bg-destructive/10">
                   <LogOut />
                   <span>Logout</span>
                 </SidebarMenuButton>
