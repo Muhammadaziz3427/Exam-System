@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -7,6 +6,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import { Badge } from "@/components/ui/badge";
 import { type ExamSession } from "@shared/schema";
 import { Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
 export default function TeacherDashboard() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
@@ -14,8 +14,10 @@ export default function TeacherDashboard() {
 
   const { data: sessions, isLoading } = useQuery<ExamSession[]>({
     queryKey: ["/api/sessions"],
-    headers: {
-      "x-user-context": JSON.stringify(userData)
+    meta: {
+      headers: {
+        "x-user-context": JSON.stringify(userData)
+      }
     }
   } as any);
 

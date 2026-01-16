@@ -60,8 +60,14 @@ function AdminLoginForm() {
         // 2. Keshni majburan yangilash
         queryClient.setQueryData(["/api/user"], userData);
 
-        // 3. Admin panelga yo'naltirish
-        window.location.replace("/admin");
+        // 3. Dashbordga yo'naltirish (Rolga qarab)
+        if (userData.role === "admin") {
+          window.location.replace("/admin");
+        } else if (userData.role === "teacher") {
+          window.location.replace("/teacher");
+        } else {
+          window.location.replace("/admin");
+        }
       }
     });
   };
