@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Textarea, Label, Badge } from "@/components/ui-kit";
 import { useExams, useCreateExam } from "@/hooks/use-exams";
@@ -127,7 +128,7 @@ export default function AdminExams() {
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" className="flex-1" asChild>
-                    <a href={`/admin/reading/${exam.id}`}>Reading Editor</a>
+                    <Link href={`/admin/reading/${exam.id}`}>Reading Editor</Link>
                   </Button>
                   <Button variant="outline" className="flex-1">Edit JSON</Button>
                 </div>

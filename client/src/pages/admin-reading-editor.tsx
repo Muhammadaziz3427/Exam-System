@@ -35,7 +35,7 @@ export default function AdminReadingEditor() {
   const [passages, setPassages] = useState<Passage[]>([]);
   const [examTitle, setExamTitle] = useState("");
 
-  const { data: exam, isLoading } = useQuery({
+  const { data: exam, isLoading } = useQuery<any>({
     queryKey: ["/api/exams", id],
     enabled: !!id && id !== "new",
   });
@@ -240,7 +240,7 @@ export default function AdminReadingEditor() {
                           </Button>
                         </div>
                       ))}
-                      <Button variant="link" size="sm" onClick={() => {
+                      <Button variant="ghost" size="sm" onClick={() => {
                         updateQuestion(pIndex, qIndex, "options", [...q.options, `New Option`]);
                       }}>Add Option</Button>
                     </div>
