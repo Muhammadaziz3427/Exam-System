@@ -125,7 +125,12 @@ export default function AdminExams() {
                 <div className="text-sm text-slate-500 mb-4">
                   Time Limit: {exam.timeLimit} minutes
                 </div>
-                <Button variant="outline" className="w-full">Edit Content</Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1" asChild>
+                    <a href={`/admin/reading/${exam.id}`}>Reading Editor</a>
+                  </Button>
+                  <Button variant="outline" className="flex-1">Edit JSON</Button>
+                </div>
               </CardContent>
             </Card>
           ))}
