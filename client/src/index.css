@@ -5,26 +5,26 @@
 @tailwind utilities;
 
 :root {
-  --font-display: 'Arial', sans-serif;
-  --font-body: 'Verdana', sans-serif;
-  --font-reading: 'Verdana', sans-serif;
+  --font-display: 'Outfit', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-reading: 'Lora', serif;
 
-  --background: 0 0% 100%; /* Pure white background */
-  --foreground: 215 16% 47%; /* Slate/Grey text */
+  --background: 210 20% 98%; /* Soft off-white */
+  --foreground: 222 47% 11%; /* Deep navy text */
   
-  --primary: 210 100% 31%; /* IELTS Blue #004f9f (converted to HSL: 210, 100%, 31%) */
+  --primary: 210 100% 31%; /* IELTS Blue */
   --primary-foreground: 0 0% 100%;
   
-  --secondary: 0 0% 96%; /* Light Grey #f4f4f4 (converted to HSL: 0, 0%, 96%) */
-  --secondary-foreground: 215 16% 47%;
+  --secondary: 210 20% 96%; /* Very light blue/grey */
+  --secondary-foreground: 210 100% 31%;
   
-  --muted: 0 0% 96%;
+  --muted: 210 20% 90%;
   --muted-foreground: 215 16% 47%;
   
   --accent: 210 100% 31%;
   --accent-foreground: 0 0% 100%;
 
-  --success: 142 76% 36%; /* Success Green for completed tasks (approx) */
+  --success: 142 76% 36%;
   --success-foreground: 0 0% 100%;
   
   --destructive: 0 84% 60%;
@@ -34,23 +34,23 @@
   --input: 214 32% 91%;
   --ring: 210 100% 31%;
   
-  --radius: 0.25rem;
+  --radius: 0.5rem;
 }
 
 .dark {
-  --background: 222 47% 11%;
+  --background: 222 47% 6%;
   --foreground: 210 40% 98%;
   
-  --primary: 210 100% 31%;
+  --primary: 210 100% 45%;
   --primary-foreground: 0 0% 100%;
   
-  --secondary: 217 32% 17%;
-  --secondary-foreground: 210 40% 98%;
+  --secondary: 222 47% 12%;
+  --secondary-foreground: 210 100% 45%;
   
-  --muted: 217 32% 17%;
+  --muted: 222 47% 15%;
   --muted-foreground: 215 20% 65%;
   
-  --accent: 210 100% 31%;
+  --accent: 210 100% 45%;
   --accent-foreground: 0 0% 100%;
 
   --success: 142 76% 36%;
@@ -59,9 +59,9 @@
   --destructive: 0 62% 30%;
   --destructive-foreground: 210 40% 98%;
   
-  --border: 217 32% 17%;
-  --input: 217 32% 17%;
-  --ring: 224 76% 48%;
+  --border: 222 47% 15%;
+  --input: 222 47% 15%;
+  --ring: 210 100% 45%;
 }
 
 @layer base {
@@ -77,18 +77,22 @@
 
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
-    @apply font-semibold tracking-tight text-slate-800;
+    @apply font-semibold tracking-tight;
   }
 }
 
 @layer components {
   .reading-passage {
     font-family: var(--font-reading);
-    @apply text-lg leading-relaxed text-foreground/90;
+    @apply text-xl leading-relaxed text-foreground/90 max-w-3xl mx-auto;
   }
   
   .glass-panel {
-    @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-xl;
+    @apply bg-white/50 dark:bg-black/50 backdrop-blur-md border border-white/10 dark:border-white/5 shadow-xl;
+  }
+
+  .admin-card {
+    @apply bg-card border-none shadow-sm hover:shadow-md transition-all hover-elevate;
   }
 }
 

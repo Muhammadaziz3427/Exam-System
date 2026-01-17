@@ -1,5 +1,18 @@
-import { LayoutDashboard, BookOpen, Users, LogOut, UserCog, Calendar, FileText } from "lucide-react";
+import { LayoutDashboard, BookOpen, Users, LogOut, UserCog, Calendar, FileText, Settings, ShieldCheck } from "lucide-react";
 import { useLocation, Link } from "wouter";
+import { 
+  Sidebar, 
+  SidebarContent, 
+  SidebarHeader, 
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarSeparator
+} from "@/components/ui/sidebar";
 
 export function AppSidebar() {
   const [location] = useLocation();
@@ -10,43 +23,81 @@ export function AppSidebar() {
   const items = isAdmin 
     ? [
         { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
-        { title: "Exams", url: "/admin/exams", icon: BookOpen },
-        { title: "Teachers", icon: UserCog, url: "/admin/teachers" },
-        { title: "Sessions", icon: Calendar, url: "/admin/sessions" },
-        { title: "Detailed Assessment", icon: FileText, url: "/admin/detailed-assessment" },
+        { title: "Exam Library", url: "/admin/exams", icon: BookOpen },
+        { title: "Instructors", icon: UserCog, url: "/admin/teachers" },
+        { title: "Test Sessions", icon: Calendar, url: "/admin/sessions" },
+        { title: "Performance Reports", icon: FileText, url: "/admin/detailed-assessment" },
       ]
-    : [{ title: "Teacher Tasks", url: "/teacher", icon: LayoutDashboard }];
+    : [{ title: "Assessment Center", url: "/teacher", icon: LayoutDashboard }];
 
   return (
-    <aside className="w-64 border-r bg-white h-screen flex flex-col sticky top-0 z-50">
-      <div className="p-6 border-b">
-        <h2 className="text-xl font-bold text-blue-600 tracking-tight">CD-IELTS Admin</h2>
-      </div>
+    <Sidebar variant="inset" collapsible="icon">
+      <SidebarHeader className="p-4">
+        <div className="flex items-center gap-3 px-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <ShieldCheck size={20} />
+          </div>
+          <div className="grid flex-1 text-left text-sm leading-tight">
+            <span className="truncate font-bold">IELTS Platform</span>
+            <span className="truncate text-xs text-muted-foreground">{isAdmin ? "Administrator" : "Instructor"}</span>
+          </div>
+        </div>
+      </SidebarHeader>
 
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {items.map((item) => (
-          <Link key={item.url} href={item.url}>
-            <a className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-              location === item.url 
-                ? "bg-blue-50 text-blue-600 shadow-sm" 
-                : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-            }`}>
-              <item.icon size={20} />
-              <span className="font-semibold text-sm">{item.title}</span>
-            </a>
-          </Link>
-        ))}
-      </nav>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Management</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {items.map((item) => (
+                <SidebarMenuItem key={item.url}>
+                  <SidebarMenuButton 
+                    asChild 
+                    isActive={location === item.url}
+                    tooltip={item.title}
+                    className="hover-elevate"
+                  >
+                    <Link href={item.url}>
+                      <item.icon className="size-4" />
+                      <span className="font-medium">{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
-      <div className="p-4 border-t">
-        <button 
-          onClick={() => { localStorage.clear(); window.location.href = "/"; }}
-          className="flex items-center gap-3 px-4 py-3 w-full text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-        >
-          <LogOut size={20} />
-          <span className="font-semibold text-sm">Logout</span>
-        </button>
-      </div>
-    </aside>
+        <SidebarSeparator />
+
+        <SidebarGroup>
+          <SidebarGroupLabel>System</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip="Settings" className="hover-elevate">
+                  <Settings className="size-4" />
+                  <span>Configuration</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter className="p-4">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton 
+              className="hover:text-destructive hover:bg-destructive/10 transition-colors"
+              onClick={() => { localStorage.clear(); window.location.href = "/"; }}
+            >
+              <LogOut className="size-4" />
+              <span>Logout</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+    </Sidebar>
   );
 }
