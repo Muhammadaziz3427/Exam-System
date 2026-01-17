@@ -165,8 +165,18 @@ export default function StudentExam() {
       const timer = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 1) {
-            handleFinalSubmit(true);
-            return 0;
+            if (currentSection === 'listening') {
+              setCurrentSection('reading');
+              setTimeLeft(3600); // Reset for next section or use actual exam limit
+              return 3600;
+            } else if (currentSection === 'reading') {
+              setCurrentSection('writing');
+              setTimeLeft(3600); // Reset for next section
+              return 3600;
+            } else {
+              handleFinalSubmit(true);
+              return 0;
+            }
           }
           return prev - 1;
         });
@@ -178,7 +188,7 @@ export default function StudentExam() {
         document.removeEventListener("fullscreenchange", handleFullscreenChange);
       };
     }
-  }, [hasStarted, answers]);
+  }, [hasStarted, answers, currentSection]);
 
   const handleFinalSubmit = async (auto = false) => {
     await submitAnswers.mutateAsync({ 
