@@ -47,7 +47,9 @@ export default function StudentExam() {
         id: sessionId, 
         answers, 
         isFinal: false,
-        status: "active" 
+        status: "active",
+        currentSection,
+        remainingTime: timeLeft
       });
     }, 30000); // 30 seconds
 
@@ -147,8 +149,24 @@ export default function StudentExam() {
       const examRes = await fetch(buildUrl(api.exams.get.path, { id: session.examId }));
       const exam = await examRes.json();
 
+      // Check for saved state
+      if (session.status === "in_progress") {
+        const subRes = await fetch(`/api/sessions/${sessionId}/submission`);
+        if (subRes.ok) {
+          const submission = await subRes.json();
+          setAnswers(submission.answers || { listening: {}, reading: {}, writing: "" });
+        }
+        if (session.currentSection) setCurrentSection(session.currentSection as any);
+        if (session.remainingTime !== null) {
+          setTimeLeft(session.remainingTime);
+        } else {
+          setTimeLeft(exam.timeLimit * 60);
+        }
+      } else {
+        setTimeLeft(exam.timeLimit * 60);
+      }
+
       setExamContent(exam.content);
-      setTimeLeft(exam.timeLimit * 60);
       setHasStarted(true);
       setShowEmailModal(false);
     } catch (err) {

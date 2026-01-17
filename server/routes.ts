@@ -206,6 +206,13 @@ export async function registerRoutes(
 
     await storage.upsertSubmission({ sessionId, answers });
 
+    if (req.body.currentSection !== undefined || req.body.remainingTime !== undefined) {
+      await storage.updateSessionState(sessionId, {
+        currentSection: req.body.currentSection,
+        remainingTime: req.body.remainingTime
+      });
+    }
+
     if (isFinal) {
       const submission = await storage.getSubmission(sessionId);
       if (submission) {

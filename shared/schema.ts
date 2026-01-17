@@ -52,6 +52,7 @@ export const examSessions = pgTable("exam_sessions", {
   startTime: timestamp("start_time"),
   endTime: timestamp("end_time"),
   currentSection: text("current_section").default("listening"),
+  remainingTime: integer("remaining_time"), // In seconds
   resultsReleased: boolean("results_released").default(false),
   assignedTeacherId: integer("assigned_teacher_id"), // Teacher assigned for marking
 });
