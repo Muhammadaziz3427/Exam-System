@@ -14,6 +14,7 @@ import AdminDetailedAssessment from "@/pages/admin-detailed-assessment";
 import TeacherDashboard from "@/pages/teacher-dashboard";
 import StudentExam from "@/pages/student-exam";
 import AdminExamEditor from "@/pages/admin-exam-editor"; // <-- BU IMPORT SHART
+import StudentDetailedResults from "@/pages/student-detailed-results";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -34,6 +35,7 @@ function Router() {
 
       {/* Student yo'nalishlari */}
       <Route path="/exam/:id" component={StudentExam} />
+      <Route path="/student/detailed-results/:id" component={StudentDetailedResults} />
 
       {/* 404 sahifasi */}
       <Route component={NotFound} />

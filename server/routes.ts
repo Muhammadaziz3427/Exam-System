@@ -160,6 +160,12 @@ export async function registerRoutes(
     res.json(submission);
   });
 
+  app.get("/api/sessions/:id", async (req, res) => {
+    const session = await storage.getSession(Number(req.params.id));
+    if (!session) return res.status(404).json({ message: "Session not found" });
+    res.json(session);
+  });
+
   app.post("/api/sessions/:id/grade", async (req, res) => {
     const sessionId = Number(req.params.id);
     const { grading, scores } = req.body;

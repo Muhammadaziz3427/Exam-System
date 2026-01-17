@@ -53,6 +53,13 @@ export async function sendExamResultsEmail(session: any) {
         </tr>
       </table>
 
+      <div style="margin: 30px 0; text-align: center;">
+        <a href="${process.env.APP_URL || 'http://localhost:5000'}/student/detailed-results/${session.id}" 
+           style="background-color: #2563eb; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">
+          View Detailed Breakdown
+        </a>
+      </div>
+
       <p>Congratulations on completing your exam!</p>
       <p style="color: #64748b; font-size: 0.9em;">This is an automated message. Please do not reply directly to this email.</p>
     </div>
