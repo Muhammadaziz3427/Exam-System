@@ -168,6 +168,17 @@ export async function registerRoutes(
     res.json({ message: "Grading saved" });
   });
 
+  app.post("/api/sessions/:id/advanced-assessment", async (req, res) => {
+    const sessionId = Number(req.params.id);
+    const { assessment } = req.body;
+    try {
+      const updated = await storage.updateAdvancedAssessment(sessionId, assessment);
+      res.json(updated);
+    } catch (e) {
+      res.status(404).json({ message: "Submission not found" });
+    }
+  });
+
   app.post("/api/sessions/:id/release", async (req, res) => {
     const sessionId = Number(req.params.id);
     const session = await storage.getSession(sessionId);

@@ -78,6 +78,29 @@ export const submissions = pgTable("submissions", {
     autoGraded: {
       listening: { score: 0, total: 0 },
       reading: { score: 0, total: 0 }
+    },
+    advancedAssessment: {
+      writing: {
+        task1: {
+          taskResponse: 0,
+          coherenceCohesion: 0,
+          lexicalResource: 0,
+          grammaticalRange: 0
+        },
+        task2: {
+          taskResponse: 0,
+          coherenceCohesion: 0,
+          lexicalResource: 0,
+          grammaticalRange: 0
+        }
+      },
+      speaking: {
+        fluency: 0,
+        lexicalResource: 0,
+        grammaticalRange: 0,
+        pronunciation: 0
+      },
+      diagnosticFeedback: ""
     }
   }),
   lastSavedAt: timestamp("last_saved_at").defaultNow(),

@@ -13,6 +13,7 @@ export function AppSidebar() {
         { title: "Exams", url: "/admin/exams", icon: BookOpen },
         { title: "Teachers", icon: UserCog, url: "/admin/teachers" },
         { title: "Sessions", icon: Calendar, url: "/admin/sessions" },
+        { title: "Detailed Assessment", icon: FileText, url: "/admin/detailed-assessment" },
       ]
     : [{ title: "Teacher Tasks", url: "/teacher", icon: LayoutDashboard }];
 

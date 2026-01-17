@@ -36,6 +36,7 @@ export interface IStorage {
   upsertSubmission(submission: InsertSubmission): Promise<Submission>;
   getSubmission(sessionId: number): Promise<Submission | undefined>;
   updateGrading(sessionId: number, grading: any): Promise<Submission>;
+  updateAdvancedAssessment(sessionId: number, assessment: any): Promise<Submission>;
   getPendingGradingSubmissions(): Promise<(Submission & { session: ExamSession })[]>;
 
   // Violations
@@ -212,6 +213,24 @@ export class DatabaseStorage implements IStorage {
 
     // Baholangandan so'ng sessiya statusini yangilaymiz
     await this.updateSessionStatus(sessionId, 'graded');
+    return updated;
+  }
+
+  async updateAdvancedAssessment(sessionId: number, assessment: any): Promise<Submission> {
+    const submission = await this.getSubmission(sessionId);
+    if (!submission) throw new Error("Submission not found");
+
+    const currentGrading = (submission.grading as any) || {};
+    const updatedGrading = {
+      ...currentGrading,
+      advancedAssessment: assessment
+    };
+
+    const [updated] = await db.update(submissions)
+      .set({ grading: updatedGrading })
+      .where(eq(submissions.sessionId, sessionId))
+      .returning();
+    
     return updated;
   }
 
