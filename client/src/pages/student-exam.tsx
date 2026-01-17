@@ -5,9 +5,11 @@ import { useStartSession, useSubmitAnswers, useLogViolation } from "@/hooks/use-
 import { Button, Textarea, Badge, Input } from "@/components/ui-kit";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Clock, AlertOctagon, Mail } from "lucide-react";
+import { Clock, AlertOctagon, Mail, Flag } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { ListeningComponent } from "@/components/ListeningComponent";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function StudentExam() {
   // --- 1. HOOKLAR VA O'ZGARUVCHILAR ---
@@ -29,6 +31,7 @@ export default function StudentExam() {
     writing: ""
   });
 
+  const [flaggedQuestions, setFlaggedQuestions] = useState<Record<string, boolean>>({});
   const [highlights, setHighlights] = useState<Record<number, string[]>>({});
 
   const startSession = useStartSession();
@@ -364,6 +367,71 @@ export default function StudentExam() {
           </div>
         )}
       </main>
+
+      {/* Question Palette */}
+      <footer className="h-20 bg-white border-t flex items-center px-6 gap-4 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] z-10">
+        <div className="flex items-center gap-2 mr-4 border-r pr-4">
+          <Badge variant="outline" className="bg-slate-50">
+            <div className="w-3 h-3 rounded-full bg-blue-500 mr-2" /> Answered
+          </Badge>
+          <Badge variant="outline" className="bg-slate-50">
+            <div className="w-3 h-3 rounded-full bg-amber-500 mr-2" /> Flagged
+          </Badge>
+        </div>
+
+        <ScrollArea className="flex-1 h-14">
+          <div className="flex gap-2 py-2">
+            {Array.from({ length: 40 }).map((_, i) => {
+              const qId = `q-${i + 1}`;
+              const isAnswered = answers.listening[qId] || answers.reading[qId] || (currentSection === 'writing' && answers.writing.length > 50);
+              const isFlagged = flaggedQuestions[qId];
+
+              return (
+                <TooltipProvider key={i}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        data-testid={`button-palette-${i + 1}`}
+                        className={`w-10 h-10 p-0 font-bold transition-all duration-200 ${
+                          isFlagged 
+                            ? "bg-amber-100 border-amber-500 text-amber-700 hover:bg-amber-200" 
+                            : isAnswered 
+                              ? "bg-blue-100 border-blue-500 text-blue-700 hover:bg-blue-200" 
+                              : "hover:bg-slate-100"
+                        }`}
+                        onClick={() => {
+                          setFlaggedQuestions(prev => ({ ...prev, [qId]: !prev[qId] }));
+                        }}
+                      >
+                        {i + 1}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Question {i + 1} {isFlagged ? "(Flagged)" : ""}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              );
+            })}
+          </div>
+        </ScrollArea>
+
+        <div className="ml-4 border-l pl-4">
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={() => {
+              const currentQ = `q-1`; // Simplified for now
+              setFlaggedQuestions(prev => ({ ...prev, [currentQ]: !prev[currentQ] }));
+            }}
+          >
+            <Flag size={16} className={flaggedQuestions[`q-1`] ? "fill-amber-500 text-amber-500" : ""} />
+            Review
+          </Button>
+        </div>
+      </footer>
     </div>
   );
 }
