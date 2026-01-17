@@ -239,7 +239,7 @@ export async function registerRoutes(
       const session = await storage.getSession(sessionId);
       const exam = session ? await storage.getExam(session.examId) : null;
       const hasWriting = (exam?.content as any)?.writing?.tasks?.length > 0;
-      await storage.updateSessionStatus(sessionId, hasWriting ? 'pending_grading' : 'graded');
+      await storage.updateSessionStatus(sessionId, hasWriting ? 'pending_grading' : 'completed');
       await storage.updateSessionResultStatus(sessionId, 'marking');
     }
     res.json({ message: "Muvaffaqiyatli saqlandi" });
