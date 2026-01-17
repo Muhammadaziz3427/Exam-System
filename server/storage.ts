@@ -231,7 +231,10 @@ export class DatabaseStorage implements IStorage {
     const currentGrading = (submission.grading as any) || {};
     const updatedGrading = {
       ...currentGrading,
-      advancedAssessment: assessment
+      advancedAssessment: {
+        ...(currentGrading.advancedAssessment || {}),
+        ...assessment
+      }
     };
 
     const [updated] = await db.update(submissions)

@@ -41,6 +41,10 @@ export default function StudentDetailedResults() {
   }
 
   const assessment = submission?.grading?.advancedAssessment;
+  const hasAssessment = assessment && 
+    (assessment.writing?.task1?.taskResponse !== undefined || 
+     assessment.speaking?.fluency !== undefined ||
+     assessment.diagnosticFeedback);
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
@@ -84,7 +88,7 @@ export default function StudentDetailedResults() {
           </Card>
 
           {/* Writing & Speaking Feedback */}
-          {assessment ? (
+          {hasAssessment ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Writing Feedback */}
               <Card className="border-none shadow-sm overflow-hidden">
