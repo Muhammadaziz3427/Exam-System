@@ -12,7 +12,7 @@ export default function AdminDetailedAssessment() {
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
   const { toast } = useToast();
 
-  const { data: submission, isLoading: submissionLoading } = useQuery({
+  const { data: submission, isLoading: submissionLoading } = useQuery<any>({
     queryKey: [`/api/sessions/${selectedSessionId}/submission`],
     enabled: !!selectedSessionId,
   });

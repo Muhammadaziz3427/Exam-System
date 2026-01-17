@@ -1,4 +1,4 @@
-import { LayoutDashboard, BookOpen, Users, LogOut, UserCog, Calendar } from "lucide-react";
+import { LayoutDashboard, BookOpen, Users, LogOut, UserCog, Calendar, FileText } from "lucide-react";
 import { useLocation, Link } from "wouter";
 
 export function AppSidebar() {
