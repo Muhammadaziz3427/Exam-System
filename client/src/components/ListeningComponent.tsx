@@ -89,7 +89,7 @@ export function ListeningComponent({ audioUrl, onSectionComplete }: ListeningCom
         <Card className="p-6 border-amber-200 bg-amber-50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Badge variant="warning" className="animate-bounce">Transfer Time</Badge>
+              <Badge variant="outline" className="animate-bounce border-amber-200 text-amber-700">Transfer Time</Badge>
               <p className="text-amber-900 font-medium">
                 Audio finished. You have {Math.floor(transferTimeLeft / 60)}:{String(transferTimeLeft % 60).padStart(2, '0')} to check your answers.
               </p>

@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle, Loader2, FileSearch, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui-kit";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, FileSearch } from "lucide-react";
 import { AssessmentBreakdown } from "@/components/AssessmentBreakdown";
 
 export default function StudentDetailedResults() {

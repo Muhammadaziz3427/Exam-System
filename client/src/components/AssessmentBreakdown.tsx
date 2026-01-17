@@ -1,4 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle, Badge } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CheckCircle2, XCircle, Info } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
