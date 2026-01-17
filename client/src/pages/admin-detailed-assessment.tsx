@@ -1,11 +1,12 @@
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { Card, CardContent, CardHeader, CardTitle, Button, Input, Textarea } from "@/components/ui-kit";
+import { Card, CardContent, CardHeader, CardTitle, Button, Input, Textarea, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui-kit";
 import { useSessions } from "@/hooks/use-sessions";
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, FileSearch } from "lucide-react";
+import { AssessmentBreakdown } from "@/components/AssessmentBreakdown";
 
 export default function AdminDetailedAssessment() {
   const { data: sessions = [], isLoading: sessionsLoading } = useSessions();
@@ -15,6 +16,13 @@ export default function AdminDetailedAssessment() {
   const { data: submission, isLoading: submissionLoading } = useQuery<any>({
     queryKey: [`/api/sessions/${selectedSessionId}/submission`],
     enabled: !!selectedSessionId,
+  });
+
+  const selectedSession = sessions.find((s: any) => s.id === selectedSessionId);
+
+  const { data: exam } = useQuery<any>({
+    queryKey: [`/api/exams/${selectedSession?.examId}`],
+    enabled: !!selectedSession?.examId,
   });
 
   const [assessment, setAssessment] = useState<any>({
@@ -70,8 +78,6 @@ export default function AdminDetailedAssessment() {
   };
 
   if (sessionsLoading) return <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin" /></div>;
-
-  const selectedSession = sessions.find((s: any) => s.id === selectedSessionId);
 
   return (
     <AdminLayout>
@@ -131,6 +137,34 @@ export default function AdminDetailedAssessment() {
                     </Button>
                   </CardHeader>
                   <CardContent className="space-y-8 p-6">
+                    {/* Auto-Graded Breakdown */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-black border-l-4 border-purple-500 pl-3 flex items-center gap-2">
+                        <FileSearch size={20} />
+                        Automated Breakdown
+                      </h3>
+                      <Tabs defaultValue="listening" className="w-full">
+                        <TabsList className="bg-slate-100 p-1 rounded-lg w-full md:w-auto">
+                          <TabsTrigger value="listening" className="rounded-md px-8">Listening</TabsTrigger>
+                          <TabsTrigger value="reading" className="rounded-md px-8">Reading</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="listening" className="mt-4">
+                          <AssessmentBreakdown 
+                            examContent={exam?.content} 
+                            answers={submission?.answers} 
+                            section="listening" 
+                          />
+                        </TabsContent>
+                        <TabsContent value="reading" className="mt-4">
+                          <AssessmentBreakdown 
+                            examContent={exam?.content} 
+                            answers={submission?.answers} 
+                            section="reading" 
+                          />
+                        </TabsContent>
+                      </Tabs>
+                    </div>
+
                     {/* Writing Section */}
                     <div className="space-y-4">
                       <h3 className="text-lg font-black border-l-4 border-blue-500 pl-3">Writing Assessment</h3>
