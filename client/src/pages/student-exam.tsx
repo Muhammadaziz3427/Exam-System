@@ -44,7 +44,7 @@ export default function StudentExam() {
         id: sessionId, 
         answers, 
         isFinal: false,
-        status: "in_progress" 
+        status: "active" 
       });
     }, 30000); // 30 seconds
 
