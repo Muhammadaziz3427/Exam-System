@@ -84,7 +84,7 @@ export default function StudentDetailedResults() {
           </Card>
 
           {/* Writing & Speaking Feedback */}
-          {assessment && (
+          {assessment ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Writing Feedback */}
               <Card className="border-none shadow-sm overflow-hidden">
@@ -149,6 +149,21 @@ export default function StudentDetailedResults() {
                 </CardContent>
               </Card>
             </div>
+          ) : (
+            <Card className="border-none shadow-sm bg-slate-100/50 border-dashed border-2">
+              <CardContent className="p-12 flex flex-col items-center justify-center text-center space-y-3">
+                <div className="p-3 bg-white rounded-full shadow-sm">
+                  <FileSearch className="text-slate-400 size-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Assessment Pending</h3>
+                  <p className="text-slate-500 max-w-sm">
+                    Detailed human assessment for Writing and Speaking sections is currently in progress. 
+                    Please check back soon for your full performance breakdown.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           )}
         </div>
       </div>

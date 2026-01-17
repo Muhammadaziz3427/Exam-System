@@ -206,8 +206,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateGrading(sessionId: number, grading: any): Promise<Submission> {
+    const submission = await this.getSubmission(sessionId);
+    const currentGrading = (submission?.grading as any) || {};
+
+    const updatedGrading = {
+      ...currentGrading,
+      ...grading
+    };
+
     const [updated] = await db.update(submissions)
-      .set({ grading })
+      .set({ grading: updatedGrading })
       .where(eq(submissions.sessionId, sessionId))
       .returning();
 
