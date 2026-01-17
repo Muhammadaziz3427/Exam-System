@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 
 export async function sendExamResultsEmail(session: any) {
-  const { studentName, email, listeningScore, readingScore, writingScore, speakingScore, overallBand } = session;
+  const { studentName, email, listeningScore, readingScore, writingScore, speakingScore, overallBand, advanced_analysis } = session;
 
   if (!email) {
     console.log(`No email provided for student ${studentName}, skipping email.`);
@@ -19,6 +19,29 @@ export async function sendExamResultsEmail(session: any) {
       pass: "jn7jnK9jue9j63pVX1",
     },
   });
+
+  let advancedContent = "";
+  if (advanced_analysis) {
+    const analysis = typeof advanced_analysis === 'string' ? JSON.parse(advanced_analysis) : advanced_analysis;
+    
+    advancedContent = `
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e2e8f0;">
+        <h3 style="color: #1e40af; margin-bottom: 15px;">Advanced Performance Analysis</h3>
+        
+        <div style="background-color: #f0f9ff; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+          <h4 style="color: #0369a1; margin-top: 0;">Detailed Strengths & Weaknesses</h4>
+          <p style="white-space: pre-wrap;">${analysis.breakdown || 'Analysis not available.'}</p>
+        </div>
+
+        ${analysis.teacherFeedback ? `
+          <div style="background-color: #fdf2f8; padding: 15px; border-radius: 8px; border-left: 4px solid #db2777;">
+            <h4 style="color: #9d174d; margin-top: 0;">Teacher's Diagnostic Note</h4>
+            <p style="font-style: italic; color: #4b5563;">${analysis.teacherFeedback}</p>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
 
   const html = `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
@@ -53,10 +76,12 @@ export async function sendExamResultsEmail(session: any) {
         </tr>
       </table>
 
+      ${advancedContent}
+
       <div style="margin: 30px 0; text-align: center;">
         <a href="${process.env.APP_URL || 'http://localhost:5000'}/student/detailed-results/${session.id}" 
            style="background-color: #2563eb; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">
-          View Detailed Breakdown
+          View Full Breakdown Online
         </a>
       </div>
 
