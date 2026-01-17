@@ -7,6 +7,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/componen
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Clock, AlertOctagon, Mail } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { ListeningComponent } from "@/components/ListeningComponent";
 
 export default function StudentExam() {
   // --- 1. HOOKLAR VA O'ZGARUVCHILAR ---
@@ -213,7 +214,12 @@ export default function StudentExam() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-hidden">
-        {currentSection === 'writing' ? (
+        {currentSection === 'listening' ? (
+          <ListeningComponent 
+            audioUrl={examContent?.listening?.audioUrl || ""} 
+            onSectionComplete={() => setCurrentSection('reading')}
+          />
+        ) : currentSection === 'writing' ? (
           <ResizablePanelGroup direction="horizontal">
             <ResizablePanel defaultSize={45} className="p-8 overflow-y-auto bg-white">
               <h2 className="text-2xl font-bold mb-6">Writing Task</h2>
@@ -243,7 +249,7 @@ export default function StudentExam() {
         ) : (
           <div className="h-full flex items-center justify-center flex-col space-y-4">
              <p className="text-slate-500 italic">Currently in {currentSection} section...</p>
-             <Button size="lg" onClick={() => setCurrentSection(currentSection === 'listening' ? 'reading' : 'writing')}>
+             <Button size="lg" onClick={() => setCurrentSection(currentSection === 'reading' ? 'writing' : 'writing')}>
                Go to Next Section
              </Button>
           </div>
