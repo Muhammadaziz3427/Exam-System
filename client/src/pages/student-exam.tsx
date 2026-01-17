@@ -12,7 +12,9 @@ import {
   PenTool, 
   Flag, 
   CheckCircle2, 
-  ChevronRight 
+  ChevronRight,
+  Minus,
+  Plus 
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { ListeningComponent } from "@/components/ListeningComponent";
@@ -33,6 +35,8 @@ export default function StudentExam() {
   const [timeLeft, setTimeLeft] = useState(0);
   const [email, setEmail] = useState("");
 
+  // --- Qo'shimcha UI State-lar ---
+  const [zoom, setZoom] = useState(100); 
   const [activePassageIdx, setActivePassageIdx] = useState(0);
   const [activeWritingTask, setActiveWritingTask] = useState(0); 
   const [answers, setAnswers] = useState<any>({
@@ -47,6 +51,7 @@ export default function StudentExam() {
   const submitAnswers = useSubmitAnswers();
   const logViolation = useLogViolation();
 
+  // Timer sozlamalari
   const setupSectionTimer = (section: Section, content: any) => {
     let minutes = 60; 
     if (section === 'listening') minutes = content.listening?.duration || 40;
@@ -55,6 +60,7 @@ export default function StudentExam() {
     setTimeLeft(minutes * 60);
   };
 
+  // Yakuniy topshirish
   const handleFinalSubmit = async (autoSubmit: boolean = false) => {
     if (autoSubmit) {
       console.log("Time is up. Submitting automatically...");
@@ -72,12 +78,14 @@ export default function StudentExam() {
     setLocation("/completion-page");
   };
 
+  // Avtomatik bo'limdan bo'limga o'tish
   const handleSectionAutoTransition = () => {
     if (currentSection === 'listening') setCurrentSection('reading');
     else if (currentSection === 'reading') setCurrentSection('writing');
     else handleFinalSubmit(true);
   };
 
+  // Timer effekti
   useEffect(() => {
     if (!hasStarted || timeLeft <= 0) return;
     const timer = setInterval(() => {
@@ -96,6 +104,7 @@ export default function StudentExam() {
     if (examContent) setupSectionTimer(currentSection, examContent);
   }, [currentSection, examContent]);
 
+  // Xavfsizlik: Tab o'zgarishini kuzatish
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden && hasStarted) {
@@ -111,6 +120,7 @@ export default function StudentExam() {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [hasStarted, sessionId, logViolation, toast]);
 
+  // Avtomatik saqlash (20 soniya)
   const lastSavedAnswers = useRef(JSON.stringify(answers));
   useEffect(() => {
     const autoSave = setInterval(() => {
@@ -123,6 +133,7 @@ export default function StudentExam() {
     return () => clearInterval(autoSave);
   }, [answers, hasStarted, sessionId]);
 
+  // Imtihonni boshlash oqimi
   const startExamFlow = async () => {
     try {
       await apiRequest("PATCH", `/api/sessions/${sessionId}`, { email });
@@ -141,6 +152,7 @@ export default function StudentExam() {
     }
   };
 
+  // Kirish ekrani
   if (!hasStarted) {
     return (
       <div className="fixed inset-0 bg-[#f8fafc] flex items-center justify-center p-4">
@@ -178,11 +190,20 @@ export default function StudentExam() {
           </div>
         </div>
 
-        <div className={`flex items-center gap-3 px-6 py-1.5 rounded-md border ${timeLeft < 300 ? 'bg-red-500/20 border-red-500 text-red-500 animate-pulse' : 'bg-black/20 border-white/10 text-blue-400'}`}>
-          <Clock size={20} />
-          <span className="font-mono text-2xl font-bold tabular-nums">
-            {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
-          </span>
+        {/* Zoom va Timer */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1 bg-black/20 p-1 rounded-md border border-white/10">
+            <button onClick={() => setZoom(Math.max(80, zoom - 10))} className="p-1 hover:bg-white/10 rounded transition-colors"><Minus size={14}/></button>
+            <span className="text-[10px] font-mono w-10 text-center font-bold">{zoom}%</span>
+            <button onClick={() => setZoom(Math.min(150, zoom + 10))} className="p-1 hover:bg-white/10 rounded transition-colors"><Plus size={14}/></button>
+          </div>
+
+          <div className={`flex items-center gap-3 px-6 py-1.5 rounded-md border ${timeLeft < 300 ? 'bg-red-500/20 border-red-500 text-red-500 animate-pulse' : 'bg-black/20 border-white/10 text-blue-400'}`}>
+            <Clock size={20} />
+            <span className="font-mono text-2xl font-bold tabular-nums">
+              {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+            </span>
+          </div>
         </div>
 
         <Button variant="destructive" size="sm" className="font-bold px-6" onClick={() => confirm("Finish exam?") && handleFinalSubmit()}>
@@ -218,7 +239,7 @@ export default function StudentExam() {
                 </div>
 
                 <ScrollArea className="flex-1">
-                  <div className="p-12 max-w-3xl mx-auto select-text selection:bg-yellow-200">
+                  <div className="p-12 max-w-3xl mx-auto select-text selection:bg-yellow-200" style={{ fontSize: `${zoom}%` }}>
                     {currentSection === 'reading' ? (
                       <article>
                         <h2 className="text-3xl font-black mb-8 text-slate-900 leading-tight">{examContent?.reading?.passages[activePassageIdx]?.title}</h2>
@@ -253,6 +274,7 @@ export default function StudentExam() {
                     <div className="space-y-6">
                       {examContent?.reading?.passages[activePassageIdx]?.questions?.map((q: any, i: number) => {
                         const qGlobalIdx = i + 1 + (activePassageIdx * 13);
+                        const qId = `q-${qGlobalIdx}`;
                         return (
                           <div key={q.id} className="p-6 bg-white rounded-2xl border-2 border-slate-100 shadow-sm transition-all hover:border-blue-200 group">
                             <div className="flex gap-4">
@@ -261,12 +283,12 @@ export default function StudentExam() {
                                 <p className="font-bold text-slate-700">{q.text}</p>
                                 <Input 
                                   className="h-12 text-lg border-2 focus:border-blue-500 bg-slate-50/50" 
-                                  value={answers.reading[q.id] || ""}
-                                  onChange={(e) => setAnswers({...answers, reading: {...answers.reading, [q.id]: e.target.value}})}
+                                  value={answers.reading[qId] || ""}
+                                  onChange={(e) => setAnswers({...answers, reading: {...answers.reading, [qId]: e.target.value}})}
                                 />
                               </div>
-                              <button onClick={() => setReviewFlags({...reviewFlags, [q.id]: !reviewFlags[q.id]})}>
-                                <Flag size={18} className={reviewFlags[q.id] ? "text-orange-500 fill-orange-500" : "text-slate-200 group-hover:text-slate-400"} />
+                              <button onClick={() => setReviewFlags({...reviewFlags, [qId]: !reviewFlags[qId]})}>
+                                <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200 group-hover:text-slate-400"} />
                               </button>
                             </div>
                           </div>
@@ -277,11 +299,11 @@ export default function StudentExam() {
                     <div className="h-full flex flex-col space-y-4">
                        <div className="flex justify-between items-center mb-2">
                          <Badge className="bg-slate-900 px-4 py-1 font-mono text-sm border-none">
-                           WORDS: {
-                             activeWritingTask === 0 
-                             ? (answers.writingTask1?.trim() ? answers.writingTask1.trim().split(/\s+/).length : 0)
-                             : (answers.writingTask2?.trim() ? answers.writingTask2.trim().split(/\s+/).length : 0)
-                           }
+                            WORDS: {
+                               activeWritingTask === 0 
+                               ? (answers.writingTask1?.trim() ? answers.writingTask1.trim().split(/\s+/).length : 0)
+                               : (answers.writingTask2?.trim() ? answers.writingTask2.trim().split(/\s+/).length : 0)
+                            }
                          </Badge>
                        </div>
                        <Textarea 
@@ -289,6 +311,7 @@ export default function StudentExam() {
                          placeholder="Type your essay..."
                          value={activeWritingTask === 0 ? answers.writingTask1 : answers.writingTask2}
                          onPaste={(e) => e.preventDefault()}
+                         onContextMenu={(e) => e.preventDefault()}
                          onChange={(e) => {
                            const key = activeWritingTask === 0 ? 'writingTask1' : 'writingTask2';
                            setAnswers({...answers, [key]: e.target.value});
@@ -308,13 +331,18 @@ export default function StudentExam() {
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Questions</span>
           <div className="flex gap-1 overflow-x-auto no-scrollbar py-2">
             {Array.from({ length: 40 }).map((_, i) => {
-              const qId = `q-${i+1}`;
-              const hasAns = answers.reading[qId] || answers.listening[qId];
+              const qNum = i + 1;
+              const qId = `q-${qNum}`;
+              const hasAns = (currentSection === 'reading' && answers.reading[qId]) || 
+                             (currentSection === 'listening' && answers.listening[qId]);
+              const isFlagged = reviewFlags[qId];
+
               return (
-                <div key={i} className={`w-8 h-8 flex items-center justify-center rounded-lg text-[10px] font-bold border-2 ${
+                <div key={i} className={`w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-[10px] font-bold border-2 relative transition-all ${
                   hasAns ? 'bg-[#2c3e50] border-[#2c3e50] text-white' : 'bg-white border-slate-100 text-slate-400'
                 }`}>
-                  {i + 1}
+                  {qNum}
+                  {isFlagged && <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white" />}
                 </div>
               );
             })}
@@ -325,9 +353,9 @@ export default function StudentExam() {
           <div className="flex items-center gap-2 text-emerald-500 font-bold text-[10px] uppercase">
             <CheckCircle2 size={16} /> Saved
           </div>
-          {currentSection === 'reading' && (
-            <Button className="bg-emerald-600 hover:bg-emerald-700 font-bold" onClick={() => setCurrentSection('writing')}>
-              Next <ChevronRight className="ml-2" size={16}/>
+          {currentSection !== 'writing' && (
+            <Button className="bg-emerald-600 hover:bg-emerald-700 font-bold" onClick={() => setCurrentSection(currentSection === 'listening' ? 'reading' : 'writing')}>
+              Next Section <ChevronRight className="ml-2" size={16}/>
             </Button>
           )}
         </div>

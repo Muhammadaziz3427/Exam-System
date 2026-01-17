@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
-import { type Exam, type InsertExam } from "@shared/schema";
+import { type InsertExam } from "@shared/schema";
 
 export function useExams() {
   return useQuery({
@@ -37,6 +37,39 @@ export function useCreateExam() {
       });
       if (!res.ok) throw new Error("Failed to create exam");
       return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.exams.list.path] });
+    },
+  });
+}
+
+export function useUpdateExam() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...data }: Partial<InsertExam> & { id: number }) => {
+      const url = `/api/exams/${id}`;
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Failed to update exam");
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.exams.list.path] });
+    },
+  });
+}
+
+export function useDeleteExam() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const url = `/api/exams/${id}`;
+      const res = await fetch(url, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete exam");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.exams.list.path] });

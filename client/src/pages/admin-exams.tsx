@@ -23,7 +23,14 @@ interface Question {
   options: string[];
   answer: string;
   instruction: string;
-  imageUrl?: string; // Listening diagrammalar uchun rasm URL
+  imageUrl?: string;
+  headingList?: string[]; // Yangi: Matching Headings uchun
+}
+
+// Yangi: Listening bo'limlari uchun
+interface ListeningPart {
+  id: number;
+  questions: Question[];
 }
 
 interface Passage {
@@ -33,7 +40,6 @@ interface Passage {
   questions: Question[];
 }
 
-// --- CONSTANTS: IELTS QUESTION TYPES ---
 const QUESTION_TYPES = [
   { value: 'gap_fill', label: 'Sentence/Summary Completion (Gap Fill)', icon: lucideReact.Type },
   { value: 'mcq', label: 'Multiple Choice (A, B, C...)', icon: lucideReact.CheckSquare },
@@ -45,16 +51,12 @@ const QUESTION_TYPES = [
   { value: 'short_answer', label: 'Short Answer Questions', icon: lucideReact.MoreHorizontal },
 ];
 
-// --- MODAL COMPONENT ---
 const Modal = ({ open, onOpenChange, children }: any) => {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl my-8 p-8 relative max-h-[90vh] overflow-y-auto">
-        <button 
-          onClick={() => onOpenChange(false)} 
-          className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors z-10"
-        >
+        <button onClick={() => onOpenChange(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors z-10">
           <lucideReact.X size={24} />
         </button>
         {children}
@@ -68,7 +70,6 @@ export default function AdminExams() {
   const createExam = useCreateExam();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // --- GLOBAL EXAM STATE ---
   const [title, setTitle] = useState("");
   const [listeningTime, setListeningTime] = useState("40");
   const [readingTime, setReadingTime] = useState("60");
@@ -79,14 +80,21 @@ export default function AdminExams() {
     { id: Date.now(), title: "Passage 1", content: "", questions: [] }
   ]);
   const [audioUrl, setAudioUrl] = useState("");
-  const [listeningQuestions, setListeningQuestions] = useState<Question[]>([]);
+
+  // Yangi: Listeningni 4 qismga bo'lish
+  const [listeningParts, setListeningParts] = useState<ListeningPart[]>([
+    { id: 1, questions: [] },
+    { id: 2, questions: [] },
+    { id: 3, questions: [] },
+    { id: 4, questions: [] },
+  ]);
+
   const [writingTasks, setWritingTasks] = useState([
     { type: "task1", content: "", image: "", wordLimit: "150" },
     { type: "task2", content: "", wordLimit: "250" }
   ]);
 
-  // --- LOGIC: QUESTION BUILDER ---
-  const addQuestionGroup = (target: 'reading' | 'listening', pIdx?: number) => {
+  const addQuestionGroup = (target: 'reading' | 'listening', pIdx: number) => {
     const newQ: Question = { 
       id: Date.now() + Math.random(), 
       type: 'gap_fill', 
@@ -97,12 +105,14 @@ export default function AdminExams() {
       imageUrl: ""
     };
 
-    if (target === 'reading' && pIdx !== undefined) {
+    if (target === 'reading') {
       const newPassages = [...passages];
       newPassages[pIdx].questions.push(newQ);
       setPassages(newPassages);
     } else {
-      setListeningQuestions([...listeningQuestions, newQ]);
+      const newParts = [...listeningParts];
+      newParts[pIdx].questions.push(newQ);
+      setListeningParts(newParts);
     }
   };
 
@@ -113,7 +123,7 @@ export default function AdminExams() {
         audioUrl, 
         duration: parseInt(listeningTime),
         reviewTime: parseInt(listeningReviewTime),
-        questions: listeningQuestions 
+        parts: listeningParts // 4 qismga bo'lingan holda yuboriladi
       },
       reading: { 
         timeLimit: parseInt(readingTime),
@@ -142,43 +152,42 @@ export default function AdminExams() {
   const resetForm = () => {
     setTitle("");
     setPassages([{ id: Date.now(), title: "Passage 1", content: "", questions: [] }]);
-    setListeningQuestions([]);
+    setListeningParts([{ id: 1, questions: [] }, { id: 2, questions: [] }, { id: 3, questions: [] }, { id: 4, questions: [] }]);
     setAudioUrl("");
   };
 
-  // --- SMART UI: QUESTION ITEM COMPONENT ---
-  const QuestionItem = ({ q, idx, onUpdate, onRemove }: { q: Question, idx: number, onUpdate: any, onRemove: any }) => {
+  // --- AUDIO PREVIEW COMPONENT ---
+  const AudioPreview = ({ url }: { url: string }) => (
+    <div className="mt-4 p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-center gap-4">
+      <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+        <lucideReact.Play size={20} fill="currentColor" />
+      </div>
+      <div className="flex-1">
+        <p className="text-[10px] font-black text-blue-600 uppercase mb-1">Live Audio Preview</p>
+        {url ? (
+          <audio controls className="h-8 w-full">
+            <source src={url} type="audio/mpeg" />
+          </audio>
+        ) : (
+          <p className="text-xs text-slate-400 italic">No audio URL provided</p>
+        )}
+      </div>
+    </div>
+  );
 
+  const QuestionItem = ({ q, idx, onUpdate, onRemove }: { q: Question, idx: number, onUpdate: any, onRemove: any }) => {
     const handleTypeChange = (newType: string) => {
       let defaultInstruction = "";
       let defaultOptions: string[] = [];
-
       switch(newType) {
-        case 'tfng':
-          defaultInstruction = "Do the following statements agree with the information given in the Reading Passage?";
-          defaultOptions = ["TRUE", "FALSE", "NOT GIVEN"];
-          break;
-        case 'ynng':
-          defaultInstruction = "Do the following statements agree with the claims of the writer?";
-          defaultOptions = ["YES", "NO", "NOT GIVEN"];
-          break;
-        case 'mcq':
-          defaultInstruction = "Choose the correct letter, A, B, C or D.";
-          defaultOptions = ["", "", "", ""];
-          break;
-        case 'matching_headings':
-          defaultInstruction = "Choose the correct heading for each paragraph from the list of headings below.";
-          break;
-        case 'gap_fill':
-          defaultInstruction = "Complete the sentences below. Choose NO MORE THAN TWO WORDS from the passage for each answer.";
-          break;
-        case 'diagram':
-          defaultInstruction = "Label the map/diagram below. Write NO MORE THAN TWO WORDS for each answer.";
-          break;
-        default:
-          defaultInstruction = q.instruction;
+        case 'tfng': defaultInstruction = "Do the following statements agree with the information given in the Reading Passage?"; defaultOptions = ["TRUE", "FALSE", "NOT GIVEN"]; break;
+        case 'ynng': defaultInstruction = "Do the following statements agree with the claims of the writer?"; defaultOptions = ["YES", "NO", "NOT GIVEN"]; break;
+        case 'mcq': defaultInstruction = "Choose the correct letter, A, B, C or D."; defaultOptions = ["", "", "", ""]; break;
+        case 'matching_headings': defaultInstruction = "Choose the correct heading for each paragraph from the list of headings below."; break;
+        case 'gap_fill': defaultInstruction = "Complete the sentences below. Choose NO MORE THAN TWO WORDS from the passage for each answer."; break;
+        case 'diagram': defaultInstruction = "Label the map/diagram below. Write NO MORE THAN TWO WORDS for each answer."; break;
+        default: defaultInstruction = q.instruction;
       }
-
       onUpdate('type', newType);
       onUpdate('instruction', defaultInstruction);
       if (defaultOptions.length > 0) onUpdate('options', defaultOptions);
@@ -190,158 +199,66 @@ export default function AdminExams() {
           <div className="flex flex-col gap-2 w-full">
             <div className="flex items-center gap-3">
               <Badge className="bg-slate-900 h-6 w-6 flex items-center justify-center p-0 rounded-full text-[10px]">{idx + 1}</Badge>
-              <select 
-                className="flex-1 text-xs font-black uppercase tracking-widest bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none text-blue-600 focus:ring-2 ring-blue-100 cursor-pointer"
-                value={q.type}
-                onChange={(e) => handleTypeChange(e.target.value)}
-              >
-                {QUESTION_TYPES.map(type => (
-                  <option key={type.value} value={type.value}>
-                     {type.label}
-                  </option>
-                ))}
+              <select className="flex-1 text-xs font-black uppercase tracking-widest bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none text-blue-600 cursor-pointer" value={q.type} onChange={(e) => handleTypeChange(e.target.value)}>
+                {QUESTION_TYPES.map(type => <option key={type.value} value={type.value}>{type.label}</option>)}
               </select>
             </div>
-            <Input 
-              placeholder="Instruction (e.g. Choose NO MORE THAN TWO WORDS)" 
-              value={q.instruction} 
-              onChange={e => onUpdate('instruction', e.target.value)} 
-              className="text-[11px] italic text-slate-500 bg-transparent border-none px-0 h-auto focus-visible:ring-0 placeholder:text-slate-300" 
-            />
+            <Input placeholder="Instruction..." value={q.instruction} onChange={e => onUpdate('instruction', e.target.value)} className="text-[11px] italic text-slate-500 bg-transparent border-none px-0 h-auto focus-visible:ring-0" />
           </div>
-          <Button type="button" variant="ghost" size="sm" onClick={onRemove} className="text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg -mr-2"><lucideReact.Trash2 size={16}/></Button>
+          <Button type="button" variant="ghost" size="sm" onClick={onRemove} className="text-slate-300 hover:text-red-500 rounded-lg -mr-2"><lucideReact.Trash2 size={16}/></Button>
         </div>
 
-        {/* IMAGE UPLOAD FOR DIAGRAMS/MAPS (LISTENING & READING) */}
+        {/* Matching Headings - List of Headings bo'limi */}
+        {q.type === 'matching_headings' && (
+          <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 space-y-3">
+            <Label className="text-[10px] font-black text-amber-600 uppercase">List of Headings</Label>
+            {(q.headingList || [""]).map((h, hIdx) => (
+              <div key={hIdx} className="flex gap-2">
+                <span className="text-xs font-bold text-amber-500 pt-2 w-6">{hIdx + 1}.</span>
+                <Input value={h} onChange={e => {
+                  const newList = [...(q.headingList || [])]; newList[hIdx] = e.target.value; onUpdate('headingList', newList);
+                }} placeholder="Heading text..." className="h-9 bg-white" />
+              </div>
+            ))}
+            <Button type="button" size="sm" variant="outline" onClick={() => onUpdate('headingList', [...(q.headingList || []), ""])} className="w-full text-[10px] font-bold border-amber-200 text-amber-600">+ Add Heading to List</Button>
+          </div>
+        )}
+
         {q.type === 'diagram' && (
           <div className="space-y-2">
-            <Label className="text-[10px] uppercase text-slate-400 font-bold ml-1">Map / Diagram Image URL</Label>
-            <div className="flex gap-2">
-                <div className="relative flex-1">
-                    <lucideReact.Image className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    <Input 
-                        placeholder="Paste image URL here..." 
-                        value={q.imageUrl || ""} 
-                        onChange={e => onUpdate('imageUrl', e.target.value)} 
-                        className="pl-10 bg-white border-blue-100 focus:border-blue-500"
-                    />
-                </div>
-            </div>
-            {q.imageUrl && (
-                <div className="mt-2 relative group w-full max-w-[200px] aspect-video rounded-lg overflow-hidden border border-slate-200 shadow-sm">
-                    <img src={q.imageUrl} alt="Diagram preview" className="w-full h-full object-cover" />
-                    <button 
-                        onClick={() => onUpdate('imageUrl', '')}
-                        className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                        <lucideReact.X size={12}/>
-                    </button>
-                </div>
-            )}
+            <Label className="text-[10px] uppercase text-slate-400 font-bold">Map / Diagram Image URL</Label>
+            <Input placeholder="Paste image URL here..." value={q.imageUrl || ""} onChange={e => onUpdate('imageUrl', e.target.value)} className="bg-white" />
           </div>
         )}
 
         <div className="space-y-3">
           {q.type === 'matching_headings' ? (
-             <div className="flex gap-2 items-center">
-                <Badge variant="outline" className="bg-slate-100 whitespace-nowrap">Paragraph</Badge>
+              <div className="flex gap-2 items-center">
+                <Badge variant="outline" className="bg-slate-100">Paragraph</Badge>
                 <Input placeholder="e.g. Paragraph A" value={q.text} onChange={e => onUpdate('text', e.target.value)} className="font-bold bg-white" />
-             </div>
-          ) : q.type === 'gap_fill' || q.type === 'short_answer' || q.type === 'diagram' ? (
-             <div className="relative">
-                <Label className="text-[10px] uppercase text-slate-400 font-bold ml-1 mb-1 block">Question Text (Use [...] for gap location)</Label>
-                <Textarea 
-                  placeholder={q.type === 'diagram' ? "e.g. Label 14 on the map represents the [...]" : "e.g. The first mechanism was invented in [...] by a German engineer."} 
-                  value={q.text} 
-                  onChange={e => onUpdate('text', e.target.value)} 
-                  className="font-medium bg-white min-h-[60px] text-sm leading-relaxed" 
-                />
-             </div>
+              </div>
           ) : (
-            <Input 
-              placeholder="Question Statement / Text" 
-              value={q.text} 
-              onChange={e => onUpdate('text', e.target.value)} 
-              className="font-bold border-slate-200 shadow-sm bg-white h-11" 
-            />
+            <Textarea placeholder="Question Text..." value={q.text} onChange={e => onUpdate('text', e.target.value)} className="font-medium bg-white min-h-[60px] text-sm" />
           )}
         </div>
 
         {q.type === 'mcq' && (
           <div className="space-y-2 pl-4 border-l-4 border-blue-100">
-            <div className="grid grid-cols-1 gap-2">
-              {q.options.map((opt, oIdx) => (
-                <div key={oIdx} className="flex items-center gap-3">
-                  <span className="bg-slate-100 w-6 h-6 flex items-center justify-center rounded text-[10px] font-black text-slate-500 shrink-0">
-                    {String.fromCharCode(65 + oIdx)}
-                  </span>
-                  <Input 
-                    placeholder={`Option ${String.fromCharCode(65 + oIdx)}`} 
-                    value={opt} 
-                    onChange={e => {
-                      const newOpts = [...q.options];
-                      newOpts[oIdx] = e.target.value;
-                      onUpdate('options', newOpts);
-                    }} 
-                    className="h-9 text-sm bg-white"
-                  />
-                  <Button 
-                    type="button" size="sm" variant="ghost" 
-                    onClick={() => {
-                        const newOpts = q.options.filter((_, i) => i !== oIdx);
-                        onUpdate('options', newOpts);
-                    }}
-                    className="h-6 w-6 p-0 text-slate-300 hover:text-red-500"
-                  ><lucideReact.X size={12}/></Button>
-                </div>
-              ))}
-            </div>
-            <Button 
-                type="button" 
-                variant="outline" 
-                size="sm" 
-                onClick={() => onUpdate('options', [...q.options, ""])}
-                className="text-xs h-7 ml-9 text-blue-600 bg-blue-50 border-blue-100 hover:bg-blue-100"
-            >+ Add Option</Button>
+            {q.options.map((opt, oIdx) => (
+              <div key={oIdx} className="flex items-center gap-3">
+                <span className="bg-slate-100 w-6 h-6 flex items-center justify-center rounded text-[10px] font-black">{String.fromCharCode(65 + oIdx)}</span>
+                <Input placeholder={`Option ${String.fromCharCode(65 + oIdx)}`} value={opt} onChange={e => {
+                  const newOpts = [...q.options]; newOpts[oIdx] = e.target.value; onUpdate('options', newOpts);
+                }} className="h-9 text-sm bg-white" />
+              </div>
+            ))}
+            <Button type="button" variant="outline" size="sm" onClick={() => onUpdate('options', [...q.options, ""])} className="text-xs h-7">+ Add Option</Button>
           </div>
         )}
 
-        {(q.type === 'matching_features' || q.type === 'matching_headings') && (
-           <div className="text-[10px] text-slate-400 bg-slate-100 p-2 rounded">
-             Note: Ensure the list of options (Headings/People) is provided in the passage text or a separate description block.
-           </div>
-        )}
-
         <div className="flex items-center gap-3 bg-emerald-50/80 px-4 py-3 rounded-xl border border-emerald-100/50">
-          <lucideReact.CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
-          {(q.type === 'tfng' || q.type === 'ynng') ? (
-             <select 
-                value={q.answer} 
-                onChange={e => onUpdate('answer', e.target.value)}
-                className="h-8 bg-transparent font-black text-emerald-700 outline-none w-full text-sm"
-             >
-                <option value="" disabled>Select Correct Answer</option>
-                {q.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-             </select>
-          ) : q.type === 'mcq' ? (
-             <select 
-                value={q.answer} 
-                onChange={e => onUpdate('answer', e.target.value)}
-                className="h-8 bg-transparent font-black text-emerald-700 outline-none w-full text-sm"
-            >
-                <option value="" disabled>Select Correct Letter</option>
-                {q.options.map((_, i) => (
-                    <option key={i} value={String.fromCharCode(65 + i)}>Option {String.fromCharCode(65 + i)}</option>
-                ))}
-            </select>
-          ) : (
-            <Input 
-                className="h-8 border-none bg-transparent font-black text-emerald-700 placeholder:text-emerald-400/50 focus-visible:ring-0 text-sm" 
-                placeholder={q.type === 'matching_headings' ? "Correct Heading (e.g. iv)" : "Correct Answer(s)"} 
-                value={q.answer} 
-                onChange={e => onUpdate('answer', e.target.value)} 
-            />
-          )}
+          <lucideReact.CheckCircle2 size={16} className="text-emerald-500" />
+          <Input className="h-8 border-none bg-transparent font-black text-emerald-700 focus-visible:ring-0 text-sm" placeholder="Correct Answer" value={q.answer} onChange={e => onUpdate('answer', e.target.value)} />
         </div>
       </div>
     );
@@ -354,7 +271,7 @@ export default function AdminExams() {
           <h2 className="text-4xl font-black text-slate-900 tracking-tight">Exam <span className="text-blue-600 italic">Studio</span></h2>
           <p className="text-slate-500 font-medium mt-1">Professional IELTS Test Builder</p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl px-8 h-14 font-black shadow-xl shadow-blue-100 transition-all">
+        <Button onClick={() => setIsModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl px-8 h-14 font-black shadow-xl transition-all">
           <lucideReact.Plus className="mr-2" size={20} /> Create New Exam
         </Button>
       </div>
@@ -408,7 +325,7 @@ export default function AdminExams() {
               ].map(t => (
                 <div key={t.label} className="space-y-2">
                   <Label className="text-[9px] font-black uppercase text-slate-500 flex items-center justify-center gap-1"><lucideReact.Clock size={10}/> {t.label}</Label>
-                  <input type="number" value={t.val} onChange={e => t.set(e.target.value)} className="w-full bg-white/10 border-none rounded-xl h-10 text-white font-black text-center text-lg focus:ring-2 ring-blue-500 outline-none" />
+                  <input type="number" value={t.val} onChange={(e: any) => t.set(e.target.value)} className="w-full bg-white/10 border-none rounded-xl h-10 text-white font-black text-center text-lg focus:ring-2 ring-blue-500 outline-none" />
                 </div>
               ))}
             </div>
@@ -421,31 +338,58 @@ export default function AdminExams() {
               <TabsTrigger value="writing" className="px-10 py-3.5 rounded-2xl data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xl font-black transition-all flex gap-3 text-sm tracking-tight"><lucideReact.PenTool size={20}/> Writing</TabsTrigger>
             </TabsList>
 
+            <TabsContent value="listening" className="space-y-10">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                  <div className="space-y-3">
+                    <Label className="font-black text-[10px] uppercase text-slate-400 ml-1">Cloud Audio Source (MP3 URL)</Label>
+                    <Input placeholder="https://..." value={audioUrl} onChange={e => setAudioUrl(e.target.value)} className="h-16 rounded-2xl bg-slate-50 border-none px-6 font-bold shadow-inner" />
+                  </div>
+                  <AudioPreview url={audioUrl} />
+               </div>
+
+               <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                  {listeningParts.map((part, pIdx) => (
+                    <div key={pIdx} className="p-8 bg-white border border-slate-100 shadow-xl rounded-[2.5rem] space-y-6">
+                      <div className="flex justify-between items-center">
+                        <Badge className="bg-slate-900 px-4 py-1.5 rounded-lg font-black uppercase">Part {pIdx + 1}</Badge>
+                        <Button type="button" onClick={() => addQuestionGroup('listening', pIdx)} className="rounded-xl bg-blue-600 text-white font-black">+ Add Question</Button>
+                      </div>
+                      <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                        {part.questions.map((q, qIdx) => (
+                          <QuestionItem 
+                            key={q.id} q={q} idx={qIdx} 
+                            onUpdate={(key: string, val: any) => {
+                              const n = [...listeningParts]; (n[pIdx].questions[qIdx] as any)[key] = val; setListeningParts(n);
+                            }}
+                            onRemove={() => {
+                              const n = [...listeningParts]; n[pIdx].questions.splice(qIdx, 1); setListeningParts(n);
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+               </div>
+            </TabsContent>
+
             <TabsContent value="reading" className="space-y-12">
               {passages.map((psg, pIdx) => (
-                <div key={psg.id} className="grid grid-cols-1 xl:grid-cols-2 gap-10 p-10 bg-white border border-slate-100 shadow-2xl shadow-slate-200/50 rounded-[2.5rem] relative">
-                  <Badge className="absolute -top-4 left-10 bg-blue-600 h-9 px-6 rounded-xl font-black text-sm shadow-lg shadow-blue-200 uppercase tracking-widest italic">Passage {pIdx + 1}</Badge>
+                <div key={psg.id} className="grid grid-cols-1 xl:grid-cols-2 gap-10 p-10 bg-white border border-slate-100 shadow-2xl rounded-[2.5rem] relative">
+                  <Badge className="absolute -top-4 left-10 bg-blue-600 h-9 px-6 rounded-xl font-black text-sm uppercase italic">Passage {pIdx + 1}</Badge>
                   <div className="space-y-6">
-                    <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Passage Heading</Label>
-                       <Input placeholder="Enter the official title of the text..." value={psg.title} onChange={e => {
-                         const n = [...passages]; n[pIdx].title = e.target.value; setPassages(n);
-                       }} className="font-black text-xl border-none bg-slate-50 h-14 rounded-2xl px-6" />
-                    </div>
-                    <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Reading Content</Label>
-                       <Textarea placeholder="Paste the reading passage here..." className="min-h-[600px] leading-relaxed font-serif text-lg p-8 rounded-[2rem] bg-slate-50/50 border-none shadow-inner resize-y" value={psg.content} onChange={e => {
-                         const n = [...passages]; n[pIdx].content = e.target.value; setPassages(n);
-                       }} />
-                    </div>
+                    <Input placeholder="Heading" value={psg.title} onChange={e => {
+                       const n = [...passages]; n[pIdx].title = e.target.value; setPassages(n);
+                    }} className="font-black text-xl border-none bg-slate-50 h-14 rounded-2xl px-6" />
+                    <Textarea className="min-h-[600px] leading-relaxed font-serif text-lg p-8 rounded-[2rem] bg-slate-50/50 border-none shadow-inner resize-y" value={psg.content} onChange={e => {
+                       const n = [...passages]; n[pIdx].content = e.target.value; setPassages(n);
+                    }} />
                   </div>
-
-                  <div className="space-y-6 bg-slate-50/80 p-8 rounded-[2.5rem] border border-slate-200/50 shadow-inner flex flex-col h-full">
-                    <div className="flex justify-between items-center px-2">
-                      <h4 className="font-black text-xs uppercase tracking-[0.2em] text-slate-400">Questions ({psg.questions.length})</h4>
-                      <Button type="button" variant="outline" size="sm" onClick={() => addQuestionGroup('reading', pIdx)} className="rounded-xl bg-white border-2 font-black text-blue-600 hover:bg-blue-600 hover:text-white transition-all">+ Add Question</Button>
+                  <div className="space-y-6 bg-slate-50/80 p-8 rounded-[2.5rem] border border-slate-200/50 shadow-inner overflow-hidden max-h-[800px]">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-black text-xs uppercase text-slate-400">Questions</h4>
+                      <Button type="button" variant="outline" onClick={() => addQuestionGroup('reading', pIdx)} className="rounded-xl bg-white border-2 font-black text-blue-600">+ Add Question</Button>
                     </div>
-                    <div className="flex-1 overflow-y-auto pr-4 space-y-2 custom-scrollbar max-h-[700px]">
+                    <div className="overflow-y-auto pr-4 space-y-2 custom-scrollbar h-full">
                       {psg.questions.map((q, qIdx) => (
                         <QuestionItem 
                           key={q.id} q={q} idx={qIdx} 
@@ -457,86 +401,41 @@ export default function AdminExams() {
                           }}
                         />
                       ))}
-                      {psg.questions.length === 0 && (
-                          <div className="text-center py-20 text-slate-400 italic">No questions added for this passage yet.</div>
-                      )}
                     </div>
                   </div>
                 </div>
               ))}
-              {passages.length < 3 && (
-                <Button type="button" variant="ghost" className="w-full border-4 border-dashed h-24 rounded-[2.5rem] text-slate-400 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50/30 font-black text-xl transition-all" onClick={() => setPassages([...passages, { id: Date.now(), title: "", content: "", questions: [] }])}>
-                  <lucideReact.Plus className="mr-2"/> Append Next Passage
-                </Button>
-              )}
-            </TabsContent>
-
-            <TabsContent value="listening" className="space-y-10">
-               <Card className="p-10 bg-white border-none shadow-2xl rounded-[3rem] space-y-8">
-                  <div className="flex items-center gap-6 pb-8 border-b">
-                     <div className="w-20 h-20 bg-blue-600 rounded-[2rem] flex items-center justify-center text-white shadow-2xl shadow-blue-300"><lucideReact.Headset size={40}/></div>
-                     <div>
-                        <h3 className="text-2xl font-black text-slate-900 italic uppercase">Listening Master</h3>
-                        <p className="text-slate-500 font-medium tracking-tight">Set your global audio and structure your sections</p>
-                     </div>
-                  </div>
-                  <div className="space-y-3">
-                    <Label className="font-black text-[10px] uppercase text-slate-400 ml-1">Cloud Audio Source (MP3 URL)</Label>
-                    <Input placeholder="https://storage.googleapis.com/your-exam-audios/test-01.mp3" value={audioUrl} onChange={e => setAudioUrl(e.target.value)} className="h-16 rounded-2xl bg-slate-50 border-none px-6 font-bold shadow-inner" />
-                  </div>
-                  <div className="space-y-6 pt-6">
-                    <div className="flex justify-between items-center">
-                       <h4 className="font-black text-slate-900 uppercase tracking-widest text-sm underline decoration-blue-500 decoration-4 underline-offset-8">All Questions (1-40)</h4>
-                       <Button type="button" onClick={() => addQuestionGroup('listening')} className="rounded-2xl bg-slate-900 font-black px-6 hover:bg-black transition-all">+ Add Question</Button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {listeningQuestions.map((q, idx) => (
-                        <QuestionItem 
-                          key={q.id} q={q} idx={idx} 
-                          onUpdate={(key: string, val: any) => {
-                            const n = [...listeningQuestions]; (n[idx] as any)[key] = val; setListeningQuestions(n);
-                          }}
-                          onRemove={() => setListeningQuestions(listeningQuestions.filter(i => i.id !== q.id))}
-                        />
-                      ))}
-                    </div>
-                  </div>
-               </Card>
+              <Button type="button" variant="ghost" className="w-full border-4 border-dashed h-24 rounded-[2.5rem] text-slate-400" onClick={() => setPassages([...passages, { id: Date.now(), title: "", content: "", questions: [] }])}>
+                <lucideReact.Plus className="mr-2"/> Append Next Passage
+              </Button>
             </TabsContent>
 
             <TabsContent value="writing" className="grid grid-cols-1 xl:grid-cols-2 gap-10">
               {writingTasks.map((task, idx) => (
-                <div key={idx} className="p-10 bg-white border-none rounded-[3rem] shadow-2xl shadow-slate-200 space-y-8 flex flex-col">
+                <div key={idx} className="p-10 bg-white border-none rounded-[3rem] shadow-2xl space-y-8 flex flex-col">
                   <div className="flex justify-between items-center">
-                    <Badge className="bg-slate-900 px-6 py-2 rounded-xl text-md font-black italic tracking-tighter">WRITING TASK {idx + 1}</Badge>
-                    <span className="text-xs font-black text-blue-600 bg-blue-50 px-4 py-2 rounded-full uppercase tracking-widest">{task.wordLimit} Words Minimum</span>
+                    <Badge className="bg-slate-900 px-6 py-2 rounded-xl text-md font-black italic">WRITING TASK {idx + 1}</Badge>
+                    <span className="text-xs font-black text-blue-600 bg-blue-50 px-4 py-2 rounded-full uppercase">{task.wordLimit} Words Min</span>
                   </div>
                   {idx === 0 && (
                     <div className="space-y-3">
-                      <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Graphic/Diagram Image Asset</Label>
+                      <Label className="text-[10px] font-black uppercase text-slate-400">Graphic Asset URL</Label>
                       <Input value={task.image} onChange={e => {
                         const n = [...writingTasks]; n[0].image = e.target.value; setWritingTasks(n);
-                      }} placeholder="https://cdn.example.com/graphs/task1-diagram.jpg" className="h-14 rounded-2xl bg-slate-50 border-none px-6 font-medium shadow-inner" />
+                      }} placeholder="https://..." className="h-14 rounded-2xl bg-slate-50 border-none px-6 shadow-inner" />
                     </div>
                   )}
-                  <div className="space-y-3 flex-1">
-                    <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Prompt / Question Context</Label>
-                    <Textarea className="min-h-[350px] text-xl font-medium bg-slate-50/50 border-none rounded-[2rem] p-8 shadow-inner leading-relaxed" value={task.content} onChange={e => {
-                      const n = [...writingTasks]; n[idx].content = e.target.value; setWritingTasks(n);
-                    }} placeholder="Write the question background and prompt here..." />
-                  </div>
+                  <Textarea className="min-h-[350px] text-xl font-medium bg-slate-50/50 border-none rounded-[2rem] p-8 shadow-inner" value={task.content} onChange={e => {
+                    const n = [...writingTasks]; n[idx].content = e.target.value; setWritingTasks(n);
+                  }} placeholder="Prompt..." />
                 </div>
               ))}
             </TabsContent>
           </Tabs>
 
           <div className="flex justify-end items-center gap-6 pt-10 border-t-2 border-slate-100">
-             <Button type="button" variant="ghost" className="font-black text-slate-400 hover:text-slate-900 px-8" onClick={() => setIsModalOpen(false)}>Discard</Button>
-             <Button 
-                type="submit" 
-                className="bg-blue-600 hover:bg-blue-700 h-16 px-16 rounded-[1.5rem] font-black text-xl shadow-2xl shadow-blue-200 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50" 
-                disabled={createExam.isPending}
-              >
+             <Button type="button" variant="ghost" className="font-black text-slate-400" onClick={() => setIsModalOpen(false)}>Discard</Button>
+             <Button type="submit" className="bg-blue-600 hover:bg-blue-700 h-16 px-16 rounded-[1.5rem] font-black text-xl shadow-2xl transition-all" disabled={createExam.isPending}>
                {createExam.isPending ? <lucideReact.Loader2 className="animate-spin" /> : "PUBLISH EXAM"}
              </Button>
           </div>

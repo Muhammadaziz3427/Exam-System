@@ -5,7 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
-// Sahifalar
 import AuthPage from "@/pages/auth-page";
 import AdminDashboard from "@/pages/admin-dashboard";
 import AdminExams from "@/pages/admin-exams";
@@ -21,54 +20,35 @@ import NotFound from "@/pages/not-found";
 function Router() {
   return (
     <Switch>
-      {/* 1. Login sahifasi - Hech qanday sidebar va xatolarsiz */}
       <Route path="/" component={AuthPage} />
 
-      {/* 2. Admin yo'nalishlari */}
       <Route path="/admin">
-        <SidebarProvider>
-          <AdminDashboard />
-        </SidebarProvider>
+        <SidebarProvider><AdminDashboard /></SidebarProvider>
       </Route>
       <Route path="/admin/exams">
-        <SidebarProvider>
-          <AdminExams />
-        </SidebarProvider>
+        <SidebarProvider><AdminExams /></SidebarProvider>
       </Route>
       <Route path="/admin/exams/:id">
-        <SidebarProvider>
-          <AdminExamEditor />
-        </SidebarProvider>
+        <SidebarProvider><AdminExamEditor /></SidebarProvider>
       </Route>
       <Route path="/admin/teachers">
-        <SidebarProvider>
-          <AdminTeachers />
-        </SidebarProvider>
+        <SidebarProvider><AdminTeachers /></SidebarProvider>
       </Route>
       <Route path="/admin/sessions">
-        <SidebarProvider>
-          <AdminSessions />
-        </SidebarProvider>
+        <SidebarProvider><AdminSessions /></SidebarProvider>
       </Route>
       <Route path="/admin/detailed-assessment">
-        <SidebarProvider>
-          <AdminDetailedAssessment />
-        </SidebarProvider>
+        <SidebarProvider><AdminDetailedAssessment /></SidebarProvider>
       </Route>
 
-      {/* 3. Teacher yo'nalishi (Rasmda 404 bergan joy) */}
       <Route path="/teacher">
-        <SidebarProvider>
-          <TeacherDashboard />
-        </SidebarProvider>
+        <SidebarProvider><TeacherDashboard /></SidebarProvider>
       </Route>
 
-      {/* 4. Student sahifalari */}
       <Route path="/exam/:id" component={StudentExam} />
       <Route path="/results/breakdown/:id" component={StudentDetailedResults} />
       <Route path="/student/detailed-results/:id" component={StudentDetailedResults} />
 
-      {/* 5. 404 sahifasi */}
       <Route component={NotFound} />
     </Switch>
   );
