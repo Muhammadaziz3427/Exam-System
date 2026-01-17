@@ -35,6 +35,7 @@ function Router() {
 
       {/* Student yo'nalishlari */}
       <Route path="/exam/:id" component={StudentExam} />
+      <Route path="/results/breakdown/:id" component={StudentDetailedResults} />
       <Route path="/student/detailed-results/:id" component={StudentDetailedResults} />
 
       {/* 404 sahifasi */}

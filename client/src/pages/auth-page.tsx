@@ -1,12 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 // useAdminLogin va useStudentLogin hooklarini ishlatish xatoni yo'qotadi
 import { useAdminLogin, useStudentLogin } from "@/hooks/use-auth";
 import { Button, Input, Card, CardHeader, CardTitle, CardContent, Label } from "@/components/ui-kit";
-import { GraduationCap, ShieldCheck, Loader2 } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { GraduationCap, ShieldCheck, Loader2, Trophy, FileText, Search } from "lucide-react";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 
 export default function AuthPage() {
   const [activeTab, setActiveTab] = useState<"student" | "admin">("student");
+  const [session, setSession] = useState<any>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("student_session");
+    if (saved) setSession(JSON.parse(saved));
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-200 p-4">
@@ -18,30 +25,103 @@ export default function AuthPage() {
       </div>
 
       <div className="w-full max-w-md mx-auto space-y-6">
-        {/* Tab Switcher */}
-        <div className="flex bg-white/50 p-1.5 rounded-2xl backdrop-blur-sm border border-slate-200 shadow-sm">
-          <button 
-            type="button"
-            onClick={() => setActiveTab("student")} 
-            className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${
-              activeTab === "student" ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "text-slate-500 hover:bg-slate-100"
-            }`}
-          >
-            Student Login
-          </button>
-          <button 
-            type="button"
-            onClick={() => setActiveTab("admin")} 
-            className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${
-              activeTab === "admin" ? "bg-slate-900 text-white shadow-lg shadow-slate-200" : "text-slate-500 hover:bg-slate-100"
-            }`}
-          >
-            Admin Portal
-          </button>
-        </div>
+        {session && activeTab === "student" ? (
+          <Card className="border-none shadow-xl bg-white/80 backdrop-blur-md overflow-hidden animate-in fade-in zoom-in duration-500">
+            <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6">
+              <CardTitle className="text-xl font-bold flex items-center gap-2">
+                <Trophy className="size-6 text-yellow-300" />
+                Your Test Performance
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-8 space-y-8">
+              <div className="flex flex-col items-center justify-center space-y-2">
+                <div className="relative group">
+                  <div className="absolute inset-0 bg-blue-500 blur-2xl opacity-20 group-hover:opacity-30 transition-opacity rounded-full"></div>
+                  <div className="relative w-32 h-32 rounded-full border-8 border-blue-50 flex items-center justify-center bg-white shadow-inner">
+                    <div className="text-center">
+                      <p className="text-4xl font-black text-blue-600 leading-none">{session.overallBand || "0.0"}</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Overall</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-center">
+                  <h3 className="text-lg font-bold text-slate-900">{session.studentName}</h3>
+                  <p className="text-sm text-slate-500 font-medium">Session ID: {session.accessCode}</p>
+                </div>
+              </div>
 
-        {/* Komponentlarni chaqirish */}
-        {activeTab === "student" ? <StudentLoginForm /> : <AdminLoginForm />}
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { label: "Listening", score: session.listeningScore, color: "text-blue-600", bg: "bg-blue-50" },
+                  { label: "Reading", score: session.readingScore, color: "text-emerald-600", bg: "bg-emerald-50" },
+                  { label: "Writing", score: session.writingScore, color: "text-purple-600", bg: "bg-purple-50" },
+                  { label: "Speaking", score: session.speakingScore, color: "text-orange-600", bg: "bg-orange-50" }
+                ].map((s) => (
+                  <div key={s.label} className={`${s.bg} rounded-2xl p-4 text-center border border-white shadow-sm`}>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-tight mb-1">{s.label}</p>
+                    <p className={`text-xl font-black ${s.color}`}>{s.score || "0.0"}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="pt-4 flex flex-col gap-3">
+                <Link href={`/student/detailed-results/${session.id}`}>
+                  <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold h-12 rounded-xl shadow-lg shadow-slate-200 transition-all active:scale-[0.98]">
+                    <FileText className="mr-2 h-5 w-5" />
+                    View Performance Breakdown
+                  </Button>
+                </Link>
+                
+                {session.status === 'graded' && (
+                  <Link href={`/results/breakdown/${session.id}`}>
+                    <Button variant="outline" className="w-full border-2 border-purple-200 text-purple-700 hover:bg-purple-50 font-bold h-12 rounded-xl transition-all active:scale-[0.98]">
+                      <Search className="mr-2 h-5 w-5" />
+                      View In-Depth Analysis
+                    </Button>
+                  </Link>
+                )}
+
+                <Button 
+                  variant="ghost" 
+                  className="text-slate-400 hover:text-slate-600 text-xs"
+                  onClick={() => {
+                    localStorage.removeItem("student_session");
+                    setSession(null);
+                  }}
+                >
+                  Log out and try another code
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            {/* Tab Switcher */}
+            <div className="flex bg-white/50 p-1.5 rounded-2xl backdrop-blur-sm border border-slate-200 shadow-sm">
+              <button 
+                type="button"
+                onClick={() => setActiveTab("student")} 
+                className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${
+                  activeTab === "student" ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "text-slate-500 hover:bg-slate-100"
+                }`}
+              >
+                Student Login
+              </button>
+              <button 
+                type="button"
+                onClick={() => setActiveTab("admin")} 
+                className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${
+                  activeTab === "admin" ? "bg-slate-900 text-white shadow-lg shadow-slate-200" : "text-slate-500 hover:bg-slate-100"
+                }`}
+              >
+                Admin Portal
+              </button>
+            </div>
+
+            {/* Komponentlarni chaqirish */}
+            {activeTab === "student" ? <StudentLoginForm /> : <AdminLoginForm />}
+          </>
+        )}
       </div>
     </div>
   );

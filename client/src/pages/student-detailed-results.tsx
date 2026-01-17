@@ -41,10 +41,16 @@ export default function StudentDetailedResults() {
   }
 
   const assessment = submission?.grading?.advancedAssessment;
+  const advancedAnalysis = submission?.grading?.advanced_analysis;
   const hasAssessment = assessment && 
     (assessment.writing?.task1?.taskResponse !== undefined || 
      assessment.speaking?.fluency !== undefined ||
      assessment.diagnosticFeedback);
+
+  const hasAdvancedAnalysis = advancedAnalysis && 
+    (Object.keys(advancedAnalysis.writing?.task1 || {}).length > 0 || 
+     Object.keys(advancedAnalysis.writing?.task2 || {}).length > 0 || 
+     Object.keys(advancedAnalysis.speaking || {}).length > 0);
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
@@ -119,7 +125,7 @@ export default function StudentDetailedResults() {
                 </CardContent>
               </Card>
 
-              {/* Speaking Feedback */}
+                  {/* Speaking Feedback */}
               <Card className="border-none shadow-sm overflow-hidden">
                 <CardHeader className="bg-white border-b border-slate-100">
                   <CardTitle className="text-xl font-bold border-l-4 border-emerald-500 pl-3">Speaking Assessment</CardTitle>
@@ -138,6 +144,18 @@ export default function StudentDetailedResults() {
                       </div>
                     ))}
                   </div>
+
+                  {/* Speaking Analysis if available */}
+                  {hasAdvancedAnalysis && advancedAnalysis.speaking && (
+                    <div className="mt-6 space-y-2">
+                      <h4 className="font-bold text-sm text-slate-700">Detailed Speaking Analysis</h4>
+                      <div className="p-4 bg-emerald-50 rounded-lg text-sm text-slate-600 whitespace-pre-wrap">
+                        {typeof advancedAnalysis.speaking === 'string' 
+                          ? advancedAnalysis.speaking 
+                          : JSON.stringify(advancedAnalysis.speaking, null, 2)}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -152,6 +170,37 @@ export default function StudentDetailedResults() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Advanced AI Analysis if available */}
+              {hasAdvancedAnalysis && (
+                <Card className="lg:col-span-2 border-none shadow-sm overflow-hidden">
+                  <CardHeader className="bg-white border-b border-slate-100">
+                    <CardTitle className="text-xl font-bold border-l-4 border-purple-500 pl-3">In-Depth AI Analysis</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-6">
+                    {advancedAnalysis.writing?.task1 && (
+                      <div className="space-y-2">
+                        <h4 className="font-bold text-sm text-slate-700">Writing Task 1 Analysis</h4>
+                        <div className="p-4 bg-purple-50 rounded-lg text-sm text-slate-600">
+                          {typeof advancedAnalysis.writing.task1 === 'string' 
+                            ? advancedAnalysis.writing.task1 
+                            : JSON.stringify(advancedAnalysis.writing.task1, null, 2)}
+                        </div>
+                      </div>
+                    )}
+                    {advancedAnalysis.writing?.task2 && (
+                      <div className="space-y-2">
+                        <h4 className="font-bold text-sm text-slate-700">Writing Task 2 Analysis</h4>
+                        <div className="p-4 bg-purple-50 rounded-lg text-sm text-slate-600">
+                          {typeof advancedAnalysis.writing.task2 === 'string' 
+                            ? advancedAnalysis.writing.task2 
+                            : JSON.stringify(advancedAnalysis.writing.task2, null, 2)}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
             </div>
           ) : (
             <Card className="border-none shadow-sm bg-slate-100/50 border-dashed border-2">
