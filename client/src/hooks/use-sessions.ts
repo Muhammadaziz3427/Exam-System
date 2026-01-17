@@ -53,7 +53,6 @@ export function useStartSession() {
   });
 }
 
-// 2. Bu yerda xatolik tuzatildi (SubmitPayload qo'shildi)
 export function useSubmitAnswers() {
   return useMutation({
     mutationFn: async ({ id, answers, isFinal, status, email, notes }: SubmitPayload) => {
