@@ -1,18 +1,27 @@
 import { useState, useEffect } from "react";
-// useAdminLogin va useStudentLogin hooklarini ishlatish xatoni yo'qotadi
 import { useAdminLogin, useStudentLogin } from "@/hooks/use-auth";
-import { Button, Input, Card, CardHeader, CardTitle, CardContent, Label } from "@/components/ui-kit";
+// Importlarni tekshiring: Agar alohida bo'lsa, har birini alohida qatorda yozing
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { GraduationCap, ShieldCheck, Loader2, Trophy, FileText, Search } from "lucide-react";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link, useLocation } from "wouter";
 
 export default function AuthPage() {
-  const [activeTab, setActiveTab] = useState<"student" | "admin">("student");
+  const [activeTab, setActiveTab] = useState<"student" | "admin" | "teacher">("student");
   const [session, setSession] = useState<any>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem("student_session");
-    if (saved) setSession(JSON.parse(saved));
+    if (saved) {
+      try {
+        setSession(JSON.parse(saved));
+      } catch (e) {
+        console.error("Session parse error", e);
+      }
+    }
   }, []);
 
   return (
@@ -36,7 +45,7 @@ export default function AuthPage() {
             <CardContent className="p-8 space-y-8">
               <div className="flex flex-col items-center justify-center space-y-2">
                 <div className="relative group">
-                  <div className="absolute inset-0 bg-blue-500 blur-2xl opacity-20 group-hover:opacity-30 transition-opacity rounded-full"></div>
+                  <div className="absolute inset-0 bg-blue-500 blur-2xl opacity-20 transition-opacity rounded-full"></div>
                   <div className="relative w-32 h-32 rounded-full border-8 border-blue-50 flex items-center justify-center bg-white shadow-inner">
                     <div className="text-center">
                       <p className="text-4xl font-black text-blue-600 leading-none">{session.overallBand || "0.0"}</p>
@@ -66,21 +75,11 @@ export default function AuthPage() {
 
               <div className="pt-4 flex flex-col gap-3">
                 <Link href={`/student/detailed-results/${session.id}`}>
-                  <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold h-12 rounded-xl shadow-lg shadow-slate-200 transition-all active:scale-[0.98]">
+                  <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold h-12 rounded-xl">
                     <FileText className="mr-2 h-5 w-5" />
                     View Performance Breakdown
                   </Button>
                 </Link>
-                
-                {session.status === 'graded' && (
-                  <Link href={`/results/breakdown/${session.id}`}>
-                    <Button variant="outline" className="w-full border-2 border-purple-200 text-purple-700 hover:bg-purple-50 font-bold h-12 rounded-xl transition-all active:scale-[0.98]">
-                      <Search className="mr-2 h-5 w-5" />
-                      View In-Depth Analysis
-                    </Button>
-                  </Link>
-                )}
-
                 <Button 
                   variant="ghost" 
                   className="text-slate-400 hover:text-slate-600 text-xs"
@@ -95,14 +94,13 @@ export default function AuthPage() {
             </CardContent>
           </Card>
         ) : (
-          <>
-            {/* Tab Switcher */}
+          <div className="space-y-6">
             <div className="flex bg-white/50 p-1.5 rounded-2xl backdrop-blur-sm border border-slate-200 shadow-sm">
               <button 
                 type="button"
                 onClick={() => setActiveTab("student")} 
                 className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${
-                  activeTab === "student" ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "text-slate-500 hover:bg-slate-100"
+                  activeTab === "student" ? "bg-blue-600 text-white shadow-lg" : "text-slate-500 hover:bg-slate-100"
                 }`}
               >
                 Student Login
@@ -111,44 +109,48 @@ export default function AuthPage() {
                 type="button"
                 onClick={() => setActiveTab("admin")} 
                 className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all duration-300 ${
-                  activeTab === "admin" ? "bg-slate-900 text-white shadow-lg shadow-slate-200" : "text-slate-500 hover:bg-slate-100"
+                  activeTab === "admin" ? "bg-slate-900 text-white shadow-lg" : "text-slate-500 hover:bg-slate-100"
                 }`}
               >
                 Admin Portal
               </button>
             </div>
 
-            {/* Komponentlarni chaqirish */}
             {activeTab === "student" ? <StudentLoginForm /> : <AdminLoginForm />}
-          </>
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-// ADMIN LOGIN KOMPONENTI
 function AdminLoginForm() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const login = useAdminLogin();
-  const queryClient = useQueryClient(); // useQueryClient ishlatildi
+  const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     login.mutate({ username, password }, {
       onSuccess: (userData: any) => {
-        localStorage.setItem("user", JSON.stringify(userData));
+        // Ma'lumotni keshga yozish
         queryClient.setQueryData(["/api/user"], userData);
-        window.location.replace(userData.role === "admin" ? "/admin" : "/teacher");
+        // Yo'naltirish
+        if (userData.role === "admin") {
+          setLocation("/admin");
+        } else {
+          setLocation("/teacher");
+        }
       }
     });
   };
 
   return (
-    <Card className="border-t-4 border-t-slate-900 shadow-2xl animate-in fade-in zoom-in duration-300">
+    <Card className="border-t-4 border-t-slate-900 shadow-2xl">
       <CardHeader className="text-center">
-        <div className="mx-auto w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center mb-2 text-white shadow-lg">
+        <div className="mx-auto w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center mb-2 text-white">
           <ShieldCheck size={24} />
         </div>
         <CardTitle className="text-xl">Administrative Access</CardTitle>
@@ -172,11 +174,11 @@ function AdminLoginForm() {
   );
 }
 
-// STUDENT LOGIN KOMPONENTI
 function StudentLoginForm() {
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const login = useStudentLogin();
+  const [, setLocation] = useLocation();
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -184,15 +186,15 @@ function StudentLoginForm() {
       onSuccess: (data: any) => {
         const session = data.session || data;
         localStorage.setItem("student_session", JSON.stringify(session));
-        window.location.href = `/exam/${session.id}`;
+        setLocation(`/exam/${session.id}`);
       }
     });
   };
 
   return (
-    <Card className="border-t-4 border-t-blue-600 shadow-2xl animate-in fade-in zoom-in duration-300">
+    <Card className="border-t-4 border-t-blue-600 shadow-2xl">
       <CardHeader className="text-center">
-        <div className="mx-auto w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center mb-2 text-blue-600 shadow-sm">
+        <div className="mx-auto w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center mb-2 text-blue-600">
           <GraduationCap size={24} />
         </div>
         <CardTitle className="text-xl">Start Your Exam</CardTitle>
@@ -201,13 +203,13 @@ function StudentLoginForm() {
         <form onSubmit={handleLoginSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="st-code">Access Code</Label>
-            <Input id="st-code" placeholder="TEST-0000" className="uppercase font-mono tracking-widest" value={code} onChange={(e) => setCode(e.target.value)} required />
+            <Input id="st-code" placeholder="TEST-0000" className="uppercase font-mono" value={code} onChange={(e) => setCode(e.target.value)} required />
           </div>
           <div className="space-y-2">
             <Label htmlFor="st-pass">Exam Password</Label>
             <Input id="st-pass" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </div>
-          <Button className="w-full bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200" disabled={login.isPending}>
+          <Button className="w-full bg-blue-600 hover:bg-blue-700" disabled={login.isPending}>
             {login.isPending ? <Loader2 className="animate-spin mr-2" /> : "Enter Exam Room"}
           </Button>
         </form>

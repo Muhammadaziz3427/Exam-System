@@ -1,66 +1,121 @@
-import { useLocation } from "wouter";
-import { LogOut, Loader2, User } from "lucide-react";
-import { useLogout } from "@/hooks/use-auth";
-import { Button } from "@/components/ui-kit";
+import { useEffect, useState } from "react";
+// Nomma-nom import qilish (Linter xatolarini yo'qotish uchun eng yaxshi yo'l)
+import { 
+  Bell, 
+  Search, 
+  Settings, 
+  LogOut, 
+  User, 
+  ShieldCheck 
+} from "lucide-react"; 
+import * as uiKit from "@/components/ui-kit";
 import { AppSidebar } from "@/components/app-sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
-  const [location] = useLocation();
-  const logout = useLogout();
+  const [authorizedUser, setAuthorizedUser] = useState<any>(null);
+  const [isChecking, setIsChecking] = useState(true);
 
-  // LocalStorage dan ma'lumotni olish
-  const storedUser = JSON.parse(localStorage.getItem("user") || "null");
-  const user = storedUser?.user ? storedUser.user : storedUser;
+  useEffect(() => {
+    const rawData = localStorage.getItem("user");
+    if (rawData) {
+      try {
+        const parsed = JSON.parse(rawData);
+        const userData = parsed?.user?.user || parsed?.user || parsed;
+        if (userData && userData.username) {
+          setAuthorizedUser(userData);
+        } else {
+          window.location.href = "/";
+        }
+      } catch (e) {
+        window.location.href = "/";
+      }
+    } else {
+      window.location.href = "/";
+    }
+    setIsChecking(false);
+  }, []);
 
-  // Agar foydalanuvchi tizimga kirmagan bo'lsa, login sahifasiga yuborish
-  if (!user) {
-    window.location.replace("/");
-    return null;
+  if (isChecking) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-white gap-4">
+        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        <ShieldCheck className="text-blue-600 animate-pulse" size={32} />
+      </div>
+    );
   }
 
+  if (!authorizedUser) return null;
+
   return (
-    <div className="flex min-h-screen w-full bg-slate-50">
-      {/* Sidebar */}
-      <AppSidebar />
+    <SidebarProvider defaultOpen={true}>
+      <div className="flex h-screen w-full bg-white overflow-hidden m-0 p-0 antialiased text-slate-900">
 
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <header className="h-16 flex items-center justify-between px-8 bg-white border-b sticky top-0 z-40">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-lg uppercase tracking-wider">
-              {user.role} Portal
-            </span>
-          </div>
+        <AppSidebar />
 
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-xl">
-              <User size={16} className="text-slate-500" />
-              <span className="text-sm font-bold text-slate-700">{user.username}</span>
+        <div className="flex-1 flex flex-col min-w-0 bg-[#f8fafc]">
+          <header className="h-20 w-full flex items-center justify-between px-8 bg-white border-b border-slate-200 shrink-0 z-40">
+            <div className="flex items-center gap-6">
+              <div className="border-l-4 border-blue-600 pl-4">
+                <h1 className="text-[10px] font-black uppercase tracking-widest text-blue-600 leading-none mb-1">
+                  {authorizedUser.role || "Admin"}
+                </h1>
+                <p className="text-xl font-extrabold text-slate-800 leading-none tracking-tight">Boshqaruv Markazi</p>
+              </div>
+
+              <div className="hidden xl:flex items-center relative w-80 ml-4">
+                <Search className="absolute left-3 text-slate-400" size={16} />
+                <input 
+                  type="text" 
+                  placeholder="Tizimdan qidirish..." 
+                  className="w-full pl-10 pr-4 py-2 bg-slate-100 border-none rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100 transition-all"
+                />
+              </div>
             </div>
 
-            <Button 
-              variant="ghost" 
-              size="sm"
-              className="text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl"
-              onClick={() => {
-                if (confirm("Chiqmoqchimisiz?")) {
-                  localStorage.clear();
-                  window.location.href = "/";
-                }
-              }}
-            >
-              <LogOut size={18} />
-            </Button>
-          </div>
-        </header>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1 pr-4 border-r border-slate-200">
+                <uiKit.Button variant="ghost" size="icon" className="w-9 h-9 text-slate-500 rounded-lg hover:bg-blue-50">
+                  <Bell size={18} />
+                </uiKit.Button>
+                <uiKit.Button variant="ghost" size="icon" className="w-9 h-9 text-slate-500 rounded-lg hover:bg-slate-100">
+                  <Settings size={18} />
+                </uiKit.Button>
+              </div>
 
-        {/* Kontent */}
-        <main className="flex-1 p-8 overflow-y-auto">
-          <div className="max-w-7xl mx-auto animate-in fade-in duration-500">
-            {children}
-          </div>
-        </main>
+              <div className="flex items-center gap-3">
+                <div className="text-right hidden sm:block">
+                  <p className="text-sm font-bold text-slate-800 leading-none">{authorizedUser.username}</p>
+                  <p className="text-[10px] text-emerald-500 font-bold uppercase mt-1">Online</p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-white font-bold shadow-lg">
+                  {authorizedUser.username.charAt(0).toUpperCase()}
+                </div>
+                <uiKit.Button 
+                  variant="ghost" 
+                  size="icon"
+                  className="w-9 h-9 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50"
+                  onClick={() => { localStorage.clear(); window.location.href = "/"; }}
+                >
+                  <LogOut size={18} />
+                </uiKit.Button>
+              </div>
+            </div>
+          </header>
+
+          <main className="flex-1 overflow-y-auto custom-scrollbar bg-[#f8fafc]">
+            <div className="w-full p-8">
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-700">
+                {children}
+              </div>
+            </div>
+
+            <footer className="px-8 py-6 border-t border-slate-200/60 bg-white/50 flex justify-between items-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+              <p>© 2026 IELTS Studio</p>
+            </footer>
+          </main>
+        </div>
       </div>
-    </div>
+    </SidebarProvider>
   );
 }

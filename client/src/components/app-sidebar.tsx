@@ -1,4 +1,12 @@
-import { LayoutDashboard, BookOpen, Users, LogOut, UserCog, Calendar, FileText, Settings, ShieldCheck } from "lucide-react";
+import { 
+  LayoutDashboard, 
+  BookOpen, 
+  UserCog, 
+  Calendar, 
+  FileText, 
+  ShieldCheck, 
+  LogOut 
+} from "lucide-react"; // Kerakli ikonkalarni alohida olamiz
 import { useLocation, Link } from "wouter";
 import { 
   Sidebar, 
@@ -10,93 +18,96 @@ import {
   SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarSeparator
+  SidebarMenuButton
 } from "@/components/ui/sidebar";
+
+const getUserData = () => {
+  try {
+    const rawUser = localStorage.getItem("user");
+    if (!rawUser) return null;
+    const parsed = JSON.parse(rawUser);
+    return parsed?.user?.user || parsed?.user || parsed;
+  } catch (error) {
+    return null;
+  }
+};
 
 export function AppSidebar() {
   const [location] = useLocation();
-  const user = JSON.parse(localStorage.getItem("user") || "null");
-  const userData = user?.user || user;
+  const userData = getUserData();
   const isAdmin = userData?.role === "admin";
 
+  // Ikonkalarni komponent ko'rinishida saqlaymiz
   const items = isAdmin 
     ? [
         { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
         { title: "Exam Library", url: "/admin/exams", icon: BookOpen },
-        { title: "Instructors", icon: UserCog, url: "/admin/teachers" },
-        { title: "Test Sessions", icon: Calendar, url: "/admin/sessions" },
-        { title: "Performance Reports", icon: FileText, url: "/admin/detailed-assessment" },
+        { title: "Instructors", url: "/admin/teachers", icon: UserCog },
+        { title: "Test Sessions", url: "/admin/sessions", icon: Calendar },
+        { title: "Performance Reports", url: "/admin/detailed-assessment", icon: FileText },
       ]
     : [{ title: "Assessment Center", url: "/teacher", icon: LayoutDashboard }];
 
   return (
-    <Sidebar variant="inset" collapsible="icon">
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-3 px-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <ShieldCheck size={20} />
+    <Sidebar 
+      collapsible="none" 
+      className="w-72 border-r border-slate-200 bg-white shrink-0"
+    >
+      <SidebarHeader className="h-20 flex items-center px-6 border-b border-slate-50 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-100">
+            <ShieldCheck size={22} />
           </div>
-          <div className="grid flex-1 text-left text-sm leading-tight">
-            <span className="truncate font-bold">IELTS Platform</span>
-            <span className="truncate text-xs text-muted-foreground">{isAdmin ? "Administrator" : "Instructor"}</span>
+          <div className="flex flex-col leading-none">
+            <span className="font-black text-slate-900 text-lg tracking-tight">IELTS Studio</span>
+            <span className="text-[10px] text-blue-500 font-bold uppercase tracking-widest mt-1">Admin Panel</span>
           </div>
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent className="bg-white px-3 pt-6">
         <SidebarGroup>
-          <SidebarGroupLabel>Management</SidebarGroupLabel>
+          <SidebarGroupLabel className="px-3 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">
+            Management
+          </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
-              {items.map((item) => (
-                <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton 
-                    asChild 
-                    isActive={location === item.url}
-                    tooltip={item.title}
-                    className="hover-elevate"
-                  >
-                    <Link href={item.url}>
-                      <item.icon className="size-4" />
-                      <span className="font-medium">{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+            <SidebarMenu className="gap-1.5">
+              {items.map((item) => {
+                const isActive = location === item.url;
+                const Icon = item.icon; // Ikonkani komponent sifatida ajratib olamiz
 
-        <SidebarSeparator />
-
-        <SidebarGroup>
-          <SidebarGroupLabel>System</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Settings" className="hover-elevate">
-                  <Settings className="size-4" />
-                  <span>Configuration</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+                return (
+                  <SidebarMenuItem key={item.url}>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={isActive}
+                      className={`h-11 rounded-xl px-4 transition-all duration-300 ${
+                        isActive 
+                          ? "bg-blue-600 text-white shadow-md shadow-blue-100 hover:bg-blue-700 hover:text-white" 
+                          : "text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      <Link href={item.url} className="flex items-center gap-3 w-full">
+                        <Icon size={20} className={isActive ? "text-white" : "text-slate-400"} />
+                        <span className="font-bold text-sm">{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton 
-              className="hover:text-destructive hover:bg-destructive/10 transition-colors"
-              onClick={() => { localStorage.clear(); window.location.href = "/"; }}
-            >
-              <LogOut className="size-4" />
-              <span>Logout</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+      <SidebarFooter className="p-4 border-t border-slate-50">
+        <button 
+          onClick={() => confirm("Chiqmoqchimisiz?") && (localStorage.clear(), window.location.href = "/")}
+          className="flex items-center gap-3 w-full h-12 rounded-xl px-4 text-slate-500 hover:text-red-600 hover:bg-red-50 transition-all font-bold text-sm"
+        >
+          <LogOut size={20} />
+          <span>Logout System</span>
+        </button>
       </SidebarFooter>
     </Sidebar>
   );

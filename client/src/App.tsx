@@ -3,8 +3,9 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster"; 
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { SidebarProvider } from "@/components/ui/sidebar";
 
-// Sahifalar - Importlarni tekshiring
+// Sahifalar
 import AuthPage from "@/pages/auth-page";
 import AdminDashboard from "@/pages/admin-dashboard";
 import AdminExams from "@/pages/admin-exams";
@@ -13,32 +14,61 @@ import AdminSessions from "@/pages/admin-sessions";
 import AdminDetailedAssessment from "@/pages/admin-detailed-assessment";
 import TeacherDashboard from "@/pages/teacher-dashboard";
 import StudentExam from "@/pages/student-exam";
-import AdminExamEditor from "@/pages/admin-exam-editor"; // <-- BU IMPORT SHART
+import AdminExamEditor from "@/pages/admin-exam-editor"; 
 import StudentDetailedResults from "@/pages/student-detailed-results";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   return (
     <Switch>
+      {/* 1. Login sahifasi - Hech qanday sidebar va xatolarsiz */}
       <Route path="/" component={AuthPage} />
 
-      {/* Admin yo'nalishlari */}
-      <Route path="/admin" component={AdminDashboard} />
-      <Route path="/admin/exams" component={AdminExams} />
-      <Route path="/admin/exams/:id" component={AdminExamEditor} />
-      <Route path="/admin/teachers" component={AdminTeachers} />
-      <Route path="/admin/sessions" component={AdminSessions} />
-      <Route path="/admin/detailed-assessment" component={AdminDetailedAssessment} />
+      {/* 2. Admin yo'nalishlari */}
+      <Route path="/admin">
+        <SidebarProvider>
+          <AdminDashboard />
+        </SidebarProvider>
+      </Route>
+      <Route path="/admin/exams">
+        <SidebarProvider>
+          <AdminExams />
+        </SidebarProvider>
+      </Route>
+      <Route path="/admin/exams/:id">
+        <SidebarProvider>
+          <AdminExamEditor />
+        </SidebarProvider>
+      </Route>
+      <Route path="/admin/teachers">
+        <SidebarProvider>
+          <AdminTeachers />
+        </SidebarProvider>
+      </Route>
+      <Route path="/admin/sessions">
+        <SidebarProvider>
+          <AdminSessions />
+        </SidebarProvider>
+      </Route>
+      <Route path="/admin/detailed-assessment">
+        <SidebarProvider>
+          <AdminDetailedAssessment />
+        </SidebarProvider>
+      </Route>
 
-      {/* Teacher yo'nalishlari */}
-      <Route path="/teacher" component={TeacherDashboard} />
+      {/* 3. Teacher yo'nalishi (Rasmda 404 bergan joy) */}
+      <Route path="/teacher">
+        <SidebarProvider>
+          <TeacherDashboard />
+        </SidebarProvider>
+      </Route>
 
-      {/* Student yo'nalishlari */}
+      {/* 4. Student sahifalari */}
       <Route path="/exam/:id" component={StudentExam} />
       <Route path="/results/breakdown/:id" component={StudentDetailedResults} />
       <Route path="/student/detailed-results/:id" component={StudentDetailedResults} />
 
-      {/* 404 sahifasi */}
+      {/* 5. 404 sahifasi */}
       <Route component={NotFound} />
     </Switch>
   );
