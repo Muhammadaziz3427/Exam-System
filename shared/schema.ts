@@ -101,6 +101,13 @@ export const submissions = pgTable("submissions", {
         pronunciation: 0
       },
       diagnosticFeedback: ""
+    },
+    advanced_analysis: {
+      writing: {
+        task1: {},
+        task2: {}
+      },
+      speaking: {}
     }
   }),
   lastSavedAt: timestamp("last_saved_at").defaultNow(),
