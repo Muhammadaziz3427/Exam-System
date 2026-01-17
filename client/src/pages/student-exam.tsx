@@ -29,9 +29,42 @@ export default function StudentExam() {
     writing: ""
   });
 
+  const [highlights, setHighlights] = useState<Record<number, string[]>>({});
+
   const startSession = useStartSession();
   const submitAnswers = useSubmitAnswers();
   const logViolation = useLogViolation();
+
+  // --- 3. AUTO-SAVE ---
+  useEffect(() => {
+    if (!hasStarted) return;
+
+    const autoSaveInterval = setInterval(() => {
+      submitAnswers.mutate({ 
+        id: sessionId, 
+        answers, 
+        isFinal: false,
+        status: "in_progress" 
+      });
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(autoSaveInterval);
+  }, [hasStarted, answers, sessionId]);
+
+  // --- 4. HIGHLIGHTING ---
+  const handleHighlight = (passageId: number) => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+
+    const text = selection.toString().trim();
+    if (!text) return;
+
+    setHighlights(prev => ({
+      ...prev,
+      [passageId]: [...(prev[passageId] || []), text]
+    }));
+    selection.removeAllRanges();
+  };
 
   // --- 2. XAVFSIZLIK (LOCKDOWN) FUNKSIYALARI ---
 
@@ -219,29 +252,105 @@ export default function StudentExam() {
             audioUrl={examContent?.listening?.audioUrl || ""} 
             onSectionComplete={() => setCurrentSection('reading')}
           />
+        ) : currentSection === 'reading' ? (
+          <ResizablePanelGroup direction="horizontal">
+            <ResizablePanel defaultSize={50} className="p-8 overflow-y-auto bg-white">
+              <div onMouseUp={() => handleHighlight(0)}>
+                <h2 className="text-2xl font-bold mb-6">Reading Passage</h2>
+                {examContent?.reading?.passages?.map((p: any, i: number) => (
+                  <div key={i} className="prose prose-slate max-w-none mb-8">
+                    <h3 className="text-xl font-bold">{p.title}</h3>
+                    <div className="relative">
+                      <p className="text-lg leading-relaxed whitespace-pre-wrap">{p.content}</p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {highlights[i]?.map((h, idx) => (
+                          <Badge key={idx} variant="secondary" className="bg-yellow-200 text-yellow-900 border-yellow-300">
+                            {h}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={50} className="p-8 overflow-y-auto bg-slate-50">
+              <h2 className="text-2xl font-bold mb-6">Questions</h2>
+              <div className="space-y-8">
+                {examContent?.reading?.passages?.map((p: any) => 
+                  p.questions?.map((q: any) => (
+                    <div key={q.id} className="bg-white p-6 rounded-xl border shadow-sm">
+                      <p className="font-medium mb-4">{q.text}</p>
+                      {q.type === 'mcq' ? (
+                        <div className="space-y-2">
+                          {q.options?.map((opt: string) => (
+                            <label key={opt} className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 cursor-pointer border transition-colors">
+                              <input 
+                                type="radio" 
+                                name={`q-${q.id}`} 
+                                value={opt}
+                                checked={answers.reading[q.id] === opt}
+                                onChange={(e) => setAnswers({
+                                  ...answers, 
+                                  reading: { ...answers.reading, [q.id]: e.target.value }
+                                })}
+                              />
+                              <span>{opt}</span>
+                            </label>
+                          ))}
+                        </div>
+                      ) : (
+                        <Input 
+                          placeholder="Your answer"
+                          value={answers.reading[q.id] || ""}
+                          onChange={(e) => setAnswers({
+                            ...answers, 
+                            reading: { ...answers.reading, [q.id]: e.target.value }
+                          })}
+                        />
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="mt-8 flex justify-end">
+                <Button size="lg" onClick={() => setCurrentSection('writing')}>
+                  Go to Writing Section
+                </Button>
+              </div>
+            </ResizablePanel>
+          </ResizablePanelGroup>
         ) : currentSection === 'writing' ? (
           <ResizablePanelGroup direction="horizontal">
             <ResizablePanel defaultSize={45} className="p-8 overflow-y-auto bg-white">
-              <h2 className="text-2xl font-bold mb-6">Writing Task</h2>
-              {examContent?.writing?.tasks?.map((t: any, i: number) => (
-                <div key={i} className="prose prose-slate max-w-none bg-slate-50 p-6 rounded-xl border mb-4 shadow-sm">
-                   <Badge className="mb-2">Task {i+1}</Badge>
-                   <p className="text-lg leading-relaxed">{t.content}</p>
-                </div>
-              ))}
+              <h2 className="text-2xl font-bold mb-6">Writing Tasks</h2>
+              <div className="space-y-6">
+                {examContent?.writing?.tasks?.map((t: any, i: number) => (
+                  <div key={i} className="prose prose-slate max-w-none bg-slate-50 p-6 rounded-xl border shadow-sm">
+                     <Badge className="mb-2">Task {i+1}</Badge>
+                     <p className="text-lg leading-relaxed">{t.content}</p>
+                  </div>
+                ))}
+              </div>
             </ResizablePanel>
             <ResizableHandle withHandle />
             <ResizablePanel defaultSize={55} className="p-8 bg-slate-100 flex flex-col">
                <div className="flex justify-between items-center mb-4">
                  <h3 className="font-bold text-slate-700 uppercase tracking-widest">Your Answer</h3>
                  <Badge variant="outline" className="bg-white">
-                   Words: {answers.writing.trim().split(/\s+/).filter(Boolean).length}
+                   Words: {answers.writing?.trim() ? answers.writing.trim().split(/\s+/).filter(Boolean).length : 0}
                  </Badge>
                </div>
                <Textarea 
                 className="flex-1 p-6 text-lg shadow-inner bg-white focus:ring-2 focus:ring-blue-500 resize-none" 
                 placeholder="Start typing your essay here..."
                 value={answers.writing}
+                spellCheck={false}
+                onPaste={(e) => e.preventDefault()}
+                onKeyUp={() => {
+                  // Persistence is handled by the 30s auto-save interval
+                }}
                 onChange={(e) => setAnswers({...answers, writing: e.target.value})}
                />
             </ResizablePanel>
