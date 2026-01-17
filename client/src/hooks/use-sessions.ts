@@ -7,7 +7,9 @@ interface SubmitPayload {
   id: number;
   answers: any;
   isFinal?: boolean;
-  status?: "pending" | "submitted" | "blocked"; // Admin panel uchun holat
+  status?: "pending" | "submitted" | "blocked" | "active"; // Admin panel uchun holat
+  currentSection?: string;
+  remainingTime?: number;
   email?: string; // O'quvchi emaili
   notes?: string; // Cheating sababi yoki boshqa eslatmalar
 }
@@ -55,12 +57,12 @@ export function useStartSession() {
 
 export function useSubmitAnswers() {
   return useMutation({
-    mutationFn: async ({ id, answers, isFinal, status, email, notes }: SubmitPayload) => {
+    mutationFn: async ({ id, answers, isFinal, status, email, notes, currentSection, remainingTime }: SubmitPayload) => {
       const url = buildUrl(api.sessions.submit.path, { id });
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers, isFinal, status, email, notes }),
+        body: JSON.stringify({ answers, isFinal, status, email, notes, currentSection, remainingTime }),
       });
       if (!res.ok) throw new Error("Failed to submit answers");
       return await res.json();
