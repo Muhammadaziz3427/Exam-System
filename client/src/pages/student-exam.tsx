@@ -90,6 +90,23 @@ export default function StudentExam() {
     }
   };
 
+  const handleBlur = () => {
+    if (hasStarted) {
+      setViolationCount((prev: number) => {
+        const newCount = prev + 1;
+        logViolation.mutate({ id: sessionId, type: "window_blur" as any });
+
+        if (newCount >= 2) {
+          handleCheatTermination("Window Blur (Cheating attempt)");
+          return newCount;
+        } else {
+          alert("STERN WARNING: Do not leave the exam window! This violation has been logged.");
+          return newCount;
+        }
+      });
+    }
+  };
+
   const handleFullscreenChange = () => {
     if (!document.fullscreenElement && hasStarted) {
       setViolationCount((prev: number) => {
@@ -178,7 +195,23 @@ export default function StudentExam() {
   useEffect(() => {
     if (hasStarted) {
       document.addEventListener("visibilitychange", handleVisibilityChange);
+      document.addEventListener("blur", handleBlur);
       document.addEventListener("fullscreenchange", handleFullscreenChange);
+
+      // Real-time session status check
+      const statusCheck = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/sessions/${sessionId}`);
+          if (res.ok) {
+            const session = await res.json();
+            if (session.status === "completed" || session.status === "blocked") {
+              cleanupAndExit("Session Ended: The administrator has terminated this session.");
+            }
+          }
+        } catch (err) {
+          console.error("Status check failed", err);
+        }
+      }, 5000);
 
       const timer = setInterval(() => {
         setTimeLeft((prev) => {
@@ -202,7 +235,9 @@ export default function StudentExam() {
 
       return () => {
         clearInterval(timer);
+        clearInterval(statusCheck);
         document.removeEventListener("visibilitychange", handleVisibilityChange);
+        document.removeEventListener("blur", handleBlur);
         document.removeEventListener("fullscreenchange", handleFullscreenChange);
       };
     }
