@@ -82,6 +82,14 @@
 }
 
 @layer components {
+  .hover-elevate {
+    @apply transition-transform hover:-translate-y-1 hover:shadow-lg;
+  }
+
+  .active-elevate-2 {
+    @apply transition-transform active:translate-y-0 active:shadow-md;
+  }
+
   .reading-passage {
     font-family: var(--font-reading);
     @apply text-xl leading-relaxed text-foreground/90 max-w-3xl mx-auto;

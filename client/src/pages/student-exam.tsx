@@ -5,7 +5,7 @@ import { useStartSession, useSubmitAnswers, useLogViolation } from "@/hooks/use-
 import { Button, Textarea, Badge, Input } from "@/components/ui-kit";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Clock, AlertOctagon, Mail, Flag } from "lucide-react";
+import { Clock, AlertOctagon, Mail, Flag, ShieldCheck } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { ListeningComponent } from "@/components/ListeningComponent";
 import { ScrollArea } from "@/components/ui/scroll-area";

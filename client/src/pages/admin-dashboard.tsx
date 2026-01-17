@@ -2,7 +2,7 @@ import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge } from "@/components/ui-kit";
 import { useExams } from "@/hooks/use-exams";
 import { useSessions } from "@/hooks/use-sessions";
-import { FileText, Users, AlertTriangle, CheckCircle, Activity, ArrowUpRight } from "lucide-react";
+import { FileText, Users, AlertTriangle, CheckCircle, Activity, ArrowUpRight, ShieldCheck } from "lucide-react";
 
 export default function AdminDashboard() {
   const { data: exams = [] } = useExams();
