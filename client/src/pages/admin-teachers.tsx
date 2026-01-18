@@ -143,6 +143,11 @@ export default function AdminTeachers() {
             </Table>
           </CardContent>
         </Card>
+        <footer className="mt-8 py-4 border-t border-slate-100 text-center">
+          <p className="text-[10px] text-slate-400 font-medium tracking-widest uppercase">
+            Created & Developed by Yursinaliyev Muhammadaziz | yursinalivem@gmail.com
+          </p>
+        </footer>
       </div>
     </AdminLayout>
   );

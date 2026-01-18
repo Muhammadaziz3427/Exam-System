@@ -367,6 +367,12 @@ export default function AdminExams() {
         </div>
       </Card>
 
+      <footer className="mt-12 py-6 border-t border-slate-100 text-center">
+        <p className="text-[10px] text-slate-400 font-medium tracking-widest uppercase">
+          Created & Developed by Yursinaliyev Muhammadaziz | yursinalivem@gmail.com
+        </p>
+      </footer>
+
       <Modal open={isModalOpen} onOpenChange={setIsModalOpen}>
         <form onSubmit={handleCreate} className="space-y-10">
           <div className="flex items-center justify-between mb-2">
