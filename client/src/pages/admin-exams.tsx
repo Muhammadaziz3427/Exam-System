@@ -12,7 +12,7 @@ import {
   TabsTrigger, 
   TabsContent 
 } from "@/components/ui-kit";
-import { useExams, useCreateExam } from "@/hooks/use-exams";
+import { useExams, useCreateExam, useUpdateExam } from "@/hooks/use-exams";
 import * as lucideReact from "lucide-react";
 
 // --- INTERFACES ---
