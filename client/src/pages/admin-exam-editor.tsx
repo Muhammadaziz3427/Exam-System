@@ -12,7 +12,7 @@ import {
   TabsTrigger, 
   TabsContent 
 } from "@/components/ui-kit";
-import { useExams, useCreateExam, useDeleteExam } from "@/hooks/use-exams";
+import { useExams, useCreateExam, useUpdateExam, useDeleteExam } from "@/hooks/use-exams";
 import { 
   Plus, 
   Loader2, 
@@ -41,10 +41,12 @@ const Modal = ({ open, onOpenChange, children }: any) => {
 export default function AdminExams() {
   const { data: exams, isLoading } = useExams();
   const createExam = useCreateExam();
+  const updateExam = useUpdateExam(); // Add this hook
   const deleteExam = useDeleteExam();
   const [, setLocation] = useLocation();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingExam, setEditingExam] = useState<any>(null); // Track which exam is being edited
   const [title, setTitle] = useState("");
   const [listeningTime, setListeningTime] = useState("40");
   const [readingTime, setReadingTime] = useState("60");
@@ -58,20 +60,59 @@ export default function AdminExams() {
     { type: "task2", content: "", wordLimit: "250" }
   ]);
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const openEditModal = (exam: any) => {
+    setEditingExam(exam);
+    setTitle(exam.title);
+    setAudioUrl(exam.content.listening.audioUrl || "");
+    setListeningTime(exam.content.listening.duration.toString());
+    setListeningReviewTime(exam.content.listening.reviewTime?.toString() || "5");
+    setReadingTime(exam.content.reading.timeLimit.toString());
+    setWritingTime(exam.content.writing.timeLimit.toString());
+    setPassages(exam.content.reading.passages);
+    setListeningQuestions(exam.content.listening.questions);
+    setWritingTasks(exam.content.writing.tasks);
+    setIsModalOpen(true);
+  };
+
+  const resetForm = () => {
+    setEditingExam(null);
+    setTitle("");
+    setListeningTime("40");
+    setReadingTime("60");
+    setWritingTime("60");
+    setListeningReviewTime("5");
+    setAudioUrl("");
+    setPassages([{ id: Date.now(), title: "Passage 1", content: "", questions: [] as any[] }]);
+    setListeningQuestions([]);
+    setWritingTasks([
+      { type: "task1", content: "", image: "", wordLimit: "150" },
+      { type: "task2", content: "", wordLimit: "250" }
+    ]);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const finalContent = {
       listening: { audioUrl, duration: parseInt(listeningTime), reviewTime: parseInt(listeningReviewTime), questions: listeningQuestions },
       reading: { timeLimit: parseInt(readingTime), passages },
       writing: { timeLimit: parseInt(writingTime), tasks: writingTasks }
     };
-    await createExam.mutateAsync({ 
+
+    const examData = { 
       title, 
       timeLimit: parseInt(listeningTime) + parseInt(readingTime) + parseInt(writingTime), 
       content: finalContent, 
       isPublished: true 
-    });
+    };
+
+    if (editingExam) {
+      await updateExam.mutateAsync({ id: editingExam.id, ...examData });
+    } else {
+      await createExam.mutateAsync(examData);
+    }
+    
     setIsModalOpen(false);
+    resetForm();
   };
 
   if (isLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={40} /></div>;
@@ -83,7 +124,7 @@ export default function AdminExams() {
           <h2 className="text-4xl font-black text-slate-900 tracking-tight">Exam Creator <span className="text-blue-600">Pro</span></h2>
           <p className="text-slate-500 font-medium">Manage and create IELTS mock tests</p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)} className="bg-slate-900 hover:bg-black text-white rounded-full px-8 h-12">
+        <Button onClick={() => { resetForm(); setIsModalOpen(true); }} className="bg-slate-900 hover:bg-black text-white rounded-full px-8 h-12">
           <Plus className="mr-2" size={20} /> Create New Exam
         </Button>
       </div>
@@ -111,15 +152,14 @@ export default function AdminExams() {
                   <td className="p-4 text-center text-slate-500 font-medium">{exam.timeLimit} min</td>
                   <td className="p-4 text-right flex justify-end gap-2">
                     {/* Link orqali navigatsiya (Eng xavfsiz yo'l) */}
-                    <Link href={`/admin/exams/${exam.id}`}>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="text-blue-600 border-blue-100 hover:bg-blue-50"
-                      >
-                        <Pencil size={14} className="mr-2"/> Edit
-                      </Button>
-                    </Link>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="text-blue-600 border-blue-100 hover:bg-blue-50"
+                      onClick={() => openEditModal(exam)}
+                    >
+                      <Pencil size={14} className="mr-2"/> Edit
+                    </Button>
 
                     <Button 
                       variant="ghost" 
@@ -142,11 +182,11 @@ export default function AdminExams() {
         </div>
       </Card>
 
-      <Modal open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <form onSubmit={handleCreate} className="space-y-6">
+      <Modal open={isModalOpen} onOpenChange={(open) => { setIsModalOpen(open); if(!open) resetForm(); }}>
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div className="flex justify-between items-center border-b pb-4">
-            <h3 className="text-2xl font-black">Create New Exam</h3>
-            <Badge variant="outline" className="text-blue-600 border-blue-200">Draft Mode</Badge>
+            <h3 className="text-2xl font-black">{editingExam ? "Edit Exam" : "Create New Exam"}</h3>
+            <Badge variant="outline" className="text-blue-600 border-blue-200">{editingExam ? "Update Mode" : "Draft Mode"}</Badge>
           </div>
 
           <div className="space-y-2">
@@ -173,9 +213,9 @@ export default function AdminExams() {
             </div>
           </div>
 
-          <Button type="submit" className="w-full h-14 bg-blue-600 hover:bg-blue-700 text-white font-black text-lg rounded-2xl shadow-lg shadow-blue-200 transition-all" disabled={createExam.isPending}>
-             {createExam.isPending ? <Loader2 className="animate-spin mr-2" /> : null}
-             {createExam.isPending ? "PUBLISHING..." : "PUBLISH COMPLETE EXAM"}
+          <Button type="submit" className="w-full h-14 bg-blue-600 hover:bg-blue-700 text-white font-black text-lg rounded-2xl shadow-lg shadow-blue-200 transition-all" disabled={createExam.isPending || updateExam.isPending}>
+             {(createExam.isPending || updateExam.isPending) ? <Loader2 className="animate-spin mr-2" /> : null}
+             {(createExam.isPending || updateExam.isPending) ? "SAVING..." : editingExam ? "UPDATE EXAM" : "PUBLISH COMPLETE EXAM"}
           </Button>
         </form>
       </Modal>
