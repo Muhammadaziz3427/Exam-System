@@ -120,6 +120,15 @@ export default function AuthPage() {
           </div>
         )}
       </div>
+
+      <footer className="mt-auto py-8 text-center space-y-1">
+        <p className="text-slate-400 text-xs font-medium">
+          Created & Developed by <span className="text-slate-600 font-bold">Yursinaliyev Muhammadaziz</span>
+        </p>
+        <p className="text-slate-400 text-[10px] tracking-wider uppercase">
+          Email: yursinalivem@gmail.com
+        </p>
+      </footer>
     </div>
   );
 }

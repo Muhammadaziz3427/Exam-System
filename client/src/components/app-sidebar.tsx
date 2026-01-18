@@ -100,7 +100,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t border-slate-50">
+      <SidebarFooter className="p-4 border-t border-slate-50 space-y-4">
         <button 
           onClick={() => confirm("Chiqmoqchimisiz?") && (localStorage.clear(), window.location.href = "/")}
           className="flex items-center gap-3 w-full h-12 rounded-xl px-4 text-slate-500 hover:text-red-600 hover:bg-red-50 transition-all font-bold text-sm"
@@ -108,6 +108,14 @@ export function AppSidebar() {
           <LogOut size={20} />
           <span>Logout System</span>
         </button>
+        <div className="px-2 pt-2 border-t border-slate-50">
+          <p className="text-[9px] text-slate-400 font-medium leading-tight">
+            Developed by Yursinaliyev Muhammadaziz
+          </p>
+          <p className="text-[9px] text-slate-300 font-normal">
+            yursinalivem@gmail.com
+          </p>
+        </div>
       </SidebarFooter>
     </Sidebar>
   );

@@ -86,7 +86,11 @@ export async function sendExamResultsEmail(session: any) {
       </div>
 
       <p>Congratulations on completing your exam!</p>
-      <p style="color: #64748b; font-size: 0.9em;">This is an automated message. Please do not reply directly to this email.</p>
+      <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #e2e8f0; text-align: center;">
+        <p style="color: #64748b; font-size: 0.85em; margin: 0;">Platform Founder: <strong>Yursinaliyev Muhammadaziz</strong></p>
+        <p style="color: #94a3b8; font-size: 0.8em; margin: 5px 0 0 0;">Email: yursinalivem@gmail.com</p>
+      </div>
+      <p style="color: #94a3b8; font-size: 0.75em; text-align: center; margin-top: 20px;">This is an automated message. Please do not reply directly to this email.</p>
     </div>
   `;
 

@@ -110,8 +110,11 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <footer className="px-8 py-6 border-t border-slate-200/60 bg-white/50 flex justify-between items-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-              <p>© 2026 IELTS Studio</p>
+            <footer className="px-8 py-6 border-t border-slate-200/60 bg-white/50 flex flex-col sm:flex-row justify-between items-center gap-2">
+              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">© 2026 IELTS Studio</p>
+              <p className="text-slate-400 text-[10px] font-medium italic">
+                Created & Developed by Yursinaliyev Muhammadaziz | Email: yursinalivem@gmail.com
+              </p>
             </footer>
           </main>
         </div>
