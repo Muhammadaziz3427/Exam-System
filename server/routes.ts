@@ -219,6 +219,12 @@ export async function registerRoutes(
     res.json({ message: "Results released and email sent", session: updatedSession });
   });
 
+  app.delete("/api/sessions/:id", async (req, res) => {
+    const sessionId = Number(req.params.id);
+    await storage.deleteSession(sessionId);
+    res.sendStatus(204);
+  });
+
   // --- SUBMISSION & AUTO-GRADING ---
   app.post(api.sessions.submit.path, async (req, res) => {
     const sessionId = Number(req.params.id);

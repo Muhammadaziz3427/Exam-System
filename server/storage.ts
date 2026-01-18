@@ -31,6 +31,7 @@ export interface IStorage {
   updateSessionInfo(id: number, info: { firstName?: string, lastName?: string, email?: string }): Promise<ExamSession>;
   startSession(id: number): Promise<ExamSession>;
   releaseResults(id: number): Promise<ExamSession>;
+  deleteSession(id: number): Promise<void>;
 
   // Submissions
   upsertSubmission(submission: InsertSubmission): Promise<Submission>;
@@ -174,6 +175,15 @@ export class DatabaseStorage implements IStorage {
       .where(eq(examSessions.id, id))
       .returning();
     return updated;
+  }
+
+  async deleteSession(id: number): Promise<void> {
+    // Delete violations first due to foreign key constraints if any (though not explicitly defined in schema, good practice)
+    await db.delete(violations).where(eq(violations.sessionId, id));
+    // Delete submission
+    await db.delete(submissions).where(eq(submissions.sessionId, id));
+    // Delete session
+    await db.delete(examSessions).where(eq(examSessions.id, id));
   }
 
   // --- SUBMISSIONS ---
