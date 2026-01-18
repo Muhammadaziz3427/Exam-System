@@ -25,12 +25,31 @@ export default function AdminSessions() {
   const [isTvMode, setIsTvMode] = useState(false);
   const { toast } = useToast();
 
+  const { data: allViolations } = useQuery({
+    queryKey: ['/api/violations'],
+    queryFn: async () => {
+      const res = await fetch('/api/violations');
+      return res.json();
+    },
+    refetchInterval: 5000 
+  });
+
   const activeSessions = useMemo(() => {
     if (!sessions) return [];
     return sessions.filter((s: any) => s.status === "in_progress");
   }, [sessions]);
 
-  // Live TV Mode Component
+  const filteredSessions = useMemo(() => {
+    if (!sessions) return [];
+    return sessions.filter((s: any) => {
+      if (activeTab === "waiting") return s.status === "pending_grading";
+      if (activeTab === "marking") return s.status === "in_progress";
+      if (activeTab === "graded") return s.status === "graded" && !s.resultsReleased;
+      if (activeTab === "released") return s.resultsReleased;
+      return true;
+    });
+  }, [sessions, activeTab]);
+
   if (isTvMode) {
     return (
       <div className="fixed inset-0 bg-slate-950 z-[9999] p-4 flex flex-col overflow-hidden">
@@ -104,29 +123,6 @@ export default function AdminSessions() {
       </div>
     );
   }
-
-  const [studentName, setStudentName] = useState("");
-  const [selectedExamId, setSelectedExamId] = useState("");
-
-  const { data: allViolations } = useQuery({
-    queryKey: ['/api/violations'],
-    queryFn: async () => {
-      const res = await fetch('/api/violations');
-      return res.json();
-    },
-    refetchInterval: 5000 
-  });
-
-  const filteredSessions = useMemo(() => {
-    if (!sessions) return [];
-    return sessions.filter((s: any) => {
-      if (activeTab === "waiting") return s.status === "pending_grading";
-      if (activeTab === "marking") return s.status === "in_progress";
-      if (activeTab === "graded") return s.status === "graded" && !s.resultsReleased;
-      if (activeTab === "released") return s.resultsReleased;
-      return true;
-    });
-  }, [sessions, activeTab]);
 
   const handleDeleteSession = async (id: number) => {
     if (!confirm("Ushbu sessiyani butunlay o'chirib tashlamoqchimisiz? Barcha javoblar va qoidabuzarliklar o'chib ketadi.")) return;
