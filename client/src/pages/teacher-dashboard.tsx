@@ -198,8 +198,19 @@ export default function TeacherDashboard() {
                           <PenTool size={20} className="stroke-[2.5px]" />
                           <h3 className="font-black uppercase text-xs tracking-[0.2em]">Writing Submission</h3>
                         </div>
-                        <div className="p-8 rounded-[2rem] bg-slate-50 border border-slate-100 text-slate-800 text-lg leading-relaxed font-serif shadow-inner min-h-[300px]">
-                          {(submission?.answers as any)?.writing || "Talaba tomonidan insho yozilmagan."}
+                        <div className="grid grid-cols-1 gap-6">
+                          <div className="space-y-2">
+                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Task 1</h4>
+                            <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 text-slate-800 text-md leading-relaxed font-serif shadow-inner min-h-[150px]">
+                              {(submission?.answers as any)?.writingTask1 || "Talaba tomonidan Task 1 inshosi yozilmagan."}
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Task 2</h4>
+                            <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 text-slate-800 text-md leading-relaxed font-serif shadow-inner min-h-[200px]">
+                              {(submission?.answers as any)?.writingTask2 || (submission?.answers as any)?.writing || "Talaba tomonidan Task 2 inshosi yozilmagan."}
+                            </div>
+                          </div>
                         </div>
                       </section>
 

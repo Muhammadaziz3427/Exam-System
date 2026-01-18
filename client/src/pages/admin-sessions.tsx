@@ -248,16 +248,29 @@ export default function AdminSessions() {
               <div className="grid grid-cols-2 gap-4">
                 {['listening', 'reading', 'writing', 'speaking'].map((skill) => {
                    const g = selectedSubmission.grading as any;
-                   const band = skill === 'listening' || skill === 'reading' 
-                      ? g?.autoGraded?.[skill]?.band 
-                      : g?.[skill]?.band;
+                   let band = "0.0";
+                   
+                   if (skill === 'listening' || skill === 'reading') {
+                     band = g?.autoGraded?.[skill]?.score !== undefined 
+                       ? (Math.min(9, Math.max(0, (g.autoGraded[skill].score / 40) * 9))).toFixed(1)
+                       : "0.0";
+                   } else if (skill === 'writing') {
+                     band = selectedSubmission.writingScore || g?.writing?.score || "0.0";
+                   } else if (skill === 'speaking') {
+                     band = selectedSubmission.speakingScore || g?.speaking?.score || "0.0";
+                   }
+
                    return (
                      <div key={skill} className="p-4 bg-white border border-slate-100 rounded-2xl text-center">
                        <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">{skill}</p>
-                       <p className="text-2xl font-black text-slate-900">{band || "0.0"}</p>
+                       <p className="text-2xl font-black text-slate-900">{band}</p>
                      </div>
                    );
                 })}
+                <div className="col-span-2 p-4 bg-blue-50 border border-blue-100 rounded-2xl text-center">
+                  <p className="text-[10px] uppercase font-bold text-blue-400 mb-1">Overall Band</p>
+                  <p className="text-3xl font-black text-blue-900">{selectedSubmission.overallBand || "0.0"}</p>
+                </div>
               </div>
 
               <div className="pt-2">
