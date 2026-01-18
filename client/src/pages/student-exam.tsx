@@ -30,7 +30,42 @@ export default function StudentExam() {
   const { toast } = useToast();
 
   const [hasStarted, setHasStarted] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
   const [examContent, setExamContent] = useState<any>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+
+  // Camera check logic
+  const checkCamera = async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) videoRef.current.srcObject = mediaStream;
+      setStream(mediaStream);
+      setCameraReady(true);
+    } catch (err) {
+      toast({ 
+        title: "Camera Error", 
+        description: "Please allow camera access to start the exam.", 
+        variant: "destructive" 
+      });
+    }
+  };
+
+  // Heartbeat to keep camera status updated in backend
+  useEffect(() => {
+    if (!hasStarted || !cameraReady) return;
+    const interval = setInterval(() => {
+      apiRequest("POST", `/api/sessions/${sessionId}/camera-pulse`, { isActive: true });
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [hasStarted, cameraReady, sessionId]);
+
+  // Ensure camera stays on during exam
+  useEffect(() => {
+    if (hasStarted && stream && videoRef.current) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [hasStarted, stream]);
   const [currentSection, setCurrentSection] = useState<Section>('listening');
   const [timeLeft, setTimeLeft] = useState(0);
   const [email, setEmail] = useState("");
@@ -152,25 +187,44 @@ export default function StudentExam() {
     }
   };
 
-  // Kirish ekrani
   if (!hasStarted) {
     return (
       <div className="fixed inset-0 bg-[#f8fafc] flex items-center justify-center p-4">
-        <div className="bg-white p-12 rounded-3xl max-w-lg w-full text-center shadow-2xl border-t-8 border-[#2c3e50]">
-          <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6 text-blue-600">
-            <ShieldCheck size={40} />
+        <div className="bg-white p-8 rounded-3xl max-w-lg w-full text-center shadow-2xl border-t-8 border-[#2c3e50]">
+          <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
+            <ShieldCheck size={32} />
           </div>
-          <h1 className="text-3xl font-black text-slate-900 mb-2">IELTS Mock Test</h1>
-          <p className="text-slate-500 mb-8 font-medium">Full-screen and monitored environment.</p>
-          <Input 
-            placeholder="Enter Candidate Email" 
-            className="h-14 text-center text-lg mb-4 rounded-xl border-2" 
-            value={email} 
-            onChange={(e) => setEmail(e.target.value)} 
-          />
-          <Button className="w-full h-16 text-xl font-bold bg-[#2c3e50] hover:bg-slate-800 rounded-xl" onClick={startExamFlow} disabled={!email.includes("@")}>
-            Start Test
-          </Button>
+          <h1 className="text-2xl font-black text-slate-900 mb-1">IELTS Mock Test</h1>
+          <p className="text-slate-500 mb-6 text-sm">Camera monitoring is required during the test.</p>
+
+          {!cameraReady ? (
+            <div className="space-y-4">
+              <div className="aspect-video bg-slate-100 rounded-2xl flex items-center justify-center border-2 border-dashed border-slate-300">
+                <p className="text-slate-400 text-sm">Camera Preview</p>
+              </div>
+              <Button className="w-full h-14 text-lg font-bold bg-blue-600" onClick={checkCamera}>
+                Check Camera Access
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="aspect-video bg-black rounded-2xl overflow-hidden border-2 border-blue-500 shadow-lg">
+                <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+              </div>
+              <Input 
+                placeholder="Enter Candidate Email" 
+                className="h-12 text-center text-lg rounded-xl border-2" 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
+              />
+              <Button className="w-full h-14 text-lg font-bold bg-[#2c3e50]" onClick={startExamFlow} disabled={!email.includes("@")}>
+                Start Test
+              </Button>
+            </div>
+          )}
+          <footer className="mt-8 text-[10px] text-slate-400 font-medium">
+            Created & Developed by Yursinaliyev Muhammadaziz | yursinalivem@gmail.com
+          </footer>
         </div>
       </div>
     );
@@ -327,6 +381,16 @@ export default function StudentExam() {
       </main>
 
       <footer className="h-16 bg-white border-t flex items-center px-8 justify-between shadow-sm z-50">
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2">
+            <div className="w-12 h-8 bg-black rounded border border-white/20 overflow-hidden shrink-0">
+               <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
+            </div>
+            <p className="text-[10px] text-slate-400 font-medium hidden sm:block">
+              Created & Developed by Yursinaliyev Muhammadaziz | yursinalivem@gmail.com
+            </p>
+          </div>
+        </div>
         <div className="flex items-center gap-3 overflow-hidden">
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Questions</span>
           <div className="flex gap-1 overflow-x-auto no-scrollbar py-2">

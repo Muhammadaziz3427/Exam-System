@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import * as uiKit from "@/components/ui-kit"; 
 import { useSessions, useCreateSession } from "@/hooks/use-sessions";
@@ -6,7 +6,7 @@ import { useExams } from "@/hooks/use-exams";
 import { 
   Loader2, RefreshCw, UserPlus, AlertCircle, Eye, 
   Copy, PowerOff, CheckCircle, ArrowLeft, Mail, ShieldCheck,
-  Trash2
+  Trash2, Monitor, Tv, VideoOff, Video
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -22,7 +22,88 @@ export default function AdminSessions() {
   const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
   const [isReleasing, setIsReleasing] = useState(false);
   const [activeTab, setActiveTab] = useState("waiting");
+  const [isTvMode, setIsTvMode] = useState(false);
   const { toast } = useToast();
+
+  const activeSessions = useMemo(() => {
+    if (!sessions) return [];
+    return sessions.filter((s: any) => s.status === "in_progress");
+  }, [sessions]);
+
+  // Live TV Mode Component
+  if (isTvMode) {
+    return (
+      <div className="fixed inset-0 bg-slate-950 z-[9999] p-4 flex flex-col overflow-hidden">
+        <header className="flex justify-between items-center mb-4 px-2">
+          <div className="flex items-center gap-3">
+            <Monitor className="text-blue-500" size={32} />
+            <div>
+              <h1 className="text-2xl font-black text-white tracking-tighter uppercase italic">Live Monitoring Wall</h1>
+              <p className="text-slate-500 text-xs font-bold tracking-widest uppercase">Real-Time Exam Supervision</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 bg-slate-900 px-4 py-2 rounded-full border border-slate-800">
+               <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+               <span className="text-white text-xs font-black uppercase tracking-widest">Live: {activeSessions.length}</span>
+            </div>
+            <uiKit.Button variant="outline" size="sm" onClick={() => setIsTvMode(false)} className="bg-slate-900 border-slate-800 text-white hover:bg-slate-800 rounded-full">
+              Exit TV Mode
+            </uiKit.Button>
+          </div>
+        </header>
+
+        <div className="flex-1 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {activeSessions.length === 0 ? (
+            <div className="col-span-full flex items-center justify-center">
+              <div className="text-center text-slate-700">
+                <Monitor size={64} className="mx-auto mb-4 opacity-20" />
+                <p className="text-xl font-bold uppercase tracking-widest opacity-30">No Active Sessions</p>
+              </div>
+            </div>
+          ) : (
+            activeSessions.map((session: any) => (
+              <div key={session.id} className="relative aspect-video bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-2xl group transition-all hover:border-blue-500/50">
+                 {/* In a real P2P app, we'd mount a video element here linked via WebRTC */}
+                 <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-950">
+                    {session.isCameraActive ? (
+                      <Video size={48} className="text-blue-500/20 animate-pulse" />
+                    ) : (
+                      <VideoOff size={48} className="text-red-500/20" />
+                    )}
+                    <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-1 bg-black/60 rounded-md backdrop-blur-md">
+                       <div className={`w-1.5 h-1.5 rounded-full ${session.isCameraActive ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                       <span className="text-[9px] font-black text-white uppercase">{session.isCameraActive ? 'Online' : 'Signal Lost'}</span>
+                    </div>
+                 </div>
+                 
+                 <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/90 via-black/40 to-transparent">
+                    <div className="flex justify-between items-end">
+                       <div>
+                          <p className="text-white font-black text-sm uppercase tracking-tight">{session.studentName}</p>
+                          <p className="text-blue-400 font-mono text-[10px] font-bold tracking-widest mt-0.5">{session.accessCode}</p>
+                       </div>
+                       <uiKit.Badge variant="outline" className="text-[9px] h-5 px-1.5 border-white/10 text-slate-300 font-mono bg-black/40">
+                          {session.currentSection || 'INIT'}
+                       </uiKit.Badge>
+                    </div>
+                 </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <footer className="mt-4 pt-4 border-t border-slate-900 flex justify-between items-center px-2">
+           <div className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">
+              Developed by Yursinaliyev Muhammadaziz | yursinalivem@gmail.com
+           </div>
+           <div className="text-slate-700 text-[10px] font-mono">
+              System Time: {new Date().toLocaleTimeString()}
+           </div>
+        </footer>
+      </div>
+    );
+  }
 
   const [studentName, setStudentName] = useState("");
   const [selectedExamId, setSelectedExamId] = useState("");
@@ -124,6 +205,9 @@ export default function AdminSessions() {
             <p className="text-slate-500 text-sm">Imtihon jarayonini real vaqtda kuzatish va boshqarish.</p>
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
+            <uiKit.Button onClick={() => setIsTvMode(true)} variant="outline" size="sm" className="rounded-lg bg-slate-900 text-white border-slate-800 hover:bg-slate-800">
+              <Tv size={16} className="mr-2"/> TV Wall
+            </uiKit.Button>
             <Link href="/admin">
               <uiKit.Button variant="outline" size="sm" className="rounded-lg"><ArrowLeft size={16} className="mr-2"/> Panel</uiKit.Button>
             </Link>
