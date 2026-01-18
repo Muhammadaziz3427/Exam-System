@@ -24,6 +24,18 @@ export default function AdminSessions() {
   const [activeTab, setActiveTab] = useState("waiting");
   const { toast } = useToast();
 
+  const [studentName, setStudentName] = useState("");
+  const [selectedExamId, setSelectedExamId] = useState("");
+
+  const { data: allViolations } = useQuery({
+    queryKey: ['/api/violations'],
+    queryFn: async () => {
+      const res = await fetch('/api/violations');
+      return res.json();
+    },
+    refetchInterval: 5000 
+  });
+
   const filteredSessions = useMemo(() => {
     if (!sessions) return [];
     return sessions.filter((s: any) => {
