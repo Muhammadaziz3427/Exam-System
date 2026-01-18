@@ -68,7 +68,9 @@ const Modal = ({ open, onOpenChange, children }: any) => {
 export default function AdminExams() {
   const { data: exams, isLoading } = useExams();
   const createExam = useCreateExam();
+  const updateExam = useUpdateExam();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingExamId, setEditingExamId] = useState<number | null>(null);
 
   const [title, setTitle] = useState("");
   const [listeningTime, setListeningTime] = useState("40");
@@ -81,7 +83,6 @@ export default function AdminExams() {
   ]);
   const [audioUrl, setAudioUrl] = useState("");
 
-  // Yangi: Listeningni 4 qismga bo'lish
   const [listeningParts, setListeningParts] = useState<ListeningPart[]>([
     { id: 1, questions: [] },
     { id: 2, questions: [] },
@@ -93,6 +94,36 @@ export default function AdminExams() {
     { type: "task1", content: "", image: "", wordLimit: "150" },
     { type: "task2", content: "", wordLimit: "250" }
   ]);
+
+  const handleEdit = (exam: any) => {
+    setEditingExamId(exam.id);
+    setTitle(exam.title);
+    const content = exam.content as any;
+    
+    if (content.listening) {
+      setListeningTime(content.listening.duration?.toString() || "40");
+      setListeningReviewTime(content.listening.reviewTime?.toString() || "10");
+      setAudioUrl(content.listening.audioUrl || "");
+      setListeningParts(content.listening.parts || [
+        { id: 1, questions: [] }, { id: 2, questions: [] }, { id: 3, questions: [] }, { id: 4, questions: [] }
+      ]);
+    }
+
+    if (content.reading) {
+      setReadingTime(content.reading.timeLimit?.toString() || "60");
+      setPassages(content.reading.passages || [{ id: Date.now(), title: "Passage 1", content: "", questions: [] }]);
+    }
+
+    if (content.writing) {
+      setWritingTime(content.writing.timeLimit?.toString() || "60");
+      setWritingTasks(content.writing.tasks || [
+        { type: "task1", content: "", image: "", wordLimit: "150" },
+        { type: "task2", content: "", wordLimit: "250" }
+      ]);
+    }
+    
+    setIsModalOpen(true);
+  };
 
   const addQuestionGroup = (target: 'reading' | 'listening', pIdx: number) => {
     const newQ: Question = { 
@@ -123,7 +154,7 @@ export default function AdminExams() {
         audioUrl, 
         duration: parseInt(listeningTime),
         reviewTime: parseInt(listeningReviewTime),
-        parts: listeningParts // 4 qismga bo'lingan holda yuboriladi
+        parts: listeningParts 
       },
       reading: { 
         timeLimit: parseInt(readingTime),
@@ -136,24 +167,43 @@ export default function AdminExams() {
     };
 
     try {
-      await createExam.mutateAsync({ 
-        title, 
-        timeLimit: parseInt(listeningTime) + parseInt(readingTime) + parseInt(writingTime),
-        content: finalContent, 
-        isPublished: true 
-      });
+      if (editingExamId) {
+        await updateExam.mutateAsync({
+          id: editingExamId,
+          title,
+          timeLimit: parseInt(listeningTime) + parseInt(readingTime) + parseInt(writingTime),
+          content: finalContent,
+          isPublished: true
+        });
+      } else {
+        await createExam.mutateAsync({ 
+          title, 
+          timeLimit: parseInt(listeningTime) + parseInt(readingTime) + parseInt(writingTime),
+          content: finalContent, 
+          isPublished: true 
+        });
+      }
       setIsModalOpen(false);
       resetForm();
     } catch (error) {
-      console.error("Failed to create exam", error);
+      console.error("Failed to save exam", error);
     }
   };
 
   const resetForm = () => {
+    setEditingExamId(null);
     setTitle("");
+    setListeningTime("40");
+    setReadingTime("60");
+    setWritingTime("60");
+    setListeningReviewTime("10");
     setPassages([{ id: Date.now(), title: "Passage 1", content: "", questions: [] }]);
     setListeningParts([{ id: 1, questions: [] }, { id: 2, questions: [] }, { id: 3, questions: [] }, { id: 4, questions: [] }]);
     setAudioUrl("");
+    setWritingTasks([
+      { type: "task1", content: "", image: "", wordLimit: "150" },
+      { type: "task2", content: "", wordLimit: "250" }
+    ]);
   };
 
   // --- AUDIO PREVIEW COMPONENT ---
@@ -300,7 +350,15 @@ export default function AdminExams() {
                     <td className="p-6 font-bold text-slate-700">{exam.title}</td>
                     <td className="p-6"><Badge variant="outline" className="font-bold">{exam.timeLimit} min</Badge></td>
                     <td className="p-6"><Badge className="bg-emerald-500/10 text-emerald-600 border-none">Active</Badge></td>
-                    <td className="p-6 text-right"><Button variant="ghost" className="rounded-xl font-bold text-blue-600">Edit</Button></td>
+                    <td className="p-6 text-right">
+                      <Button 
+                        variant="ghost" 
+                        className="rounded-xl font-bold text-blue-600"
+                        onClick={() => handleEdit(exam)}
+                      >
+                        Edit
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -311,6 +369,9 @@ export default function AdminExams() {
 
       <Modal open={isModalOpen} onOpenChange={setIsModalOpen}>
         <form onSubmit={handleCreate} className="space-y-10">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-2xl font-black text-slate-900">{editingExamId ? 'Edit' : 'Create'} Exam</h2>
+          </div>
           <div className="grid grid-cols-12 gap-8 items-start">
             <div className="col-span-12 lg:col-span-7 space-y-4">
               <Label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1">Assessment Title</Label>

@@ -47,18 +47,19 @@ export function useCreateExam() {
 export function useUpdateExam() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: Partial<InsertExam> & { id: number }) => {
+    mutationFn: async ({ id, ...data }: InsertExam & { id: number }) => {
       const url = `/api/exams/${id}`;
       const res = await fetch(url, {
-        method: "PATCH",
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error("Failed to update exam");
       return await res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [api.exams.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.exams.get.path, variables.id] });
     },
   });
 }

@@ -75,6 +75,29 @@ export async function registerRoutes(
     }
   });
 
+  app.put("/api/exams/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const input = api.exams.create.input.parse(req.body);
+      const [updated] = await db.update(exams)
+        .set({ 
+          title: input.title, 
+          content: input.content, 
+          timeLimit: input.timeLimit,
+          isPublished: input.isPublished 
+        })
+        .where(eq(exams.id, id))
+        .returning();
+      
+      if (!updated) {
+        return res.status(404).json({ message: "Imtihon topilmadi" });
+      }
+      res.json(updated);
+    } catch (e) {
+      res.status(400).json({ message: "Imtihon ma'lumotlari xato" });
+    }
+  });
+
   app.get(api.exams.get.path, async (req, res) => {
     const exam = await storage.getExam(Number(req.params.id));
     if (!exam) return res.status(404).json({ message: "Imtihon topilmadi" });
