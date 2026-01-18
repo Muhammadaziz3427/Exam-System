@@ -75,7 +75,7 @@ export default function StudentExam() {
     });
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     toast({ title: "Completed", description: "Your exam has been submitted." });
-    setLocation("/completion-page");
+    setLocation(`/student/detailed-results/${sessionId}`);
   };
 
   // Avtomatik bo'limdan bo'limga o'tish
