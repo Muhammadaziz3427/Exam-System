@@ -5,11 +5,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useEffect, ChangeEvent } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Loader2, Clock, PenTool, MessageSquare, Award, CheckCircle2, User } from "lucide-react";
+import { Loader2, Clock, PenTool, MessageSquare, Award, CheckCircle2, User, Trash2 } from "lucide-react";
 import type { ExamSession, Submission } from "@shared/schema";
 
 interface WritingCriteria {
@@ -22,10 +23,39 @@ interface WritingCriteria {
 export default function TeacherDashboard() {
   const { toast } = useToast();
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState("waiting");
 
   const { data: sessions, isLoading: sessionsLoading } = useQuery<ExamSession[]>({
     queryKey: ["/api/sessions"],
   });
+
+  const filteredSessions = useMemo(() => {
+    if (!sessions) return [];
+    return sessions.filter((s: any) => {
+      if (activeTab === "waiting") return s.status === "pending_grading";
+      if (activeTab === "marking") return s.status === "in_progress";
+      if (activeTab === "graded") return s.status === "graded" && !s.resultsReleased;
+      if (activeTab === "released") return s.resultsReleased;
+      return true;
+    });
+  }, [sessions, activeTab]);
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/sessions/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      setSelectedSessionId(null);
+      toast({ title: "Sessiya o'chirildi" });
+    },
+  });
+
+  const handleDelete = (e: React.MouseEvent, id: number) => {
+    e.stopPropagation();
+    if (!confirm("Ushbu sessiyani butunlay o'chirib tashlamoqchimisiz?")) return;
+    deleteMutation.mutate(id);
+  };
 
   const { data: submission, isLoading: submissionLoading } = useQuery<Submission>({
     queryKey: ["/api/sessions", selectedSessionId, "submission"],
@@ -128,34 +158,61 @@ export default function TeacherDashboard() {
         <div className="w-full lg:w-80 flex flex-col gap-4">
           <div className="flex items-center justify-between px-1">
             <h2 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Imtihonlar</h2>
-            <Badge variant="outline" className="bg-white">{sessions?.length || 0}</Badge>
+            <Badge variant="outline" className="bg-white">{filteredSessions.length}</Badge>
           </div>
 
-          <Card className="flex-1 overflow-hidden border-slate-200 shadow-sm rounded-2xl">
-            <ScrollArea className="h-full">
-              <div className="p-3 space-y-2">
-                {sessions?.map((session) => (
-                  <button
-                    key={session.id}
-                    onClick={() => setSelectedSessionId(session.id)}
-                    className={`w-full text-left p-4 rounded-xl border transition-all ${
-                      selectedSessionId === session.id 
-                      ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-100" 
-                      : "bg-white border-slate-100 hover:border-blue-300 text-slate-700"
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-1">
-                      <span className="font-bold text-sm leading-tight">{session.firstName} {session.lastName}</span>
-                      {session.status === 'graded' && <CheckCircle2 size={14} className={selectedSessionId === session.id ? "text-blue-200" : "text-emerald-500"} />}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid grid-cols-4 bg-slate-100 p-1 rounded-xl mb-2">
+              <TabsTrigger value="waiting" className="rounded-lg text-[10px] font-bold py-1 px-0">Waiting</TabsTrigger>
+              <TabsTrigger value="marking" className="rounded-lg text-[10px] font-bold py-1 px-0">Marking</TabsTrigger>
+              <TabsTrigger value="graded" className="rounded-lg text-[10px] font-bold py-1 px-0">Graded</TabsTrigger>
+              <TabsTrigger value="released" className="rounded-lg text-[10px] font-bold py-1 px-0">Rel.</TabsTrigger>
+            </TabsList>
+
+            <Card className="flex-1 h-[calc(100vh-240px)] overflow-hidden border-slate-200 shadow-sm rounded-2xl">
+              <ScrollArea className="h-full">
+                <div className="p-3 space-y-2">
+                  {filteredSessions.length === 0 ? (
+                    <div className="text-center py-10">
+                      <p className="text-slate-400 text-xs font-medium">Sessiyalar topilmadi</p>
                     </div>
-                    <p className={`text-[11px] font-mono ${selectedSessionId === session.id ? "text-blue-100" : "text-slate-400"}`}>
-                      {session.accessCode}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            </ScrollArea>
-          </Card>
+                  ) : (
+                    filteredSessions.map((session) => (
+                      <button
+                        key={session.id}
+                        onClick={() => setSelectedSessionId(session.id)}
+                        className={`w-full text-left p-4 rounded-xl border transition-all relative group/item ${
+                          selectedSessionId === session.id 
+                          ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-100" 
+                          : "bg-white border-slate-100 hover:border-blue-300 text-slate-700"
+                        }`}
+                      >
+                        <div className="flex justify-between items-start mb-1 pr-6">
+                          <span className="font-bold text-sm leading-tight">{session.firstName} {session.lastName}</span>
+                          {session.status === 'graded' && <CheckCircle2 size={14} className={selectedSessionId === session.id ? "text-blue-200" : "text-emerald-500"} />}
+                        </div>
+                        <p className={`text-[11px] font-mono ${selectedSessionId === session.id ? "text-blue-100" : "text-slate-400"}`}>
+                          {session.accessCode}
+                        </p>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => handleDelete(e, session.id)}
+                          className={`absolute top-2 right-2 h-7 w-7 rounded-lg transition-opacity ${
+                            selectedSessionId === session.id 
+                            ? "text-blue-200 hover:text-white hover:bg-blue-500" 
+                            : "text-slate-300 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover/item:opacity-100"
+                          }`}
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </Card>
+          </Tabs>
         </div>
 
         {/* RIGHT: GRADING PANEL */}

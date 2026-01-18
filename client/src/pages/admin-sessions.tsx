@@ -1,14 +1,16 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import * as uiKit from "@/components/ui-kit"; 
 import { useSessions, useCreateSession } from "@/hooks/use-sessions";
 import { useExams } from "@/hooks/use-exams";
 import { 
   Loader2, RefreshCw, UserPlus, AlertCircle, Eye, 
-  Copy, PowerOff, CheckCircle, ArrowLeft, Mail, ShieldCheck
+  Copy, PowerOff, CheckCircle, ArrowLeft, Mail, ShieldCheck,
+  Trash2
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
@@ -19,19 +21,31 @@ export default function AdminSessions() {
   const createSession = useCreateSession();
   const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
   const [isReleasing, setIsReleasing] = useState(false);
+  const [activeTab, setActiveTab] = useState("waiting");
   const { toast } = useToast();
 
-  const [studentName, setStudentName] = useState("");
-  const [selectedExamId, setSelectedExamId] = useState("");
+  const filteredSessions = useMemo(() => {
+    if (!sessions) return [];
+    return sessions.filter((s: any) => {
+      if (activeTab === "waiting") return s.status === "pending_grading";
+      if (activeTab === "marking") return s.status === "in_progress";
+      if (activeTab === "graded") return s.status === "graded" && !s.resultsReleased;
+      if (activeTab === "released") return s.resultsReleased;
+      return true;
+    });
+  }, [sessions, activeTab]);
 
-  const { data: allViolations } = useQuery({
-    queryKey: ['/api/violations'],
-    queryFn: async () => {
-      const res = await fetch('/api/violations');
-      return res.json();
-    },
-    refetchInterval: 5000 
-  });
+  const handleDeleteSession = async (id: number) => {
+    if (!confirm("Ushbu sessiyani butunlay o'chirib tashlamoqchimisiz? Barcha javoblar va qoidabuzarliklar o'chib ketadi.")) return;
+    try {
+      await apiRequest("DELETE", `/api/sessions/${id}`);
+      toast({ title: "Sessiya o'chirildi" });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      refetch();
+    } catch (err) {
+      toast({ title: "Xatolik", variant: "destructive" });
+    }
+  };
 
   const handleCopyAccess = (code: string, pass: string) => {
     navigator.clipboard.writeText(`Kod: ${code}\nParol: ${pass}`);
@@ -149,51 +163,75 @@ export default function AdminSessions() {
 
             {/* SESSIONS GRID */}
             <div className="space-y-4">
-              <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest px-1">Sessiyalar ro'yxati</h3>
-              <div className="grid gap-3">
-                {isLoading ? (
-                  <div className="flex justify-center py-20"><Loader2 className="animate-spin text-slate-300" /></div>
-                ) : (
-                  sessions?.map((session: any) => (
-                    <div key={session.id} className="group p-4 rounded-2xl border border-slate-100 bg-white flex items-center justify-between hover:border-blue-200 hover:shadow-sm transition-all">
-                      <div className="flex gap-4 items-center">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg ${session.status === 'completed' ? 'bg-slate-50 text-slate-400' : 'bg-blue-50 text-blue-600'}`}>
-                          {session.studentName?.[0]}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-900">{session.studentName}</span>
-                            {(session.status === 'in_progress' || session.status === 'active') && (
-                              <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                            )}
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Sessiyalar</h3>
+              </div>
+              
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="grid grid-cols-4 bg-slate-100 p-1 rounded-xl mb-6">
+                  <TabsTrigger value="waiting" className="rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-blue-600">Waiting</TabsTrigger>
+                  <TabsTrigger value="marking" className="rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-blue-600">Marking</TabsTrigger>
+                  <TabsTrigger value="graded" className="rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-blue-600">Graded</TabsTrigger>
+                  <TabsTrigger value="released" className="rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-blue-600">Released</TabsTrigger>
+                </TabsList>
+
+                <div className="grid gap-3">
+                  {isLoading ? (
+                    <div className="flex justify-center py-20"><Loader2 className="animate-spin text-slate-300" /></div>
+                  ) : filteredSessions.length === 0 ? (
+                    <div className="text-center py-20 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                      <p className="text-slate-400 text-sm">Hozircha hech narsa yo'q</p>
+                    </div>
+                  ) : (
+                    filteredSessions.map((session: any) => (
+                      <div key={session.id} className="group p-4 rounded-2xl border border-slate-100 bg-white flex items-center justify-between hover:border-blue-200 hover:shadow-sm transition-all">
+                        <div className="flex gap-4 items-center">
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg ${session.status === 'completed' ? 'bg-slate-50 text-slate-400' : 'bg-blue-50 text-blue-600'}`}>
+                            {session.studentName?.[0]}
                           </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <code className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{session.accessCode}</code>
-                            <button onClick={() => handleCopyAccess(session.accessCode, session.password)} className="text-slate-300 hover:text-blue-500 transition-colors">
-                               <Copy size={12} />
-                            </button>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-900">{session.studentName}</span>
+                              {(session.status === 'in_progress' || session.status === 'active') && (
+                                <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <code className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{session.accessCode}</code>
+                              <button onClick={() => handleCopyAccess(session.accessCode, session.password)} className="text-slate-300 hover:text-blue-500 transition-colors">
+                                 <Copy size={12} />
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <uiKit.Button variant="ghost" size="sm" onClick={() => setSelectedSubmission(session)} className="text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
-                          <Eye size={18} />
-                        </uiKit.Button>
-                        {(session.status === 'in_progress' || session.status === 'active') && (
+                        <div className="flex items-center gap-2">
+                          <uiKit.Button variant="ghost" size="sm" onClick={() => setSelectedSubmission(session)} className="text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
+                            <Eye size={18} />
+                          </uiKit.Button>
+                          {(session.status === 'in_progress' || session.status === 'active') && (
+                            <uiKit.Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg" 
+                              onClick={() => handleTerminate(session.id)}
+                            >
+                              <PowerOff size={18} />
+                            </uiKit.Button>
+                          )}
                           <uiKit.Button 
                             variant="ghost" 
                             size="sm" 
-                            className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg" 
-                            onClick={() => handleTerminate(session.id)}
+                            className="text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg" 
+                            onClick={() => handleDeleteSession(session.id)}
                           >
-                            <PowerOff size={18} />
+                            <Trash2 size={18} />
                           </uiKit.Button>
-                        )}
+                        </div>
                       </div>
-                    </div>
-                  ))
-                )}
-              </div>
+                    ))
+                  )}
+                </div>
+              </Tabs>
             </div>
           </div>
 
