@@ -113,7 +113,7 @@ export function AppSidebar() {
             Developed by Yursinaliyev Muhammadaziz
           </p>
           <p className="text-[9px] text-slate-300 font-normal">
-            yursinalivem@gmail.com
+            yursinaliyevm@gmail.com
           </p>
         </div>
       </SidebarFooter>

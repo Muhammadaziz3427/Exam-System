@@ -126,7 +126,7 @@ export default function AuthPage() {
           Created & Developed by <span className="text-slate-600 font-bold">Yursinaliyev Muhammadaziz</span>
         </p>
         <p className="text-slate-400 text-[10px] tracking-wider uppercase">
-          Email: yursinalivem@gmail.com
+          Email: yursinaliyevm@gmail.com
         </p>
       </footer>
     </div>
