@@ -55,6 +55,8 @@ export const examSessions = pgTable("exam_sessions", {
   remainingTime: integer("remaining_time"), // In seconds
   resultsReleased: boolean("results_released").default(false),
   assignedTeacherId: integer("assigned_teacher_id"), // Teacher assigned for marking
+  isCameraActive: boolean("is_camera_active").default(false),
+  lastCameraPulse: timestamp("last_camera_pulse"),
 });
 
 // Student Answers

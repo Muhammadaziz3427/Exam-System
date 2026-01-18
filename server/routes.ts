@@ -177,6 +177,13 @@ export async function registerRoutes(
     res.json(updated);
   });
 
+  app.post("/api/sessions/:id/camera-pulse", async (req, res) => {
+    const sessionId = Number(req.params.id);
+    const { isActive } = req.body;
+    await storage.updateCameraStatus(sessionId, isActive);
+    res.json({ success: true });
+  });
+
   app.get("/api/sessions/:id/submission", async (req, res) => {
     const submission = await storage.getSubmission(Number(req.params.id));
     if (!submission) return res.status(404).json({ message: "Submission not found" });

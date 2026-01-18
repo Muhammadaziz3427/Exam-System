@@ -29,6 +29,7 @@ export interface IStorage {
   updateSessionResultStatus(id: number, resultStatus: string): Promise<ExamSession>;
   updateSessionScores(id: number, scores: { writingScore?: string, speakingScore?: string, readingScore?: string, listeningScore?: string, overallBand?: string }): Promise<ExamSession>;
   updateSessionInfo(id: number, info: { firstName?: string, lastName?: string, email?: string }): Promise<ExamSession>;
+  updateCameraStatus(id: number, isActive: boolean): Promise<void>;
   startSession(id: number): Promise<ExamSession>;
   releaseResults(id: number): Promise<ExamSession>;
   deleteSession(id: number): Promise<void>;
@@ -156,6 +157,15 @@ export class DatabaseStorage implements IStorage {
       .where(eq(examSessions.id, id))
       .returning();
     return updated;
+  }
+
+  async updateCameraStatus(id: number, isActive: boolean): Promise<void> {
+    await db.update(examSessions)
+      .set({ 
+        isCameraActive: isActive,
+        lastCameraPulse: new Date()
+      })
+      .where(eq(examSessions.id, id));
   }
 
   async startSession(id: number): Promise<ExamSession> {
