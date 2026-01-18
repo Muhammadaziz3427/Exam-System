@@ -294,9 +294,9 @@ export default function AdminSessions() {
                             </div>
                             <div className="flex items-center gap-2 mt-1">
                               <code className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{session.accessCode}</code>
-                              <button onClick={() => handleCopyAccess(session.accessCode, session.password)} className="text-slate-300 hover:text-blue-500 transition-colors">
+                              <span onClick={() => handleCopyAccess(session.accessCode, session.password)} className="text-slate-300 hover:text-blue-500 transition-colors cursor-pointer">
                                  <Copy size={12} />
-                              </button>
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -375,12 +375,13 @@ export default function AdminSessions() {
       {/* RESULT MODAL - TOZALANGAN INTERFEYS */}
       {selectedSubmission && (
         <Dialog open={!!selectedSubmission} onOpenChange={() => setSelectedSubmission(null)}>
-          <DialogContent className="max-w-xl bg-white p-0 rounded-3xl overflow-hidden shadow-2xl border-none">
+          <DialogContent aria-describedby="result-dialog-description" className="max-w-xl bg-white p-0 rounded-3xl overflow-hidden shadow-2xl border-none">
             <div className="bg-slate-50 p-6 border-b border-slate-100">
               <DialogTitle className="text-lg font-bold text-slate-900 flex justify-between items-center">
                 <span>Imtihon Natijasi</span>
                 <uiKit.Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-none">{selectedSubmission.studentName}</uiKit.Badge>
               </DialogTitle>
+              <p id="result-dialog-description" className="sr-only">Student exam results breakdown and release control.</p>
             </div>
 
             <div className="p-8 space-y-8">
