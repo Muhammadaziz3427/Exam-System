@@ -495,9 +495,9 @@ export default function AdminExams() {
           </Tabs>
 
           <div className="flex justify-end items-center gap-6 pt-10 border-t-2 border-slate-100">
-             <Button type="button" variant="ghost" className="font-black text-slate-400" onClick={() => setIsModalOpen(false)}>Discard</Button>
-             <Button type="submit" className="bg-blue-600 hover:bg-blue-700 h-16 px-16 rounded-[1.5rem] font-black text-xl shadow-2xl transition-all" disabled={createExam.isPending}>
-               {createExam.isPending ? <lucideReact.Loader2 className="animate-spin" /> : "PUBLISH EXAM"}
+             <Button type="button" variant="ghost" className="font-black text-slate-400" onClick={() => { setIsModalOpen(false); resetForm(); }}>Discard</Button>
+             <Button type="submit" className="bg-blue-600 hover:bg-blue-700 h-16 px-16 rounded-[1.5rem] font-black text-xl shadow-2xl transition-all" disabled={createExam.isPending || updateExam.isPending}>
+               {createExam.isPending || updateExam.isPending ? <lucideReact.Loader2 className="animate-spin" /> : (editingExamId ? 'UPDATE EXAM' : 'PUBLISH EXAM')}
              </Button>
           </div>
         </form>
