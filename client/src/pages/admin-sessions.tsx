@@ -24,6 +24,8 @@ export default function AdminSessions() {
   const [activeTab, setActiveTab] = useState("waiting");
   const [isTvMode, setIsTvMode] = useState(false);
   const { toast } = useToast();
+  const [studentName, setStudentName] = useState("");
+  const [selectedExamId, setSelectedExamId] = useState("");
 
   const { data: allViolations } = useQuery({
     queryKey: ['/api/violations'],
