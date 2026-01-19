@@ -6,7 +6,7 @@ import { useExams } from "@/hooks/use-exams";
 import { 
   Loader2, RefreshCw, UserPlus, AlertCircle, Eye, 
   Copy, PowerOff, CheckCircle, ArrowLeft, Mail, ShieldCheck,
-  Trash2, Monitor, Tv, VideoOff, Video
+  Trash2, Monitor, Tv, VideoOff, Video, Key, User
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -26,6 +26,9 @@ export default function AdminSessions() {
   const { toast } = useToast();
   const [studentName, setStudentName] = useState("");
   const [selectedExamId, setSelectedExamId] = useState("");
+
+  // YANGI: Yaratilgan sessiya ma'lumotlarini ko'rsatish uchun state
+  const [newSessionInfo, setNewSessionInfo] = useState<{code: string, pass: string, name: string} | null>(null);
 
   const { data: allViolations } = useQuery({
     queryKey: ['/api/violations'],
@@ -85,7 +88,6 @@ export default function AdminSessions() {
           ) : (
             activeSessions.map((session: any) => (
               <div key={session.id} className="relative aspect-video bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-2xl group transition-all hover:border-blue-500/50">
-                 {/* In a real P2P app, we'd mount a video element here linked via WebRTC */}
                  <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-950">
                     {session.isCameraActive ? (
                       <Video size={48} className="text-blue-500/20 animate-pulse" />
@@ -97,7 +99,7 @@ export default function AdminSessions() {
                        <span className="text-[9px] font-black text-white uppercase">{session.isCameraActive ? 'Online' : 'Signal Lost'}</span>
                     </div>
                  </div>
-                 
+
                  <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/90 via-black/40 to-transparent">
                     <div className="flex justify-between items-end">
                        <div>
@@ -116,10 +118,10 @@ export default function AdminSessions() {
 
         <footer className="mt-4 pt-4 border-t border-slate-900 flex justify-between items-center px-2">
            <div className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">
-              Developed by Yursinaliyev Muhammadaziz | yursinalivem@gmail.com
+             Developed by Yursinaliyev Muhammadaziz | yursinalivem@gmail.com
            </div>
            <div className="text-slate-700 text-[10px] font-mono">
-              System Time: {new Date().toLocaleTimeString()}
+             System Time: {new Date().toLocaleTimeString()}
            </div>
         </footer>
       </div>
@@ -139,7 +141,7 @@ export default function AdminSessions() {
   };
 
   const handleCopyAccess = (code: string, pass: string) => {
-    navigator.clipboard.writeText(`Kod: ${code}\nParol: ${pass}`);
+    navigator.clipboard.writeText(`Test ID: ${code}\nParol: ${pass}`);
     toast({ title: "Nusxa olindi" });
   };
 
@@ -185,6 +187,14 @@ export default function AdminSessions() {
         accessCode: randomCode,
         password: randomPass
       });
+
+      // YANGI: Muvaffaqiyatli yaratilgach ma'lumotlarni saqlash
+      setNewSessionInfo({
+        code: randomCode,
+        pass: randomPass,
+        name: studentName
+      });
+
       setStudentName("");
       toast({ title: "Sessiya yaratildi" });
     } catch (err) {
@@ -252,6 +262,37 @@ export default function AdminSessions() {
                     {createSession.isPending ? <Loader2 className="animate-spin" /> : "Generatsiya"}
                   </uiKit.Button>
                 </form>
+
+                {/* YANGI: Yaratilgan sessiya ma'lumotlari vizitkasi */}
+                {newSessionInfo && (
+                  <div className="mt-6 p-4 bg-blue-600 rounded-2xl text-white animate-in zoom-in-95 duration-300 shadow-xl shadow-blue-200">
+                    <div className="flex justify-between items-start mb-3">
+                       <div className="flex items-center gap-2">
+                          <ShieldCheck size={20} className="text-blue-200" />
+                          <span className="text-xs font-bold uppercase tracking-widest">Yangi Sessiya Ma'lumotlari</span>
+                       </div>
+                       <button onClick={() => setNewSessionInfo(null)} className="text-blue-200 hover:text-white">
+                          <Trash2 size={16} />
+                       </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                       <div className="bg-blue-700/50 p-3 rounded-xl border border-blue-500/30">
+                          <p className="text-[10px] text-blue-200 uppercase font-black mb-1">Test ID</p>
+                          <p className="font-mono text-lg font-bold">{newSessionInfo.code}</p>
+                       </div>
+                       <div className="bg-blue-700/50 p-3 rounded-xl border border-blue-500/30">
+                          <p className="text-[10px] text-blue-200 uppercase font-black mb-1">Parol (1 martalik)</p>
+                          <p className="font-mono text-lg font-bold">{newSessionInfo.pass}</p>
+                       </div>
+                    </div>
+                    <uiKit.Button 
+                      onClick={() => handleCopyAccess(newSessionInfo.code, newSessionInfo.pass)}
+                      className="w-full mt-3 bg-white text-blue-600 hover:bg-blue-50 font-bold rounded-xl py-2 flex items-center justify-center gap-2"
+                    >
+                      <Copy size={16} /> NUSXA OLISH (COPY)
+                    </uiKit.Button>
+                  </div>
+                )}
               </uiKit.CardContent>
             </uiKit.Card>
 
@@ -260,7 +301,7 @@ export default function AdminSessions() {
               <div className="flex items-center justify-between px-1">
                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Sessiyalar</h3>
               </div>
-              
+
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="grid grid-cols-4 bg-slate-100 p-1 rounded-xl mb-6">
                   <TabsTrigger value="waiting" className="rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-blue-600">Waiting</TabsTrigger>
@@ -370,7 +411,7 @@ export default function AdminSessions() {
         </div>
       </div>
 
-      {/* RESULT MODAL - TOZALANGAN INTERFEYS */}
+      {/* RESULT MODAL */}
       {selectedSubmission && (
         <Dialog open={!!selectedSubmission} onOpenChange={() => setSelectedSubmission(null)}>
           <DialogContent aria-describedby="result-dialog-description" className="max-w-xl bg-white p-0 rounded-3xl overflow-hidden shadow-2xl border-none">
@@ -387,7 +428,7 @@ export default function AdminSessions() {
                 {['listening', 'reading', 'writing', 'speaking'].map((skill) => {
                    const g = selectedSubmission.grading as any;
                    let band = "0.0";
-                   
+
                    if (skill === 'listening' || skill === 'reading') {
                      band = g?.autoGraded?.[skill]?.score !== undefined 
                        ? (Math.min(9, Math.max(0, (g.autoGraded[skill].score / 40) * 9))).toFixed(1)

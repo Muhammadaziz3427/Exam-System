@@ -35,42 +35,9 @@ export default function StudentExam() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
 
-  // Camera check logic
-  const checkCamera = async () => {
-    try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (videoRef.current) videoRef.current.srcObject = mediaStream;
-      setStream(mediaStream);
-      setCameraReady(true);
-    } catch (err) {
-      toast({ 
-        title: "Camera Error", 
-        description: "Please allow camera access to start the exam.", 
-        variant: "destructive" 
-      });
-    }
-  };
-
-  // Heartbeat to keep camera status updated in backend
-  useEffect(() => {
-    if (!hasStarted || !cameraReady) return;
-    const interval = setInterval(() => {
-      apiRequest("POST", `/api/sessions/${sessionId}/camera-pulse`, { isActive: true });
-    }, 10000);
-    return () => clearInterval(interval);
-  }, [hasStarted, cameraReady, sessionId]);
-
-  // Ensure camera stays on during exam
-  useEffect(() => {
-    if (hasStarted && stream && videoRef.current) {
-      videoRef.current.srcObject = stream;
-    }
-  }, [hasStarted, stream]);
   const [currentSection, setCurrentSection] = useState<Section>('listening');
   const [timeLeft, setTimeLeft] = useState(0);
   const [email, setEmail] = useState("");
-
-  // --- Qo'shimcha UI State-lar ---
   const [zoom, setZoom] = useState(100); 
   const [activePassageIdx, setActivePassageIdx] = useState(0);
   const [activeWritingTask, setActiveWritingTask] = useState(0); 
@@ -86,34 +53,79 @@ export default function StudentExam() {
   const submitAnswers = useSubmitAnswers();
   const logViolation = useLogViolation();
 
-  // Timer sozlamalari
+  // --- Yangi funksiya: Savolga sakrash (Scroll to question) ---
+  const scrollToQuestion = (qNum: number) => {
+    const element = document.getElementById(`q-container-${qNum}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
+  const checkCamera = async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) videoRef.current.srcObject = mediaStream;
+      setStream(mediaStream);
+      setCameraReady(true);
+    } catch (err) {
+      toast({ 
+        title: "Camera Error", 
+        description: "Please allow camera access to start the exam.", 
+        variant: "destructive" 
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (!hasStarted || !cameraReady) return;
+    const interval = setInterval(() => {
+      apiRequest("POST", `/api/sessions/${sessionId}/camera-pulse`, { isActive: true });
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [hasStarted, cameraReady, sessionId]);
+
+  useEffect(() => {
+    if (stream && videoRef.current) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [hasStarted, stream, cameraReady]);
+
   const setupSectionTimer = (section: Section, content: any) => {
     let minutes = 60; 
-    if (section === 'listening') minutes = content.listening?.duration || 40;
-    if (section === 'reading') minutes = content.reading?.timeLimit || 60;
-    if (section === 'writing') minutes = content.writing?.timeLimit || 60;
+    if (section === 'listening') minutes = content?.listening?.duration || 40;
+    if (section === 'reading') minutes = content?.reading?.timeLimit || 60;
+    if (section === 'writing') minutes = content?.writing?.timeLimit || 60;
     setTimeLeft(minutes * 60);
   };
 
-  // Yakuniy topshirish
+  // --- O'zgartirilgan Final Submit: Natijalar ko'rsatilmaydi ---
   const handleFinalSubmit = async (autoSubmit: boolean = false) => {
-    if (autoSubmit) {
-      console.log("Time is up. Submitting automatically...");
-    }
+    try {
+      if (autoSubmit) {
+        toast({ title: "Time is up", description: "Submitting..." });
+      }
 
-    await submitAnswers.mutateAsync({ 
-      id: sessionId, 
-      answers, 
-      email, 
-      isFinal: true, 
-      status: "submitted" 
-    });
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    toast({ title: "Completed", description: "Your exam has been submitted." });
-    setLocation("/");
+      await submitAnswers.mutateAsync({ 
+        id: sessionId, 
+        answers, 
+        email, 
+        isFinal: true, 
+        status: "submitted" 
+      });
+
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+
+      toast({ 
+        title: "Exam Finished", 
+        description: "Your answers have been sent to the teacher dashboard." 
+      });
+
+      setLocation("/"); // Natijalarsiz to'g'ridan-to'g'ri bosh sahifaga
+    } catch (err) {
+      toast({ title: "Error", description: "Submission failed.", variant: "destructive" });
+    }
   };
 
-  // Avtomatik bo'limdan bo'limga o'tish
   const handleSectionAutoTransition = () => {
     if (currentSection === 'listening') {
       setCurrentSection('reading');
@@ -124,7 +136,6 @@ export default function StudentExam() {
     }
   };
 
-  // Timer effekti
   useEffect(() => {
     if (!hasStarted || timeLeft <= 0) return;
     const timer = setInterval(() => {
@@ -143,14 +154,13 @@ export default function StudentExam() {
     if (examContent) setupSectionTimer(currentSection, examContent);
   }, [currentSection, examContent]);
 
-  // Xavfsizlik: Tab o'zgarishini kuzatish
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden && hasStarted) {
         logViolation.mutate({ id: sessionId, type: "tab_switch" });
         toast({
           title: "SECURITY WARNING",
-          description: "Tab switching is forbidden. This violation is recorded.",
+          description: "Tab switching is forbidden.",
           variant: "destructive"
         });
       }
@@ -159,7 +169,6 @@ export default function StudentExam() {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [hasStarted, sessionId, logViolation, toast]);
 
-  // Avtomatik saqlash (20 soniya)
   const lastSavedAnswers = useRef(JSON.stringify(answers));
   useEffect(() => {
     const autoSave = setInterval(() => {
@@ -172,7 +181,6 @@ export default function StudentExam() {
     return () => clearInterval(autoSave);
   }, [answers, hasStarted, sessionId]);
 
-  // Imtihonni boshlash oqimi
   const startExamFlow = async () => {
     try {
       await apiRequest("PATCH", `/api/sessions/${sessionId}`, { email });
@@ -213,7 +221,7 @@ export default function StudentExam() {
           ) : (
             <div className="space-y-4">
               <div className="aspect-video bg-black rounded-2xl overflow-hidden border-2 border-blue-500 shadow-lg">
-                <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+                <video key="setup-video" ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
               </div>
               <Input 
                 placeholder="Enter Candidate Email" 
@@ -227,7 +235,7 @@ export default function StudentExam() {
             </div>
           )}
           <footer className="mt-8 text-[10px] text-slate-400 font-medium">
-            Created & Developed by Yursinaliyev Muhammadaziz | yursinalivem@gmail.com
+            Created & Developed by Yursinaliyev Muhammadaziz
           </footer>
         </div>
       </div>
@@ -235,7 +243,7 @@ export default function StudentExam() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-white overflow-hidden select-none font-sans">
+    <div className="h-screen flex flex-col bg-white overflow-hidden select-none font-sans" translate="no">
       <header className="h-14 bg-[#2c3e50] text-white flex items-center justify-between px-6 z-50">
         <div className="flex items-center gap-4">
           <Badge className="bg-blue-600 px-3 py-1 text-sm font-black uppercase tracking-tighter border-none">IELTS Official</Badge>
@@ -248,7 +256,6 @@ export default function StudentExam() {
           </div>
         </div>
 
-        {/* Zoom va Timer */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1 bg-black/20 p-1 rounded-md border border-white/10">
             <button onClick={() => setZoom(Math.max(80, zoom - 10))} className="p-1 hover:bg-white/10 rounded transition-colors"><Minus size={14}/></button>
@@ -269,7 +276,7 @@ export default function StudentExam() {
         </Button>
       </header>
 
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 overflow-hidden" key={currentSection}>
         {currentSection === 'listening' ? (
           <ListeningComponent 
             audioUrl={examContent?.listening?.audioUrl} 
@@ -283,7 +290,7 @@ export default function StudentExam() {
                   {currentSection === 'reading' ? (
                     <div className="flex gap-1">
                       {examContent?.reading?.passages?.map((_: any, idx: number) => (
-                        <button key={idx} onClick={() => setActivePassageIdx(idx)} className={`px-6 h-12 text-xs font-black transition-all ${activePassageIdx === idx ? 'bg-white border-t-4 border-t-blue-600 text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                        <button key={`passage-btn-${idx}`} onClick={() => setActivePassageIdx(idx)} className={`px-6 h-12 text-xs font-black transition-all ${activePassageIdx === idx ? 'bg-white border-t-4 border-t-blue-600 text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>
                           PASSAGE {idx + 1}
                         </button>
                       ))}
@@ -300,22 +307,22 @@ export default function StudentExam() {
                   <div className="p-12 max-w-3xl mx-auto select-text selection:bg-yellow-200" style={{ fontSize: `${zoom}%` }}>
                     {currentSection === 'reading' ? (
                       <article>
-                        <h2 className="text-3xl font-black mb-8 text-slate-900 leading-tight">{examContent?.reading?.passages[activePassageIdx]?.title}</h2>
+                        <h2 className="text-3xl font-black mb-8 text-slate-900 leading-tight">{examContent?.reading?.passages?.[activePassageIdx]?.title}</h2>
                         <div className="text-xl leading-[1.8] text-slate-800 font-serif whitespace-pre-wrap">
-                          {examContent?.reading?.passages[activePassageIdx]?.content}
+                          {examContent?.reading?.passages?.[activePassageIdx]?.content}
                         </div>
                       </article>
                     ) : (
                       <div className="space-y-8">
-                         <div className="bg-blue-50 p-8 rounded-2xl border-2 border-blue-100 relative">
+                          <div className="bg-blue-50 p-8 rounded-2xl border-2 border-blue-100 relative">
                             <Badge className="absolute -top-3 left-6 bg-blue-600 border-none">Writing Task {activeWritingTask + 1}</Badge>
-                            {activeWritingTask === 0 && examContent?.writing?.tasks[0]?.image && (
+                            {activeWritingTask === 0 && examContent?.writing?.tasks?.[0]?.image && (
                               <img src={examContent.writing.tasks[0].image} alt="Task diagram" className="w-full mb-6 rounded-lg border shadow-sm bg-white p-2" />
                             )}
                             <p className="text-xl font-medium text-slate-800 italic leading-relaxed">
-                              "{examContent?.writing?.tasks[activeWritingTask]?.content}"
+                              "{examContent?.writing?.tasks?.[activeWritingTask]?.content}"
                             </p>
-                         </div>
+                          </div>
                       </div>
                     )}
                   </div>
@@ -330,15 +337,15 @@ export default function StudentExam() {
                 <div className="p-12 max-w-2xl mx-auto">
                   {currentSection === 'reading' ? (
                     <div className="space-y-6">
-                      {examContent?.reading?.passages[activePassageIdx]?.questions?.map((q: any, i: number) => {
+                      {examContent?.reading?.passages?.[activePassageIdx]?.questions?.map((q: any, i: number) => {
                         const qGlobalIdx = i + 1 + (activePassageIdx * 13);
                         const qId = `q-${qGlobalIdx}`;
                         return (
-                          <div key={q.id} className="p-6 bg-white rounded-2xl border-2 border-slate-100 shadow-sm transition-all hover:border-blue-200 group">
+                          <div key={qId} id={`q-container-${qGlobalIdx}`} className="p-6 bg-white rounded-2xl border-2 border-slate-100 shadow-sm transition-all hover:border-blue-200 group">
                             <div className="flex gap-4">
                               <span className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm shrink-0">{qGlobalIdx}</span>
                               <div className="flex-1 space-y-4">
-                                <p className="font-bold text-slate-700">{q.text}</p>
+                                <p className="font-bold text-slate-700">{q?.text}</p>
                                 <Input 
                                   className="h-12 text-lg border-2 focus:border-blue-500 bg-slate-50/50" 
                                   value={answers.reading[qId] || ""}
@@ -355,26 +362,27 @@ export default function StudentExam() {
                     </div>
                   ) : (
                     <div className="h-full flex flex-col space-y-4">
-                       <div className="flex justify-between items-center mb-2">
-                         <Badge className="bg-slate-900 px-4 py-1 font-mono text-sm border-none">
+                        <div className="flex justify-between items-center mb-2">
+                          <Badge className="bg-slate-900 px-4 py-1 font-mono text-sm border-none">
                             WORDS: {
                                activeWritingTask === 0 
                                ? (answers.writingTask1?.trim() ? answers.writingTask1.trim().split(/\s+/).length : 0)
                                : (answers.writingTask2?.trim() ? answers.writingTask2.trim().split(/\s+/).length : 0)
                             }
-                         </Badge>
-                       </div>
-                       <Textarea 
-                         className="min-h-[500px] p-10 text-xl leading-[1.8] font-serif border-2 border-slate-200 rounded-3xl focus:border-blue-600 shadow-inner bg-white resize-none"
-                         placeholder="Type your essay..."
-                         value={activeWritingTask === 0 ? answers.writingTask1 : answers.writingTask2}
-                         onPaste={(e) => e.preventDefault()}
-                         onContextMenu={(e) => e.preventDefault()}
-                         onChange={(e) => {
-                           const key = activeWritingTask === 0 ? 'writingTask1' : 'writingTask2';
-                           setAnswers({...answers, [key]: e.target.value});
-                         }}
-                       />
+                          </Badge>
+                        </div>
+                        <Textarea 
+                          className="min-h-[500px] p-10 text-xl leading-[1.8] font-serif border-2 border-slate-200 rounded-3xl focus:border-blue-600 shadow-inner bg-white resize-none"
+                          placeholder="Type your essay..."
+                          value={activeWritingTask === 0 ? answers.writingTask1 : answers.writingTask2}
+                          onPaste={(e) => e.preventDefault()}
+                          onContextMenu={(e) => e.preventDefault()}
+                          spellCheck={false}
+                          onChange={(e) => {
+                            const key = activeWritingTask === 0 ? 'writingTask1' : 'writingTask2';
+                            setAnswers({...answers, [key]: e.target.value});
+                          }}
+                        />
                     </div>
                   )}
                 </div>
@@ -385,45 +393,45 @@ export default function StudentExam() {
       </main>
 
       <footer className="h-16 bg-white border-t flex items-center px-8 justify-between shadow-sm z-50">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <div className="w-12 h-8 bg-black rounded border border-white/20 overflow-hidden shrink-0">
-               <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
-            </div>
-            <p className="text-[10px] text-slate-400 font-medium hidden sm:block">
-              Created & Developed by Yursinaliyev Muhammadaziz | yursinalivem@gmail.com
-            </p>
+        <div className="flex items-center gap-6 shrink-0">
+          <div className="w-12 h-8 bg-black rounded border border-white/20 overflow-hidden">
+              <video key="footer-video" ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
           </div>
         </div>
-        <div className="flex items-center gap-3 overflow-hidden">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Questions</span>
-          <div className="flex gap-1 overflow-x-auto no-scrollbar py-2">
+
+        <div className="flex items-center gap-3 overflow-hidden mx-4 flex-1 justify-center">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Questions</span>
+          <div className="flex gap-1 overflow-x-auto no-scrollbar py-2 scroll-smooth max-w-full">
             {Array.from({ length: 40 }).map((_, i) => {
               const qNum = i + 1;
               const qId = `q-${qNum}`;
-              const hasAns = (currentSection === 'reading' && answers.reading[qId]) || 
-                             (currentSection === 'listening' && answers.listening[qId]);
+              const hasAns = (currentSection === 'reading' && answers.reading?.[qId]) || 
+                             (currentSection === 'listening' && answers.listening?.[qId]);
               const isFlagged = reviewFlags[qId];
 
               return (
-                <div key={i} className={`w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-[10px] font-bold border-2 relative transition-all ${
-                  hasAns ? 'bg-[#2c3e50] border-[#2c3e50] text-white' : 'bg-white border-slate-100 text-slate-400'
-                }`}>
+                <button 
+                  key={`nav-q-${i}`} 
+                  onClick={() => scrollToQuestion(qNum)} 
+                  className={`w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-[10px] font-bold border-2 relative transition-all active:scale-90 ${
+                    hasAns ? 'bg-[#2c3e50] border-[#2c3e50] text-white' : 'bg-white border-slate-100 text-slate-400'
+                  }`}
+                >
                   {qNum}
                   {isFlagged && <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white" />}
-                </div>
+                </button>
               );
             })}
           </div>
         </div>
 
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-6 shrink-0">
           <div className="flex items-center gap-2 text-emerald-500 font-bold text-[10px] uppercase">
             <CheckCircle2 size={16} /> Saved
           </div>
           {currentSection !== 'writing' && (
             <Button className="bg-emerald-600 hover:bg-emerald-700 font-bold" onClick={() => setCurrentSection(currentSection === 'listening' ? 'reading' : 'writing')}>
-              Next Section <ChevronRight className="ml-2" size={16}/>
+              Next <ChevronRight className="ml-1" size={16}/>
             </Button>
           )}
         </div>
