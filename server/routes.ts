@@ -190,6 +190,28 @@ export async function registerRoutes(
     res.json(submission);
   });
 
+  app.patch("/api/sessions/:id/progress", async (req, res) => {
+    const sessionId = Number(req.params.id);
+    const { answers } = req.body;
+    try {
+      await storage.upsertSubmission({ sessionId, answers });
+      res.json({ message: "Progress saved" });
+    } catch (e) {
+      res.status(500).json({ message: "Failed to save progress" });
+    }
+  });
+
+  app.patch("/api/sessions/:id", async (req, res) => {
+    const sessionId = Number(req.params.id);
+    const { email } = req.body;
+    try {
+      const updated = await storage.updateSessionInfo(sessionId, { email });
+      res.json(updated);
+    } catch (e) {
+      res.status(500).json({ message: "Failed to update session" });
+    }
+  });
+
   app.get("/api/sessions/:id", async (req, res) => {
     const session = await storage.getSession(Number(req.params.id));
     if (!session) return res.status(404).json({ message: "Session not found" });
