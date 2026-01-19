@@ -115,9 +115,13 @@ export default function StudentExam() {
 
   // Avtomatik bo'limdan bo'limga o'tish
   const handleSectionAutoTransition = () => {
-    if (currentSection === 'listening') setCurrentSection('reading');
-    else if (currentSection === 'reading') setCurrentSection('writing');
-    else handleFinalSubmit(true);
+    if (currentSection === 'listening') {
+      setCurrentSection('reading');
+    } else if (currentSection === 'reading') {
+      setCurrentSection('writing');
+    } else {
+      handleFinalSubmit(true);
+    }
   };
 
   // Timer effekti

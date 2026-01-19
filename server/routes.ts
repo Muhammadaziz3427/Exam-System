@@ -195,9 +195,9 @@ export async function registerRoutes(
     const { answers } = req.body;
     try {
       await storage.upsertSubmission({ sessionId, answers });
-      res.json({ message: "Progress saved" });
+      res.json({ message: "Muvaffaqiyatli saqlandi" });
     } catch (e) {
-      res.status(500).json({ message: "Failed to save progress" });
+      res.status(500).json({ message: "Progress saqlashda xatolik" });
     }
   });
 
