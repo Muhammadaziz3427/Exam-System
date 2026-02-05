@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation, Link } from "wouter";
+// 1. Ishlatilmagan useLocation va Link olib tashlandi
 import { 
   Card, 
   Button, 
@@ -21,17 +21,33 @@ import {
   PenTool, 
   Trash2, 
   Layers,
-  CheckCircle2,
+  // 2. CheckCircle2 olib tashlandi
   Pencil,
-  Clock
+  Clock,
+  Settings2,
+  Image as ImageIcon
 } from "lucide-react";
 
-const Modal = ({ open, onOpenChange, children }: any) => {
+// --- TYPES & INTERFACES ---
+interface ModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: React.ReactNode;
+}
+
+// --- MODAL COMPONENT ---
+// Implicit any xatosi ModalProps orqali tuzatildi
+const Modal = ({ open, onOpenChange, children }: ModalProps) => {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl my-8 p-8 relative">
-        <button onClick={() => onOpenChange(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 text-2xl">✕</button>
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl my-8 p-8 relative min-h-[80vh]">
+        <button 
+          onClick={() => onOpenChange(false)} 
+          className="absolute top-6 right-6 text-slate-400 hover:text-red-500 transition-colors text-2xl"
+        >
+          ✕
+        </button>
         {children}
       </div>
     </div>
@@ -41,12 +57,13 @@ const Modal = ({ open, onOpenChange, children }: any) => {
 export default function AdminExams() {
   const { data: exams, isLoading } = useExams();
   const createExam = useCreateExam();
-  const updateExam = useUpdateExam(); // Add this hook
+  const updateExam = useUpdateExam();
   const deleteExam = useDeleteExam();
-  const [, setLocation] = useLocation();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingExam, setEditingExam] = useState<any>(null); // Track which exam is being edited
+  const [editingExam, setEditingExam] = useState<any>(null);
+
+  // --- FORM STATE ---
   const [title, setTitle] = useState("");
   const [listeningTime, setListeningTime] = useState("40");
   const [readingTime, setReadingTime] = useState("60");
@@ -90,6 +107,10 @@ export default function AdminExams() {
     ]);
   };
 
+  const addPassage = () => {
+    setPassages([...passages, { id: Date.now(), title: `Passage ${passages.length + 1}`, content: "", questions: [] }]);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const finalContent = {
@@ -110,70 +131,83 @@ export default function AdminExams() {
     } else {
       await createExam.mutateAsync(examData);
     }
-    
+
     setIsModalOpen(false);
     resetForm();
   };
 
-  if (isLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={40} /></div>;
+  if (isLoading) return <div className="flex h-screen items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-blue-600" size={48} /></div>;
 
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-8 max-w-7xl mx-auto space-y-8">
+      {/* HEADER SECTION */}
+      <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-4xl font-black text-slate-900 tracking-tight">Exam Creator <span className="text-blue-600">Pro</span></h2>
-          <p className="text-slate-500 font-medium">Manage and create IELTS mock tests</p>
+          <Badge className="mb-2 bg-blue-100 text-blue-700 hover:bg-blue-100 border-none px-3">Admin Panel</Badge>
+          <h2 className="text-5xl font-black text-slate-900 tracking-tight">Exam <span className="text-blue-600">Studio</span></h2>
+          <p className="text-slate-500 font-medium mt-2">Create and refine high-quality IELTS assessments.</p>
         </div>
-        <Button onClick={() => { resetForm(); setIsModalOpen(true); }} className="bg-slate-900 hover:bg-black text-white rounded-full px-8 h-12">
-          <Plus className="mr-2" size={20} /> Create New Exam
+        <Button onClick={() => { resetForm(); setIsModalOpen(true); }} className="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl px-8 h-14 font-bold shadow-lg shadow-blue-200 transition-all active:scale-95">
+          <Plus className="mr-2" size={20} /> New Exam
         </Button>
       </div>
 
-      <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-white">
-        <div className="p-6 border-b bg-slate-50/50">
-          <h3 className="font-bold flex items-center gap-2"><Layers size={18}/> Active Exams ({exams?.length || 0})</h3>
+      {/* EXAM LIST TABLE */}
+      <Card className="border-none shadow-2xl shadow-slate-200/60 rounded-[2rem] overflow-hidden bg-white">
+        <div className="p-8 border-b bg-slate-50/50 flex justify-between items-center">
+          <h3 className="font-black text-slate-800 flex items-center gap-3 uppercase tracking-wider text-sm">
+            <Layers size={20} className="text-blue-600"/> 
+            Live Assessment Library
+          </h3>
+          <Badge variant="outline" className="rounded-full px-4 py-1">{exams?.length || 0} Exams Total</Badge>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b bg-slate-50/50 text-xs font-black uppercase text-slate-400">
-                <th className="p-4">Test Title</th>
-                <th className="p-4 text-center">Duration</th>
-                <th className="p-4 text-right">Actions</th>
+              <tr className="text-[10px] font-black uppercase text-slate-400 border-b border-slate-100">
+                <th className="p-6">Exam Identity</th>
+                <th className="p-6 text-center">Timing Info</th>
+                <th className="p-6 text-right">Control</th>
               </tr>
             </thead>
             <tbody>
               {exams?.map((exam: any) => (
-                <tr key={exam.id} className="border-b hover:bg-slate-50 transition-all group">
-                  <td className="p-4">
-                    <div className="font-bold text-slate-700">{exam.title}</div>
-                    <div className="text-[10px] text-slate-400">ID: {exam.id}</div>
+                <tr key={exam.id} className="border-b border-slate-50 hover:bg-blue-50/30 transition-colors group">
+                  <td className="p-6">
+                    <div className="font-black text-slate-700 text-lg">{exam.title}</div>
+                    <div className="text-xs text-slate-400 font-mono mt-1 flex items-center gap-2">
+                       <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Published ID: #{exam.id}
+                    </div>
                   </td>
-                  <td className="p-4 text-center text-slate-500 font-medium">{exam.timeLimit} min</td>
-                  <td className="p-4 text-right flex justify-end gap-2">
-                    {/* Link orqali navigatsiya (Eng xavfsiz yo'l) */}
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="text-blue-600 border-blue-100 hover:bg-blue-50"
-                      onClick={() => openEditModal(exam)}
-                    >
-                      <Pencil size={14} className="mr-2"/> Edit
-                    </Button>
-
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="text-red-400 hover:bg-red-50" 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if(confirm("Are you sure you want to delete this exam?")) {
-                          deleteExam.mutate(exam.id);
-                        }
-                      }}
-                    >
-                      <Trash2 size={14}/>
-                    </Button>
+                  <td className="p-6 text-center">
+                    <Badge className="bg-slate-100 text-slate-600 border-none font-bold px-3 py-1">
+                      <Clock size={12} className="mr-2"/> {exam.timeLimit} Minutes
+                    </Badge>
+                  </td>
+                  <td className="p-6 text-right">
+                    <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="rounded-xl border-slate-200 font-bold hover:bg-white hover:text-blue-600"
+                        onClick={() => openEditModal(exam)}
+                      >
+                        <Pencil size={14} className="mr-2"/> Edit
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="rounded-xl text-red-400 hover:bg-red-50 hover:text-red-600" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if(confirm("Confirm deletion of this exam? This cannot be undone.")) {
+                            deleteExam.mutate(exam.id);
+                          }
+                        }}
+                      >
+                        <Trash2 size={16}/>
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -182,43 +216,183 @@ export default function AdminExams() {
         </div>
       </Card>
 
-      <Modal open={isModalOpen} onOpenChange={(open) => { setIsModalOpen(open); if(!open) resetForm(); }}>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="flex justify-between items-center border-b pb-4">
-            <h3 className="text-2xl font-black">{editingExam ? "Edit Exam" : "Create New Exam"}</h3>
-            <Badge variant="outline" className="text-blue-600 border-blue-200">{editingExam ? "Update Mode" : "Draft Mode"}</Badge>
-          </div>
+      {/* MAIN EDIT/CREATE MODAL */}
+      {/* 3. onOpenChange callback parametriga boolean turi berildi */}
+      <Modal open={isModalOpen} onOpenChange={(open: boolean) => { setIsModalOpen(open); if(!open) resetForm(); }}>
+        <form onSubmit={handleSubmit} className="space-y-8">
+          <header className="flex justify-between items-center bg-slate-900 -m-8 mb-8 p-8 rounded-t-[1.5rem] text-white">
+            <div>
+              <h3 className="text-2xl font-black">{editingExam ? "Refine Assessment" : "Architect New Exam"}</h3>
+              <p className="text-slate-400 text-sm font-medium">Fill in the details below to deploy your test.</p>
+            </div>
+            <Badge className="bg-blue-600 text-white border-none px-4 py-2 rounded-xl text-sm font-black italic">
+              {editingExam ? "SYNCING LIVE" : "READY TO PUBLISH"}
+            </Badge>
+          </header>
 
-          <div className="space-y-2">
-            <Label className="uppercase text-[10px] font-black text-slate-400">Exam Title</Label>
-            <Input placeholder="Cambridge IELTS 18 - Test 1" value={title} onChange={e => setTitle(e.target.value)} required className="h-14 text-xl font-bold border-2 focus:border-blue-600 rounded-xl" />
-          </div>
+          <Tabs defaultValue="settings" className="w-full">
+            <TabsList className="grid w-full grid-cols-4 bg-slate-100 p-1.5 rounded-2xl mb-8">
+              <TabsTrigger value="settings" className="rounded-xl font-bold data-[state=active]:bg-white data-[state=active]:text-blue-600">
+                <Settings2 size={16} className="mr-2"/> Core Settings
+              </TabsTrigger>
+              <TabsTrigger value="listening" className="rounded-xl font-bold data-[state=active]:bg-white data-[state=active]:text-blue-600">
+                <Headset size={16} className="mr-2"/> Listening
+              </TabsTrigger>
+              <TabsTrigger value="reading" className="rounded-xl font-bold data-[state=active]:bg-white data-[state=active]:text-blue-600">
+                <BookOpen size={16} className="mr-2"/> Reading
+              </TabsTrigger>
+              <TabsTrigger value="writing" className="rounded-xl font-bold data-[state=active]:bg-white data-[state=active]:text-blue-600">
+                <PenTool size={16} className="mr-2"/> Writing
+              </TabsTrigger>
+            </TabsList>
 
-          <div className="grid grid-cols-4 gap-4 bg-slate-50 p-4 rounded-2xl border">
-            <div>
-              <Label className="text-[10px] font-bold">Listening (min)</Label>
-              <Input type="number" value={listeningTime} onChange={e => setListeningTime(e.target.value)} />
-            </div>
-            <div>
-              <Label className="text-[10px] font-bold">Reading (min)</Label>
-              <Input type="number" value={readingTime} onChange={e => setReadingTime(e.target.value)} />
-            </div>
-            <div>
-              <Label className="text-[10px] font-bold">Writing (min)</Label>
-              <Input type="number" value={writingTime} onChange={e => setWritingTime(e.target.value)} />
-            </div>
-            <div>
-              <Label className="text-[10px] font-bold">Review (min)</Label>
-              <Input type="number" value={listeningReviewTime} onChange={e => setListeningReviewTime(e.target.value)} />
-            </div>
-          </div>
+            {/* TAB: CORE SETTINGS */}
+            <TabsContent value="settings" className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+              <div className="space-y-2">
+                <Label className="uppercase text-[10px] font-black text-slate-400 tracking-widest">Assessment Name</Label>
+                <Input 
+                  placeholder="e.g. Cambridge IELTS 18 - Academic Test 01" 
+                  value={title} 
+                  onChange={e => setTitle(e.target.value)} 
+                  required 
+                  className="h-16 text-2xl font-black border-2 focus:border-blue-600 rounded-2xl px-6 shadow-sm" 
+                />
+              </div>
 
-          <Button type="submit" className="w-full h-14 bg-blue-600 hover:bg-blue-700 text-white font-black text-lg rounded-2xl shadow-lg shadow-blue-200 transition-all" disabled={createExam.isPending || updateExam.isPending}>
-             {(createExam.isPending || updateExam.isPending) ? <Loader2 className="animate-spin mr-2" /> : null}
-             {(createExam.isPending || updateExam.isPending) ? "SAVING..." : editingExam ? "UPDATE EXAM" : "PUBLISH COMPLETE EXAM"}
-          </Button>
+              <div className="grid grid-cols-4 gap-6 bg-blue-50/50 p-6 rounded-[2rem] border border-blue-100">
+                {[
+                  { label: "Listening", state: listeningTime, set: setListeningTime },
+                  { label: "Reading", state: readingTime, set: setReadingTime },
+                  { label: "Writing", state: writingTime, set: setWritingTime },
+                  { label: "L-Review", state: listeningReviewTime, set: setListeningReviewTime },
+                ].map((item) => (
+                  <div key={item.label} className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase text-blue-600/60 ml-1">{item.label} (min)</Label>
+                    <Input 
+                      type="number" 
+                      value={item.state} 
+                      onChange={e => item.set(e.target.value)} 
+                      className="h-12 font-bold rounded-xl border-blue-100 focus:ring-blue-500"
+                    />
+                  </div>
+                ))}
+              </div>
+            </TabsContent>
+
+            {/* TAB: LISTENING */}
+            <TabsContent value="listening" className="space-y-6">
+              <div className="p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
+                <Label className="font-bold mb-2 block">Audio URL (CDN/Drive Link)</Label>
+                <Input 
+                   placeholder="https://your-audio-hosting.com/test-1.mp3" 
+                   value={audioUrl} 
+                   onChange={e => setAudioUrl(e.target.value)}
+                   className="font-mono text-sm"
+                />
+                {audioUrl && (
+                  <audio controls className="w-full mt-4 h-10">
+                    <source src={audioUrl} type="audio/mpeg" />
+                  </audio>
+                )}
+              </div>
+              <p className="text-center text-slate-400 text-sm italic font-medium">Listening savollarini boshqarish paneli tez orada...</p>
+            </TabsContent>
+
+            {/* TAB: READING */}
+            <TabsContent value="reading" className="space-y-6 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
+              {passages.map((psg, idx) => (
+                <div key={psg.id} className="p-6 border-2 border-slate-100 rounded-[2rem] space-y-4 relative">
+                  <Badge className="absolute -top-3 left-6 bg-white border-2 border-slate-100 text-slate-400">Passage {idx + 1}</Badge>
+                  <Input 
+                    placeholder="Passage Title" 
+                    value={psg.title} 
+                    onChange={e => {
+                      const newP = [...passages];
+                      newP[idx].title = e.target.value;
+                      setPassages(newP);
+                    }}
+                    className="font-bold text-lg border-none bg-slate-50 rounded-xl"
+                  />
+                  <Textarea 
+                    placeholder="Paste the passage text content here..." 
+                    className="min-h-[200px] resize-none border-none bg-slate-50 rounded-xl p-4"
+                    value={psg.content}
+                    onChange={e => {
+                      const newP = [...passages];
+                      newP[idx].content = e.target.value;
+                      setPassages(newP);
+                    }}
+                  />
+                </div>
+              ))}
+              <Button type="button" variant="outline" onClick={addPassage} className="w-full border-2 border-dashed h-16 rounded-2xl text-slate-400 hover:text-blue-600 hover:border-blue-200">
+                <Plus size={18} className="mr-2"/> Add Another Passage
+              </Button>
+            </TabsContent>
+
+            {/* TAB: WRITING */}
+            <TabsContent value="writing" className="grid grid-cols-2 gap-6">
+               {writingTasks.map((task, idx) => (
+                 <div key={idx} className="p-6 bg-slate-50 rounded-[2rem] space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-black text-slate-800 uppercase text-xs tracking-tighter">Task {idx + 1} Prompt</h4>
+                      <Badge className="bg-slate-200 text-slate-600 border-none">{task.wordLimit} Words</Badge>
+                    </div>
+                    {idx === 0 && (
+                      <div className="flex items-center gap-2 bg-white p-3 rounded-xl border border-slate-200">
+                        <ImageIcon size={18} className="text-slate-400"/>
+                        <Input placeholder="Image URL (for Task 1)" value={task.image} onChange={e => {
+                           const newT = [...writingTasks];
+                           newT[0].image = e.target.value;
+                           setWritingTasks(newT);
+                        }} className="border-none h-8 text-xs font-mono"/>
+                      </div>
+                    )}
+                    <Textarea 
+                      className="min-h-[250px] bg-white border-none rounded-xl p-4 shadow-inner"
+                      placeholder="Enter the writing prompt details..."
+                      value={task.content}
+                      onChange={e => {
+                        const newT = [...writingTasks];
+                        newT[idx].content = e.target.value;
+                        setWritingTasks(newT);
+                      }}
+                    />
+                 </div>
+               ))}
+            </TabsContent>
+          </Tabs>
+
+          {/* FOOTER ACTIONS */}
+          <div className="flex gap-4 pt-6 border-t border-slate-100">
+            <Button 
+              type="button" 
+              variant="ghost" 
+              onClick={() => { setIsModalOpen(false); resetForm(); }}
+              className="px-8 h-14 font-bold text-slate-400 hover:text-slate-600"
+            >
+              Discard Changes
+            </Button>
+            <Button 
+              type="submit" 
+              className="flex-1 h-14 bg-slate-900 hover:bg-black text-white font-black text-lg rounded-2xl shadow-xl transition-all disabled:opacity-50" 
+              disabled={createExam.isPending || updateExam.isPending}
+            >
+                {(createExam.isPending || updateExam.isPending) ? (
+                  <><Loader2 className="animate-spin mr-3" /> SECURING DATA...</>
+                ) : (
+                  editingExam ? "SAVE & UPDATE CONTENT" : "PUBLISH ASSESSMENT"
+                )}
+            </Button>
+          </div>
         </form>
       </Modal>
+
+      <footer className="mt-12 py-8 border-t border-slate-100 text-center">
+        <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.3em]">
+          Engineered for Professional IELTS Training | v2.4.0
+        </p>
+      </footer>
     </div>
   );
 }

@@ -53,7 +53,6 @@ export default function StudentExam() {
   const submitAnswers = useSubmitAnswers();
   const logViolation = useLogViolation();
 
-  // --- Yangi funksiya: Savolga sakrash (Scroll to question) ---
   const scrollToQuestion = (qNum: number) => {
     const element = document.getElementById(`q-container-${qNum}`);
     if (element) {
@@ -98,13 +97,14 @@ export default function StudentExam() {
     setTimeLeft(minutes * 60);
   };
 
-  // --- O'zgartirilgan Final Submit: Natijalar ko'rsatilmaydi ---
+  // --- NATIJALARNI KO'RSATMAYDIGAN FINAL SUBMIT ---
   const handleFinalSubmit = async (autoSubmit: boolean = false) => {
     try {
       if (autoSubmit) {
-        toast({ title: "Time is up", description: "Submitting..." });
+        toast({ title: "Time is up", description: "System is automatically submitting your work..." });
       }
 
+      // 1. Javoblarni yuborish
       await submitAnswers.mutateAsync({ 
         id: sessionId, 
         answers, 
@@ -113,16 +113,23 @@ export default function StudentExam() {
         status: "submitted" 
       });
 
-      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      // 2. Fullscreen rejimini yopish
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
 
+      // 3. Muvaffaqiyatli yakunlash xabari
       toast({ 
-        title: "Exam Finished", 
-        description: "Your answers have been sent to the teacher dashboard." 
+        title: "Test Successfully Completed", 
+        description: "Your responses have been recorded and sent for evaluation. You will be notified of the results later." 
       });
 
-      setLocation("/"); // Natijalarsiz to'g'ridan-to'g'ri bosh sahifaga
+      // 4. DARXOL Bosh sahifaga yo'naltirish (Natija ko'rsatiladigan state'ga o'tmaslik uchun)
+      setHasStarted(false); // Exam view'dan chiqish
+      setLocation("/"); 
+
     } catch (err) {
-      toast({ title: "Error", description: "Submission failed.", variant: "destructive" });
+      toast({ title: "Submission Error", description: "There was a problem saving your answers. Please try again.", variant: "destructive" });
     }
   };
 
@@ -160,7 +167,7 @@ export default function StudentExam() {
         logViolation.mutate({ id: sessionId, type: "tab_switch" });
         toast({
           title: "SECURITY WARNING",
-          description: "Tab switching is forbidden.",
+          description: "Tab switching is forbidden and logged.",
           variant: "destructive"
         });
       }
@@ -195,7 +202,7 @@ export default function StudentExam() {
       setupSectionTimer('listening', exam.content);
       setHasStarted(true);
     } catch (err) {
-      toast({ title: "Error", description: "Failed to load exam.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to load exam content.", variant: "destructive" });
     }
   };
 
@@ -207,15 +214,15 @@ export default function StudentExam() {
             <ShieldCheck size={32} />
           </div>
           <h1 className="text-2xl font-black text-slate-900 mb-1">IELTS Mock Test</h1>
-          <p className="text-slate-500 mb-6 text-sm">Camera monitoring is required during the test.</p>
+          <p className="text-slate-500 mb-6 text-sm">Security monitor is active. Camera access required.</p>
 
           {!cameraReady ? (
             <div className="space-y-4">
               <div className="aspect-video bg-slate-100 rounded-2xl flex items-center justify-center border-2 border-dashed border-slate-300">
-                <p className="text-slate-400 text-sm">Camera Preview</p>
+                <p className="text-slate-400 text-sm">Waiting for camera...</p>
               </div>
               <Button className="w-full h-14 text-lg font-bold bg-blue-600" onClick={checkCamera}>
-                Check Camera Access
+                Initialize Camera
               </Button>
             </div>
           ) : (
@@ -224,18 +231,18 @@ export default function StudentExam() {
                 <video key="setup-video" ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
               </div>
               <Input 
-                placeholder="Enter Candidate Email" 
+                placeholder="Candidate Email Address" 
                 className="h-12 text-center text-lg rounded-xl border-2" 
                 value={email} 
                 onChange={(e) => setEmail(e.target.value)} 
               />
               <Button className="w-full h-14 text-lg font-bold bg-[#2c3e50]" onClick={startExamFlow} disabled={!email.includes("@")}>
-                Start Test
+                Begin Assessment
               </Button>
             </div>
           )}
           <footer className="mt-8 text-[10px] text-slate-400 font-medium">
-            Created & Developed by Yursinaliyev Muhammadaziz
+            Authorized IELTS Mock Platform | Managed by Instructor
           </footer>
         </div>
       </div>
@@ -246,7 +253,7 @@ export default function StudentExam() {
     <div className="h-screen flex flex-col bg-white overflow-hidden select-none font-sans" translate="no">
       <header className="h-14 bg-[#2c3e50] text-white flex items-center justify-between px-6 z-50">
         <div className="flex items-center gap-4">
-          <Badge className="bg-blue-600 px-3 py-1 text-sm font-black uppercase tracking-tighter border-none">IELTS Official</Badge>
+          <Badge className="bg-blue-600 px-3 py-1 text-sm font-black uppercase tracking-tighter border-none">IELTS Test Room</Badge>
           <div className="h-4 w-[1px] bg-slate-600" />
           <div className="flex items-center gap-2 text-slate-300 font-bold text-xs uppercase tracking-widest">
             {currentSection === 'listening' && <Headphones size={14}/>}
@@ -271,7 +278,7 @@ export default function StudentExam() {
           </div>
         </div>
 
-        <Button variant="destructive" size="sm" className="font-bold px-6" onClick={() => confirm("Finish exam?") && handleFinalSubmit()}>
+        <Button variant="destructive" size="sm" className="font-bold px-6" onClick={() => confirm("Are you sure you want to finish the test? You cannot return to your questions.") && handleFinalSubmit()}>
           Finish Test
         </Button>
       </header>
@@ -373,7 +380,7 @@ export default function StudentExam() {
                         </div>
                         <Textarea 
                           className="min-h-[500px] p-10 text-xl leading-[1.8] font-serif border-2 border-slate-200 rounded-3xl focus:border-blue-600 shadow-inner bg-white resize-none"
-                          placeholder="Type your essay..."
+                          placeholder="Compose your response here..."
                           value={activeWritingTask === 0 ? answers.writingTask1 : answers.writingTask2}
                           onPaste={(e) => e.preventDefault()}
                           onContextMenu={(e) => e.preventDefault()}
@@ -400,7 +407,7 @@ export default function StudentExam() {
         </div>
 
         <div className="flex items-center gap-3 overflow-hidden mx-4 flex-1 justify-center">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Questions</span>
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Navigator</span>
           <div className="flex gap-1 overflow-x-auto no-scrollbar py-2 scroll-smooth max-w-full">
             {Array.from({ length: 40 }).map((_, i) => {
               const qNum = i + 1;
@@ -427,11 +434,11 @@ export default function StudentExam() {
 
         <div className="flex items-center gap-6 shrink-0">
           <div className="flex items-center gap-2 text-emerald-500 font-bold text-[10px] uppercase">
-            <CheckCircle2 size={16} /> Saved
+            <CheckCircle2 size={16} /> Auto-Saved
           </div>
           {currentSection !== 'writing' && (
             <Button className="bg-emerald-600 hover:bg-emerald-700 font-bold" onClick={() => setCurrentSection(currentSection === 'listening' ? 'reading' : 'writing')}>
-              Next <ChevronRight className="ml-1" size={16}/>
+              Next Section <ChevronRight className="ml-1" size={16}/>
             </Button>
           )}
         </div>

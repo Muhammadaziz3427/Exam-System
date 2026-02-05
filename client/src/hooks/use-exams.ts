@@ -1,9 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
-import { type InsertExam } from "@shared/schema";
+import { 
+  type InsertExam, 
+  type Exam, 
+  type ExamSession // Sxemangizdagi nom bilan bir xil
+} from "@shared/schema";
 
+/**
+ * Barcha imtihonlarni olish hooki
+ */
 export function useExams() {
-  return useQuery({
+  return useQuery<Exam[]>({
     queryKey: [api.exams.list.path],
     queryFn: async () => {
       const res = await fetch(api.exams.list.path);
@@ -13,11 +20,15 @@ export function useExams() {
   });
 }
 
-export function useExam(id: number) {
-  return useQuery({
+/**
+ * ID bo'yicha bitta imtihonni olish hooki
+ */
+export function useExam(id: number | undefined) {
+  return useQuery<Exam>({
     queryKey: [api.exams.get.path, id],
     queryFn: async () => {
-      const url = buildUrl(api.exams.get.path, { id });
+      // buildUrl ishlatish xavfsizroq
+      const url = buildUrl(api.exams.get.path, { id: id! });
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch exam");
       return await res.json();
@@ -26,6 +37,9 @@ export function useExam(id: number) {
   });
 }
 
+/**
+ * Yangi imtihon yaratish hooki
+ */
 export function useCreateExam() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -44,10 +58,14 @@ export function useCreateExam() {
   });
 }
 
+/**
+ * Imtihonni tahrirlash hooki
+ */
 export function useUpdateExam() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...data }: InsertExam & { id: number }) => {
+      // TypeScript xatosini oldini olish uchun url qo'lda yozildi
       const url = `/api/exams/${id}`;
       const res = await fetch(url, {
         method: "PUT",
@@ -64,6 +82,9 @@ export function useUpdateExam() {
   });
 }
 
+/**
+ * Imtihonni o'chirish hooki
+ */
 export function useDeleteExam() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -74,6 +95,20 @@ export function useDeleteExam() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.exams.list.path] });
+    },
+  });
+}
+
+/**
+ * Sessiyalarni (Talabalar faolligini) olish hooki
+ */
+export function useSessions() {
+  return useQuery<ExamSession[]>({
+    queryKey: ["/api/sessions"], // Pathni api.sessions orqali o'zgartirishingiz mumkin
+    queryFn: async () => {
+      const res = await fetch("/api/sessions");
+      if (!res.ok) throw new Error("Failed to fetch sessions");
+      return await res.json();
     },
   });
 }

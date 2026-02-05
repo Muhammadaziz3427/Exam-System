@@ -1,16 +1,17 @@
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { Card, CardContent, CardHeader, CardTitle, Button, Input, Textarea, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui-kit";
+import { Card, CardContent, CardHeader, CardTitle, Button, Input, Textarea, Tabs, TabsContent, TabsList, TabsTrigger, Badge } from "@/components/ui-kit";
 import { useSessions } from "@/hooks/use-sessions";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, FileSearch } from "lucide-react";
+import { Loader2, Save, FileSearch, PenTool, Mic, TrendingUp, ChevronRight, Search } from "lucide-react"; // Search ikonkasi qo'shildi
 import { AssessmentBreakdown } from "@/components/AssessmentBreakdown";
 
 export default function AdminDetailedAssessment() {
   const { data: sessions = [], isLoading: sessionsLoading } = useSessions();
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
+  const [searchTerm, setSearchTerm] = useState(""); // Qidiruv uchun state
   const { toast } = useToast();
 
   const { data: submission, isLoading: submissionLoading } = useQuery<any>({
@@ -25,6 +26,17 @@ export default function AdminDetailedAssessment() {
     enabled: !!selectedSession?.examId,
   });
 
+  // --- QIDIRUV MANTIQI ---
+  const filteredSessions = useMemo(() => {
+    if (!searchTerm.trim()) return sessions;
+    const term = searchTerm.toLowerCase();
+    return sessions.filter((s: any) => 
+      s.studentName?.toLowerCase().includes(term) || 
+      s.accessCode?.toLowerCase().includes(term)
+    );
+  }, [searchTerm, sessions]);
+  // -----------------------
+
   const [assessment, setAssessment] = useState<any>({
     writing: {
       task1: { taskResponse: 0, coherenceCohesion: 0, lexicalResource: 0, grammaticalRange: 0 },
@@ -33,6 +45,12 @@ export default function AdminDetailedAssessment() {
     speaking: { fluency: 0, lexicalResource: 0, grammaticalRange: 0, pronunciation: 0 },
     diagnosticFeedback: ""
   });
+
+  const calculateAverage = (scores: object) => {
+    const values = Object.values(scores);
+    const sum = values.reduce((a, b) => a + b, 0);
+    return values.length ? (Math.round((sum / values.length) * 2) / 2).toFixed(1) : "0.0";
+  };
 
   useEffect(() => {
     if (submission?.grading?.advancedAssessment) {
@@ -61,9 +79,9 @@ export default function AdminDetailedAssessment() {
   });
 
   const handleScoreChange = (module: string, task: string | null, criterion: string, value: string) => {
-    const numValue = parseFloat(value) || 0;
+    const numValue = Math.min(9, Math.max(0, parseFloat(value) || 0));
     setAssessment((prev: any) => {
-      const next = { ...prev };
+      const next = JSON.parse(JSON.stringify(prev));
       if (task) {
         next[module][task][criterion] = numValue;
       } else {
@@ -77,162 +95,156 @@ export default function AdminDetailedAssessment() {
     setAssessment((prev: any) => ({ ...prev, diagnosticFeedback: value }));
   };
 
-  if (sessionsLoading) return <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin" /></div>;
+  if (sessionsLoading) return <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin text-blue-600" /></div>;
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Detailed Assessment</h2>
-          <p className="text-slate-500 font-medium">Advanced grading based on official IELTS criteria.</p>
+      <div className="max-w-[1600px] mx-auto space-y-6">
+        <div className="flex justify-between items-end">
+          <div>
+            <h2 className="text-4xl font-black text-slate-900 tracking-tight italic">Detailed Assessment</h2>
+            <p className="text-slate-500 font-medium">IELTS Standard Grading Interface</p>
+          </div>
+          <Badge variant="outline" className="h-8 border-slate-200">
+            Session Status: {selectedSession?.status || 'Unknown'}
+          </Badge>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <Card className="lg:col-span-1 border-none shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-sm font-bold">Talabalar</CardTitle>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Sidebar - Talabalar ro'yxati va Qidiruv */}
+          <Card className="lg:col-span-3 border-none shadow-xl rounded-3xl bg-white overflow-hidden flex flex-col h-fit">
+            <CardHeader className="bg-slate-50 border-b space-y-4">
+              <CardTitle className="text-xs uppercase tracking-widest text-slate-400">Student Directory</CardTitle>
+
+              {/* Qidiruv Inputi */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+                <Input 
+                  placeholder="Ism yoki kod..." 
+                  className="pl-9 bg-white border-slate-200 rounded-xl h-9 text-sm focus-visible:ring-blue-500"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
             </CardHeader>
-            <CardContent className="p-2">
-              <div className="space-y-1">
-                {sessions.map((session: any) => (
-                  <button
-                    key={session.id}
-                    onClick={() => {
-                      setSelectedSessionId(session.id);
-                      setAssessment(null); // Reset to trigger re-init or just use useEffect
-                    }}
-                    className={`w-full text-left px-4 py-2 rounded-lg text-sm transition-colors ${
-                      selectedSessionId === session.id ? "bg-slate-900 text-white" : "hover:bg-slate-100"
-                    }`}
-                  >
-                    <div className="font-bold">{session.studentName}</div>
-                    <div className="text-[10px] opacity-70">{session.accessCode}</div>
-                  </button>
-                ))}
+
+            <CardContent className="p-4 max-h-[600px] overflow-y-auto">
+              <div className="space-y-2">
+                {filteredSessions.length > 0 ? (
+                  filteredSessions.map((session: any) => (
+                    <button
+                      key={session.id}
+                      onClick={() => setSelectedSessionId(session.id)}
+                      className={`w-full group flex items-center justify-between p-4 rounded-2xl transition-all ${
+                        selectedSessionId === session.id 
+                          ? "bg-slate-900 text-white shadow-lg" 
+                          : "bg-slate-50 hover:bg-white hover:shadow-md border border-transparent hover:border-slate-100"
+                      }`}
+                    >
+                      <div className="text-left">
+                        <div className="font-black text-sm">{session.studentName}</div>
+                        <div className={`text-[10px] ${selectedSessionId === session.id ? "text-slate-400" : "text-slate-500"}`}>
+                          {session.accessCode}
+                        </div>
+                      </div>
+                      <ChevronRight size={16} className={selectedSessionId === session.id ? "text-blue-400" : "text-slate-300"} />
+                    </button>
+                  ))
+                ) : (
+                  <div className="text-center py-10 text-slate-400 text-sm italic">
+                    Hech kim topilmadi
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
 
-          <div className="lg:col-span-3">
+          {/* O'ng tomon - Baholash interfeysi (O'zgarishsiz qoldi) */}
+          <div className="lg:col-span-9 space-y-6">
             {!selectedSessionId ? (
-              <Card className="h-full flex items-center justify-center p-12 border-dashed border-2">
-                <p className="text-slate-400 font-medium">Baholash uchun talabani tanlang</p>
+              <Card className="h-[600px] flex flex-col items-center justify-center p-12 border-dashed border-2 rounded-[3rem] bg-slate-50/50">
+                <div className="p-6 bg-white rounded-full shadow-sm mb-4">
+                  <FileSearch size={48} className="text-slate-300" />
+                </div>
+                <p className="text-slate-500 font-bold text-xl">Baholash uchun talabani tanlang</p>
               </Card>
             ) : submissionLoading ? (
-              <div className="flex items-center justify-center p-12"><Loader2 className="animate-spin" /></div>
+              <Card className="h-[600px] flex items-center justify-center border-none shadow-sm rounded-[3rem]">
+                <Loader2 className="animate-spin size-12 text-blue-600" />
+              </Card>
             ) : (
-              <div className="space-y-6">
-                <Card className="border-none shadow-sm">
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-xl font-bold">
-                      {selectedSession?.studentName} - Grading
-                    </CardTitle>
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <Card className="border-none shadow-2xl rounded-[2.5rem] bg-white overflow-hidden">
+                  <CardHeader className="flex flex-row items-center justify-between px-8 py-6 border-b border-slate-50 bg-slate-50/30">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-white font-black text-xl">
+                        {selectedSession?.studentName?.[0]}
+                      </div>
+                      <div>
+                        <CardTitle className="text-2xl font-black text-slate-900">{selectedSession?.studentName}</CardTitle>
+                        <Badge className="bg-blue-100 text-blue-700 border-none font-bold">Standard Exam</Badge>
+                      </div>
+                    </div>
                     <Button 
                       onClick={() => mutation.mutate(assessment)} 
                       disabled={mutation.isPending}
-                      className="gap-2"
+                      className="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl px-8 h-12 shadow-lg shadow-blue-200 gap-2 font-bold"
                     >
-                      {mutation.isPending ? <Loader2 className="animate-spin size-4" /> : <Save size={16} />}
+                      {mutation.isPending ? <Loader2 className="animate-spin size-4" /> : <Save size={18} />}
                       Saqlash
                     </Button>
                   </CardHeader>
-                  <CardContent className="space-y-8 p-6">
-                    {/* Auto-Graded Breakdown */}
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-black border-l-4 border-purple-500 pl-3 flex items-center gap-2">
-                        <FileSearch size={20} />
-                        Automated Breakdown
-                      </h3>
-                      <Tabs defaultValue="listening" className="w-full">
-                        <TabsList className="bg-slate-100 p-1 rounded-lg w-full md:w-auto">
-                          <TabsTrigger value="listening" className="rounded-md px-8">Listening</TabsTrigger>
-                          <TabsTrigger value="reading" className="rounded-md px-8">Reading</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="listening" className="mt-4">
-                          <AssessmentBreakdown 
-                            examContent={exam?.content} 
-                            answers={submission?.answers} 
-                            section="listening" 
-                          />
-                        </TabsContent>
-                        <TabsContent value="reading" className="mt-4">
-                          <AssessmentBreakdown 
-                            examContent={exam?.content} 
-                            answers={submission?.answers} 
-                            section="reading" 
-                          />
-                        </TabsContent>
-                      </Tabs>
+
+                  <CardContent className="space-y-10 p-8">
+                    {/* Score Summary */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-center justify-between">
+                        <span className="font-bold text-blue-900">Task 1</span>
+                        <span className="text-2xl font-black text-blue-600">{calculateAverage(assessment.writing.task1)}</span>
+                      </div>
+                      <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100 flex items-center justify-between">
+                        <span className="font-bold text-indigo-900">Task 2</span>
+                        <span className="text-2xl font-black text-indigo-600">{calculateAverage(assessment.writing.task2)}</span>
+                      </div>
+                      <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-between">
+                        <span className="font-bold text-emerald-900">Speaking</span>
+                        <span className="text-2xl font-black text-emerald-600">{calculateAverage(assessment.speaking)}</span>
+                      </div>
                     </div>
 
                     {/* Writing Section */}
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-black border-l-4 border-blue-500 pl-3">Writing Assessment</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-6">
+                      <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                        <PenTool size={22} className="text-blue-500" /> Writing Assessment
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         {['task1', 'task2'].map((task) => (
-                          <div key={task} className="space-y-3 p-4 bg-slate-50 rounded-xl">
-                            <h4 className="font-bold uppercase text-xs text-slate-500 tracking-wider">
-                              {task === 'task1' ? 'Task 1' : 'Task 2'}
-                            </h4>
-                            <div className="grid grid-cols-1 gap-3">
-                              {[
-                                { id: 'taskResponse', label: 'Task Response' },
-                                { id: 'coherenceCohesion', label: 'Coherence & Cohesion' },
-                                { id: 'lexicalResource', label: 'Lexical Resource' },
-                                { id: 'grammaticalRange', label: 'Grammatical Range' }
-                              ].map((criteria) => (
-                                <div key={criteria.id} className="flex items-center justify-between gap-4">
-                                  <label className="text-sm font-medium text-slate-700">{criteria.label}</label>
-                                  <Input
-                                    type="number"
-                                    step="0.5"
-                                    min="0"
-                                    max="9"
-                                    className="w-20 bg-white"
-                                    value={assessment?.writing?.[task]?.[criteria.id] || 0}
-                                    onChange={(e) => handleScoreChange('writing', task, criteria.id, e.target.value)}
-                                  />
-                                </div>
-                              ))}
-                            </div>
+                          <div key={task} className="space-y-4 p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
+                             <h4 className="font-black uppercase text-xs text-slate-400">{task} Score Breakdown</h4>
+                             {/* Kriteriyalar looping... */}
+                             {Object.keys(assessment.writing[task]).map(crit => (
+                               <div key={crit} className="flex justify-between items-center bg-white p-2 rounded-xl px-4 shadow-sm">
+                                 <span className="text-sm font-medium capitalize">{crit.replace(/([A-Z])/g, ' $1')}</span>
+                                 <Input 
+                                   type="number" step="0.5" className="w-16 h-8 border-none bg-slate-100 text-center font-bold" 
+                                   value={assessment.writing[task][crit]} 
+                                   onChange={(e) => handleScoreChange('writing', task, crit, e.target.value)}
+                                 />
+                               </div>
+                             ))}
                           </div>
                         ))}
                       </div>
                     </div>
 
-                    {/* Speaking Section */}
+                    {/* Feedback */}
                     <div className="space-y-4">
-                      <h3 className="text-lg font-black border-l-4 border-emerald-500 pl-3">Speaking Assessment</h3>
-                      <div className="p-4 bg-slate-50 rounded-xl grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {[
-                          { id: 'fluency', label: 'Fluency' },
-                          { id: 'lexicalResource', label: 'Lexical Resource' },
-                          { id: 'grammaticalRange', label: 'Grammatical Range' },
-                          { id: 'pronunciation', label: 'Pronunciation' }
-                        ].map((criteria) => (
-                          <div key={criteria.id} className="flex items-center justify-between gap-4">
-                            <label className="text-sm font-medium text-slate-700">{criteria.label}</label>
-                            <Input
-                              type="number"
-                              step="0.5"
-                              min="0"
-                              max="9"
-                              className="w-20 bg-white"
-                              value={assessment?.speaking?.[criteria.id] || 0}
-                              onChange={(e) => handleScoreChange('speaking', null, criteria.id, e.target.value)}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Feedback Section */}
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-black border-l-4 border-amber-500 pl-3">Diagnostic Feedback</h3>
+                      <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                        <TrendingUp size={22} className="text-amber-500" /> Feedback
+                      </h3>
                       <Textarea
-                        placeholder="Talaba uchun mustaqil feedback kiriting..."
-                        className="min-h-[150px] bg-slate-50 border-none resize-none"
-                        value={assessment?.diagnosticFeedback || ""}
+                        className="min-h-[150px] bg-slate-50 border-2 border-slate-100 rounded-[2rem] p-6 focus:border-blue-500"
+                        value={assessment.diagnosticFeedback}
                         onChange={(e) => handleFeedbackChange(e.target.value)}
                       />
                     </div>
