@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter"; // useLocation qo'shildi
+import { useEffect } from "react"; // useEffect qo'shildi
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, FileSearch, GraduationCap, MessageSquare, PenTool, LayoutDashboard, ChevronRight } from "lucide-react";
@@ -8,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 
 export default function StudentDetailedResults() {
   const { id } = useParams<{ id: string }>();
+  const [, setLocation] = useLocation(); // Navigatsiya uchun
 
   const { data: session, isLoading: sessionLoading } = useQuery<any>({
     queryKey: [`/api/sessions/${id}`],
@@ -23,6 +25,23 @@ export default function StudentDetailedResults() {
     queryKey: [`/api/exams/${session?.examId}`],
     enabled: !!session?.examId,
   });
+
+  // AVTOMATIK YO'NALTIRISH (REDIRECT) MANTIQI
+  useEffect(() => {
+    if (!sessionLoading && session) {
+      // 1. Agar test hali davom etayotgan bo'lsa, natijalar sahifasiga ruxsat bermaslik
+      if (session.status === "active") {
+        setLocation(`/exam/${id}`);
+      }
+
+      // 2. Agar test tugagan bo'lsa va siz uni chiqarib yubormoqchi bo'lsangiz:
+      // (Masalan, test tugashi bilan Dashboardga yuborish)
+      /* if (session.status === "completed") {
+         setLocation("/"); 
+      } 
+      */
+    }
+  }, [session, sessionLoading, id, setLocation]);
 
   if (sessionLoading || submissionLoading || examLoading) {
     return (
@@ -76,7 +95,6 @@ export default function StudentDetailedResults() {
       </div>
 
       <div className="max-w-6xl mx-auto p-4 md:p-8 space-y-8">
-
         {/* L&R SECTION */}
         <div className="space-y-4">
           <div className="flex items-center gap-2 px-1">
@@ -119,7 +137,6 @@ export default function StudentDetailedResults() {
 
           {hasAssessment ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
               {/* Writing Card */}
               <Card className="border-none shadow-sm rounded-3xl bg-white overflow-hidden">
                 <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-6">
@@ -182,7 +199,7 @@ export default function StudentDetailedResults() {
                     <div className="p-5 bg-emerald-50 rounded-2xl border border-emerald-100">
                       <h4 className="text-[10px] font-black text-emerald-700 uppercase mb-3 tracking-widest">Feedback</h4>
                       <p className="text-xs text-emerald-900 leading-relaxed font-medium italic">
-                         "{typeof advancedAnalysis.speaking === 'string' ? advancedAnalysis.speaking : 'Batafsil tahlil mavjud'}"
+                        "{typeof advancedAnalysis.speaking === 'string' ? advancedAnalysis.speaking : 'Batafsil tahlil mavjud'}"
                       </p>
                     </div>
                   )}
