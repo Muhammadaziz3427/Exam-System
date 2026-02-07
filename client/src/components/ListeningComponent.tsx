@@ -19,10 +19,21 @@ export function ListeningComponent({ audioUrl, onSectionComplete }: ListeningCom
     const audio = audioRef.current;
     if (!audio) return;
 
-    // IELTS Logic: Auto-play exactly 3 seconds after page loads
-    const timer = setTimeout(() => {
-      audio.play().catch(console.error);
-    }, 3000);
+    // IELTS Logic: Play after user interaction or small delay
+    const startAudio = () => {
+      audio.play().catch(err => {
+        console.log("Auto-play prevented, waiting for interaction", err);
+      });
+    };
+
+    const timer = setTimeout(startAudio, 3000);
+    
+    // Add click listener to document as fallback for auto-play block
+    const handleFirstClick = () => {
+      startAudio();
+      document.removeEventListener("click", handleFirstClick);
+    };
+    document.addEventListener("click", handleFirstClick);
 
     const updateProgress = () => {
       if (audio.duration) {
@@ -39,6 +50,7 @@ export function ListeningComponent({ audioUrl, onSectionComplete }: ListeningCom
 
     return () => {
       clearTimeout(timer);
+      document.removeEventListener("click", handleFirstClick);
       audio.removeEventListener("timeupdate", updateProgress);
       audio.removeEventListener("ended", handleEnded);
     };

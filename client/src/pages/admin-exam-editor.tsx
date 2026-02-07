@@ -283,6 +283,7 @@ export default function AdminExams() {
             <TabsContent value="listening" className="space-y-6">
               <div className="p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
                 <Label className="font-bold mb-2 block">Audio URL (CDN/Drive Link)</Label>
+                <p className="text-[10px] text-amber-600 font-bold mb-2 uppercase">Important: Use persistent URLs (e.g. Dropbox, Google Drive, or CDN). Avoid local file paths or temporary blobs.</p>
                 <Input 
                    placeholder="https://your-audio-hosting.com/test-1.mp3" 
                    value={audioUrl} 
