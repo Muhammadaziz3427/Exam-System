@@ -27,7 +27,7 @@ export function ListeningComponent({ audioUrl, onSectionComplete }: ListeningCom
     };
 
     const timer = setTimeout(startAudio, 3000);
-    
+
     // Add click listener to document as fallback for auto-play block
     const handleFirstClick = () => {
       startAudio();
@@ -72,6 +72,9 @@ export function ListeningComponent({ audioUrl, onSectionComplete }: ListeningCom
     }
   }, [isTransferring, onSectionComplete]);
 
+  // Bizning serverimizda fayllar /uploads/ papkasida turadi
+  const fullAudioPath = `/uploads/${audioUrl}`;
+
   return (
     <div className="w-full max-w-4xl mx-auto p-6 space-y-6">
       <Card className="p-6 bg-slate-900 text-white border-none shadow-2xl">
@@ -95,8 +98,8 @@ export function ListeningComponent({ audioUrl, onSectionComplete }: ListeningCom
 
         {/* Hidden Audio Element - No Controls */}
         <audio ref={audioRef} key={audioUrl}>
-          <source src={audioUrl} type="audio/mpeg" />
-          <source src={audioUrl} type="audio/wav" />
+          <source src={fullAudioPath} type="audio/mpeg" />
+          <source src={fullAudioPath} type="audio/wav" />
           Your browser does not support the audio element.
         </audio>
       </Card>

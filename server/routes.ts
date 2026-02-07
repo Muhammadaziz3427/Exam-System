@@ -3,14 +3,61 @@ import { type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { db } from "./db";
-import { exams, examSessions } from "@shared/schema"; // DIQQAT: examSessions ishlatilishi shart
+import { exams, examSessions } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { sendExamResultsEmail } from "./email";
+// YANGI IMPORTLAR
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import express from "express";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  // 1. UPLOADS PAPKASINI TEKSHIRISH VA YARATISH
+  const uploadsDir = path.join(process.cwd(), "uploads");
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+
+  // 2. STATIK FAYLLAR UCHUN YO'LAK (Rasmlar va audiolarni ko'rish uchun)
+  app.use("/uploads", express.static(uploadsDir));
+
+  // 3. MULTER SOZLAMALARI (PC-dan yuklash uchun)
+  const storageConfig = multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      cb(null, uploadsDir);
+    },
+    filename: (_req, file, cb) => {
+      // Fayl nomini unikal qilish (Vaqt + original nomi)
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
+      cb(null, uniqueSuffix + path.extname(file.originalname));
+    },
+  });
+
+  const upload = multer({ 
+    storage: storageConfig,
+    limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
+  });
+
+  // 4. FAYL YUKLASH ENDPOINTI (Admin panel uchun)
+  app.post("/api/upload", upload.single("file"), (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "Fayl yuklanmadi" });
+      }
+      // Frontendga yuklangan fayl nomini qaytaramiz
+      res.json({ 
+        url: `/uploads/${req.file.filename}`, 
+        filename: req.file.filename 
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Serverda yuklash xatosi" });
+    }
+  });
 
   // --- AUTH ROUTES ---
   app.post(api.auth.adminLogin.path, async (req, res) => {
@@ -61,8 +108,8 @@ export async function registerRoutes(
 
   // --- EXAM MANAGEMENT ---
   app.get(api.exams.list.path, async (_req, res) => {
-    const exams = await storage.getExams();
-    res.json(exams);
+    const examsList = await storage.getExams();
+    res.json(examsList);
   });
 
   app.post(api.exams.create.path, async (req, res) => {
@@ -88,7 +135,7 @@ export async function registerRoutes(
         })
         .where(eq(exams.id, id))
         .returning();
-      
+
       if (!updated) {
         return res.status(404).json({ message: "Imtihon topilmadi" });
       }
@@ -149,23 +196,17 @@ export async function registerRoutes(
     res.json(session);
   });
 
-  // === TERMINATE SESSION (Majburiy to'xtatish) ===
   app.post("/api/sessions/:id/terminate", async (req, res) => {
     const sessionId = Number(req.params.id);
-    console.log(`Terminating session: ${sessionId}`);
-
     try {
-      // 1. Jadval nomi 'examSessions' bo'lishi kerak (schema.ts bo'yicha)
       await db.update(examSessions)
         .set({ 
           status: 'completed',
-          resultStatus: 'marking' // Result status ham yangilandi
+          resultStatus: 'marking' 
         })
         .where(eq(examSessions.id, sessionId));
-
       res.json({ success: true, message: "Sessiya muvaffaqiyatli yopildi" });
     } catch (error) {
-      console.error("Terminate API xatosi:", error);
       res.status(500).json({ message: "Bazani yangilashda xatolik" });
     }
   });
@@ -254,7 +295,6 @@ export async function registerRoutes(
     res.sendStatus(204);
   });
 
-  // --- SUBMISSION & AUTO-GRADING ---
   app.post(api.sessions.submit.path, async (req, res) => {
     const sessionId = Number(req.params.id);
     const { answers, isFinal } = req.body;
@@ -303,7 +343,6 @@ export async function registerRoutes(
     res.json({ message: "Muvaffaqiyatli saqlandi" });
   });
 
-  // --- VIOLATIONS ---
   app.post(api.sessions.logViolation.path, async (req, res) => {
     const sessionId = Number(req.params.id);
     const { type } = req.body;
