@@ -70,7 +70,7 @@ export default function AdminExams() {
   const [writingTime, setWritingTime] = useState("60");
   const [listeningReviewTime, setListeningReviewTime] = useState("5");
   const [audioUrl, setAudioUrl] = useState("");
-  const [passages, setPassages] = useState([{ id: Date.now(), title: "Passage 1", content: "", questions: [] as any[] }]);
+  const [passages, setPassages] = useState([{ id: Date.now(), title: "Passage 1", content: "", image: "", questions: [] as any[] }]);
   const [listeningQuestions, setListeningQuestions] = useState([] as any[]);
   const [writingTasks, setWritingTasks] = useState([
     { type: "task1", content: "", image: "", wordLimit: "150" },
@@ -85,7 +85,7 @@ export default function AdminExams() {
     setListeningReviewTime(exam.content.listening.reviewTime?.toString() || "5");
     setReadingTime(exam.content.reading.timeLimit.toString());
     setWritingTime(exam.content.writing.timeLimit.toString());
-    setPassages(exam.content.reading.passages);
+    setPassages(exam.content.reading.passages.map((p: any) => ({ ...p, image: p.image || "" })));
     setListeningQuestions(exam.content.listening.questions);
     setWritingTasks(exam.content.writing.tasks);
     setIsModalOpen(true);
@@ -99,7 +99,7 @@ export default function AdminExams() {
     setWritingTime("60");
     setListeningReviewTime("5");
     setAudioUrl("");
-    setPassages([{ id: Date.now(), title: "Passage 1", content: "", questions: [] as any[] }]);
+    setPassages([{ id: Date.now(), title: "Passage 1", content: "", image: "", questions: [] as any[] }]);
     setListeningQuestions([]);
     setWritingTasks([
       { type: "task1", content: "", image: "", wordLimit: "150" },
@@ -108,7 +108,7 @@ export default function AdminExams() {
   };
 
   const addPassage = () => {
-    setPassages([...passages, { id: Date.now(), title: `Passage ${passages.length + 1}`, content: "", questions: [] }]);
+    setPassages([...passages, { id: Date.now(), title: `Passage ${passages.length + 1}`, content: "", image: "", questions: [] }]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
