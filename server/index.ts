@@ -2,10 +2,17 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import path from "path"; // 1. Path moduli qo'shildi
+import path from "path";
+import fs from "fs"; // fs moduli qo'shildi
 
 const app = express();
 const httpServer = createServer(app);
+
+// Papka mavjudligini tekshirish va bo'lmasa yaratish (Kodni buzmaydi, faqat xavfsizlik uchun)
+const uploadsDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 declare module "http" {
   interface IncomingMessage {
@@ -23,9 +30,9 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
-// 2. Statik fayllar (uploads papkasi) uchun yo'lak ochish
+// Statik fayllar (uploads papkasi) uchun yo'lak
 // Bu qator rasmlar va audiolarni URL orqali ko'rinishini ta'minlaydi
-app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+app.use("/uploads", express.static(uploadsDir));
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
