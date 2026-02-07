@@ -315,6 +315,19 @@ export default function StudentExam() {
                     {currentSection === 'reading' ? (
                       <article>
                         <h2 className="text-3xl font-black mb-8 text-slate-900 leading-tight">{examContent?.reading?.passages?.[activePassageIdx]?.title}</h2>
+                        {examContent?.reading?.passages?.[activePassageIdx]?.image && (
+                          <div className="w-full mb-8 rounded-2xl border-4 border-slate-100 shadow-sm bg-white p-4">
+                            <img 
+                              src={examContent.reading.passages[activePassageIdx].image} 
+                              alt="Reading passage visual" 
+                              className="w-full h-auto object-contain rounded-lg"
+                              onError={(e) => {
+                                console.error("Reading image loading error:", e);
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          </div>
+                        )}
                         <div className="text-xl leading-[1.8] text-slate-800 font-serif whitespace-pre-wrap">
                           {examContent?.reading?.passages?.[activePassageIdx]?.content}
                         </div>

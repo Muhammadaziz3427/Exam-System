@@ -303,6 +303,14 @@ export default function AdminExams() {
               {passages.map((psg, idx) => (
                 <div key={psg.id} className="p-6 border-2 border-slate-100 rounded-[2rem] space-y-4 relative">
                   <Badge className="absolute -top-3 left-6 bg-white border-2 border-slate-100 text-slate-400">Passage {idx + 1}</Badge>
+                  <div className="flex items-center gap-2 bg-white p-3 rounded-xl border border-slate-200">
+                    <ImageIcon size={18} className="text-slate-400"/>
+                    <Input placeholder="Map/Reading Image URL (Optional)" value={psg.image || ""} onChange={e => {
+                       const newP = [...passages];
+                       newP[idx].image = e.target.value;
+                       setPassages(newP);
+                    }} className="border-none h-8 text-xs font-mono"/>
+                  </div>
                   <Input 
                     placeholder="Passage Title" 
                     value={psg.title} 
