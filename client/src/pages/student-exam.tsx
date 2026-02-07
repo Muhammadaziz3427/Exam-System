@@ -324,7 +324,17 @@ export default function StudentExam() {
                           <div className="bg-blue-50 p-8 rounded-2xl border-2 border-blue-100 relative">
                             <Badge className="absolute -top-3 left-6 bg-blue-600 border-none">Writing Task {activeWritingTask + 1}</Badge>
                             {activeWritingTask === 0 && examContent?.writing?.tasks?.[0]?.image && (
-                              <img src={examContent.writing.tasks[0].image} alt="Task diagram" className="w-full mb-6 rounded-lg border shadow-sm bg-white p-2" />
+                              <div className="w-full mb-6 rounded-lg border shadow-sm bg-white p-2">
+                                <img 
+                                  src={examContent.writing.tasks[0].image} 
+                                  alt="Task diagram" 
+                                  className="w-full h-auto object-contain"
+                                  onError={(e) => {
+                                    console.error("Image loading error:", e);
+                                    e.currentTarget.style.display = 'none';
+                                  }}
+                                />
+                              </div>
                             )}
                             <p className="text-xl font-medium text-slate-800 italic leading-relaxed">
                               "{examContent?.writing?.tasks?.[activeWritingTask]?.content}"

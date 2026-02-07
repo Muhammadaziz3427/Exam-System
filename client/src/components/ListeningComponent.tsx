@@ -82,7 +82,11 @@ export function ListeningComponent({ audioUrl, onSectionComplete }: ListeningCom
         </div>
 
         {/* Hidden Audio Element - No Controls */}
-        <audio ref={audioRef} src={audioUrl} />
+        <audio ref={audioRef} key={audioUrl}>
+          <source src={audioUrl} type="audio/mpeg" />
+          <source src={audioUrl} type="audio/wav" />
+          Your browser does not support the audio element.
+        </audio>
       </Card>
 
       {isTransferring && (
