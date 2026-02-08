@@ -3,14 +3,55 @@ import { type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { db } from "./db";
-import { exams, examSessions } from "@shared/schema"; // DIQQAT: examSessions ishlatilishi shart
+import { exams, examSessions } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { sendExamResultsEmail } from "./email";
+import multer from "multer"; // Yangi qo'shildi
+import path from "path";   // Yangi qo'shildi
+import express from "express"; // Yangi qo'shildi
+import fs from "fs"; // Yangi qo'shildi
+
+// --- MULTER SOZLAMALARI (Faylni saqlash uchun) ---
+const uploadDir = "uploads";
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
+
+const multerStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (_req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({ 
+  storage: multerStorage,
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
+});
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  // --- STATIK PAPKA (Rasmlar brauzerda ko'rinishi uchun) ---
+  app.use("/uploads", express.static(uploadDir));
+
+  // --- FAYL YUKLASH ROUTE (Yangi qo'shildi) ---
+  app.post("/api/upload", upload.single("file"), (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "Fayl yuklanmadi" });
+      }
+      const fileUrl = `/uploads/${req.file.filename}`;
+      res.json({ url: fileUrl });
+    } catch (error) {
+      res.status(500).json({ message: "Serverda yuklash xatosi" });
+    }
+  });
 
   // --- AUTH ROUTES ---
   app.post(api.auth.adminLogin.path, async (req, res) => {
@@ -149,23 +190,18 @@ export async function registerRoutes(
     res.json(session);
   });
 
-  // === TERMINATE SESSION (Majburiy to'xtatish) ===
   app.post("/api/sessions/:id/terminate", async (req, res) => {
     const sessionId = Number(req.params.id);
-    console.log(`Terminating session: ${sessionId}`);
-
     try {
-      // 1. Jadval nomi 'examSessions' bo'lishi kerak (schema.ts bo'yicha)
       await db.update(examSessions)
         .set({ 
           status: 'completed',
-          resultStatus: 'marking' // Result status ham yangilandi
+          resultStatus: 'marking'
         })
         .where(eq(examSessions.id, sessionId));
 
       res.json({ success: true, message: "Sessiya muvaffaqiyatli yopildi" });
     } catch (error) {
-      console.error("Terminate API xatosi:", error);
       res.status(500).json({ message: "Bazani yangilashda xatolik" });
     }
   });
