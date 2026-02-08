@@ -3,7 +3,7 @@ import { api, buildUrl } from "@shared/routes";
 import { 
   type InsertExam, 
   type Exam, 
-  type ExamSession // Sxemangizdagi nom bilan bir xil
+  type ExamSession 
 } from "@shared/schema";
 
 /**
@@ -14,7 +14,7 @@ export function useExams() {
     queryKey: [api.exams.list.path],
     queryFn: async () => {
       const res = await fetch(api.exams.list.path);
-      if (!res.ok) throw new Error("Failed to fetch exams");
+      if (!res.ok) throw new Error("Imtihonlarni yuklashda xatolik yuz berdi");
       return await res.json();
     },
   });
@@ -27,10 +27,9 @@ export function useExam(id: number | undefined) {
   return useQuery<Exam>({
     queryKey: [api.exams.get.path, id],
     queryFn: async () => {
-      // buildUrl ishlatish xavfsizroq
       const url = buildUrl(api.exams.get.path, { id: id! });
       const res = await fetch(url);
-      if (!res.ok) throw new Error("Failed to fetch exam");
+      if (!res.ok) throw new Error("Imtihon ma'lumotlarini olishda xatolik");
       return await res.json();
     },
     enabled: !!id,
@@ -45,11 +44,11 @@ export function useCreateExam() {
   return useMutation({
     mutationFn: async (data: InsertExam) => {
       const res = await fetch(api.exams.create.path, {
-        method: "POST",
+        method: api.exams.create.method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error("Failed to create exam");
+      if (!res.ok) throw new Error("Yangi imtihon yaratib bo'lmadi");
       return await res.json();
     },
     onSuccess: () => {
@@ -59,20 +58,20 @@ export function useCreateExam() {
 }
 
 /**
- * Imtihonni tahrirlash hooki
+ * Imtihonni tahrirlash hooki (Yangilandi)
  */
 export function useUpdateExam() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...data }: InsertExam & { id: number }) => {
-      // TypeScript xatosini oldini olish uchun url qo'lda yozildi
-      const url = `/api/exams/${id}`;
+      // buildUrl ishlatish xavfsiz va markazlashgan usul
+      const url = buildUrl(api.exams.update.path, { id });
       const res = await fetch(url, {
-        method: "PUT",
+        method: api.exams.update.method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error("Failed to update exam");
+      if (!res.ok) throw new Error("Imtihonni yangilashda xatolik");
       return await res.json();
     },
     onSuccess: (_, variables) => {
@@ -83,15 +82,17 @@ export function useUpdateExam() {
 }
 
 /**
- * Imtihonni o'chirish hooki
+ * Imtihonni o'chirish hooki (Yangilandi)
  */
 export function useDeleteExam() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: number) => {
-      const url = `/api/exams/${id}`;
-      const res = await fetch(url, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete exam");
+      const url = buildUrl(api.exams.delete.path, { id });
+      const res = await fetch(url, { 
+        method: api.exams.delete.method 
+      });
+      if (!res.ok) throw new Error("Imtihonni o'chirib bo'lmadi");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.exams.list.path] });
@@ -104,10 +105,10 @@ export function useDeleteExam() {
  */
 export function useSessions() {
   return useQuery<ExamSession[]>({
-    queryKey: ["/api/sessions"], // Pathni api.sessions orqali o'zgartirishingiz mumkin
+    queryKey: [api.sessions.list.path],
     queryFn: async () => {
-      const res = await fetch("/api/sessions");
-      if (!res.ok) throw new Error("Failed to fetch sessions");
+      const res = await fetch(api.sessions.list.path);
+      if (!res.ok) throw new Error("Sessiyalarni yuklashda xatolik");
       return await res.json();
     },
   });

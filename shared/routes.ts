@@ -52,6 +52,18 @@ export const api = {
       path: '/api/exams/:id',
       responses: { 200: z.custom<typeof exams.$inferSelect>(), 404: errorSchemas.notFound },
     },
+    // Serverdagi PUT metodiga moslab qo'shildi
+    update: {
+      method: 'PUT' as const,
+      path: '/api/exams/:id',
+      input: insertExamSchema,
+      responses: { 200: z.custom<typeof exams.$inferSelect>(), 404: errorSchemas.notFound },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/exams/:id',
+      responses: { 204: z.null(), 404: errorSchemas.notFound },
+    },
   },
   sessions: {
     create: {
@@ -76,6 +88,8 @@ export const api = {
       input: z.object({
         answers: z.any(),
         isFinal: z.boolean().optional(),
+        currentSection: z.string().optional(),
+        remainingTime: z.number().optional(),
       }),
       responses: { 200: z.object({ message: z.string() }) },
     },
@@ -85,7 +99,6 @@ export const api = {
       input: z.object({ type: z.enum(['tab_switch', 'fullscreen_exit', 'window_blur']) }),
       responses: { 201: z.custom<typeof violations.$inferSelect>() },
     },
-    // --- YANGI QO'SHILGAN QISM ---
     terminate: {
       method: 'POST' as const,
       path: '/api/sessions/:id/terminate',
@@ -101,7 +114,6 @@ export const api = {
       input: z.object({}),
       responses: { 200: z.object({ message: z.string() }) },
     }
-    // ----------------------------
   }
 };
 

@@ -17,37 +17,37 @@ export async function registerRoutes(
 ): Promise<Server> {
 
   // 1. UPLOADS PAPKASINI TEKSHIRISH VA YARATISH
-  const uploadsDir = path.join(process.cwd(), "uploads");
+  const uploadsDir = path.resolve(process.cwd(), "uploads");
   if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
   }
 
-  // 2. STATIK FAYLLAR UCHUN YO'LAK
-  // Muhim: Barcha turdagi fayllarga ruxsat berish va keshni sozlash
+  // 2. STATIK FAYLLAR UCHUN YO'LAK (Tuzatildi)
   app.use("/uploads", express.static(uploadsDir, {
     maxAge: '1d',
     etag: true,
     setHeaders: (res) => {
-      res.set('Access-Control-Allow-Origin', '*'); // CORS xatolarini oldini olish uchun
+      res.set('Access-Control-Allow-Origin', '*'); 
+      res.set('Cross-Origin-Resource-Policy', 'cross-origin');
     }
   }));
 
-  // 3. MULTER SOZLAMALARI
+  // 3. MULTER SOZLAMALARI (Tuzatildi)
   const storageConfig = multer.diskStorage({
     destination: (_req, _file, cb) => {
       cb(null, uploadsDir);
     },
     filename: (_req, file, cb) => {
       const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
-      // Fayl nomidagi bo'shliqlarni va maxsus belgilarni tozalash
-      const cleanName = file.originalname.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '');
-      cb(null, uniqueSuffix + "-" + cleanName);
+      const ext = path.extname(file.originalname);
+      // Faqat xavfsiz nom qoldiramiz
+      cb(null, uniqueSuffix + ext);
     },
   });
 
   const upload = multer({ 
     storage: storageConfig,
-    limits: { fileSize: 100 * 1024 * 1024 } // 100MB
+    limits: { fileSize: 20 * 1024 * 1024 } // 20MB - Server o'chib qolmasligi uchun
   });
 
   // 4. FAYL YUKLASH ENDPOINTI
@@ -56,7 +56,6 @@ export async function registerRoutes(
       if (!req.file) {
         return res.status(400).json({ message: "Fayl yuklanmadi" });
       }
-      // Absolute URL o'rniga nisbiy yo'l qaytaramiz
       res.json({ 
         url: `/uploads/${req.file.filename}`, 
         filename: req.file.filename 
@@ -202,7 +201,6 @@ export async function registerRoutes(
           let total = 0;
           let skillQuestions: any[] = [];
 
-          // Savollarni massiv ichidan qidirish (Tuzatildi: sections yoki parts bo'lishi mumkin)
           const skillContent = content[skill];
           if (skillContent) {
             const containers = skillContent.sections || skillContent.parts || skillContent.passages || [];
