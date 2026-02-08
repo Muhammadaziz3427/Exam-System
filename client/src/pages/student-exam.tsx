@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { api, buildUrl } from "@shared/routes";
 import { useStartSession, useSubmitAnswers, useLogViolation } from "@/hooks/use-sessions";
@@ -53,7 +53,9 @@ export default function StudentExam() {
   const submitAnswers = useSubmitAnswers();
   const logViolation = useLogViolation();
 
+  // Scroll funksiyasi - Listening uchun ham ishlashi uchun to'g'rilandi
   const scrollToQuestion = (qNum: number) => {
+    // Agar foydalanuvchi navigatsiyadan savolni bossa, avval tegishli bo'limga o'tkazish logikasi (ixtiyoriy)
     const element = document.getElementById(`q-container-${qNum}`);
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -69,42 +71,32 @@ export default function StudentExam() {
     } catch (err) {
       toast({ 
         title: "Camera Error", 
-        description: "Please allow camera access to start the exam.", 
+        description: "Iltimos, kameraga ruxsat bering!", 
         variant: "destructive" 
       });
     }
   };
 
-  useEffect(() => {
-    if (!hasStarted || !cameraReady) return;
-    const interval = setInterval(() => {
-      apiRequest("POST", `/api/sessions/${sessionId}/camera-pulse`, { isActive: true });
-    }, 10000);
-    return () => clearInterval(interval);
-  }, [hasStarted, cameraReady, sessionId]);
+  const getResourceUrl = (path: string) => {
+    if (!path) return "";
+    if (path.startsWith('http')) return path;
+    return `${window.location.origin}/uploads/${path.replace(/^\/+/, '')}`;
+  };
 
-  useEffect(() => {
-    if (stream && videoRef.current) {
-      videoRef.current.srcObject = stream;
-    }
-  }, [hasStarted, stream, cameraReady]);
-
-  const setupSectionTimer = (section: Section, content: any) => {
+  const setupSectionTimer = useCallback((section: Section, content: any) => {
     let minutes = 60; 
     if (section === 'listening') minutes = content?.listening?.duration || 40;
     if (section === 'reading') minutes = content?.reading?.timeLimit || 60;
     if (section === 'writing') minutes = content?.writing?.timeLimit || 60;
     setTimeLeft(minutes * 60);
-  };
+  }, []);
 
-  // --- NATIJALARNI KO'RSATMAYDIGAN FINAL SUBMIT ---
   const handleFinalSubmit = async (autoSubmit: boolean = false) => {
     try {
       if (autoSubmit) {
-        toast({ title: "Time is up", description: "System is automatically submitting your work..." });
+        toast({ title: "Vaqt tugadi", description: "Javoblar avtomatik yuborilmoqda..." });
       }
 
-      // 1. Javoblarni yuborish
       await submitAnswers.mutateAsync({ 
         id: sessionId, 
         answers, 
@@ -113,27 +105,20 @@ export default function StudentExam() {
         status: "submitted" 
       });
 
-      // 2. Fullscreen rejimini yopish
       if (document.fullscreenElement) {
         document.exitFullscreen().catch(() => {});
       }
 
-      // 3. Muvaffaqiyatli yakunlash xabari
-      toast({ 
-        title: "Test Successfully Completed", 
-        description: "Your responses have been recorded and sent for evaluation. You will be notified of the results later." 
-      });
-
-      // 4. DARXOL Bosh sahifaga yo'naltirish (Natija ko'rsatiladigan state'ga o'tmaslik uchun)
-      setHasStarted(false); // Exam view'dan chiqish
+      toast({ title: "Muvaffaqiyatli yakunlandi", description: "Sizning natijangiz tekshirishga yuborildi." });
+      setHasStarted(false);
       setLocation("/"); 
 
     } catch (err) {
-      toast({ title: "Submission Error", description: "There was a problem saving your answers. Please try again.", variant: "destructive" });
+      toast({ title: "Xatolik", description: "Javoblarni saqlashda muammo yuz berdi.", variant: "destructive" });
     }
   };
 
-  const handleSectionAutoTransition = () => {
+  const handleSectionAutoTransition = useCallback(() => {
     if (currentSection === 'listening') {
       setCurrentSection('reading');
     } else if (currentSection === 'reading') {
@@ -141,7 +126,7 @@ export default function StudentExam() {
     } else {
       handleFinalSubmit(true);
     }
-  };
+  }, [currentSection]);
 
   useEffect(() => {
     if (!hasStarted || timeLeft <= 0) return;
@@ -155,21 +140,17 @@ export default function StudentExam() {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [hasStarted, timeLeft, currentSection]);
+  }, [hasStarted, timeLeft, handleSectionAutoTransition]);
 
   useEffect(() => {
     if (examContent) setupSectionTimer(currentSection, examContent);
-  }, [currentSection, examContent]);
+  }, [currentSection, examContent, setupSectionTimer]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden && hasStarted) {
         logViolation.mutate({ id: sessionId, type: "tab_switch" });
-        toast({
-          title: "SECURITY WARNING",
-          description: "Tab switching is forbidden and logged.",
-          variant: "destructive"
-        });
+        toast({ title: "DIQQAT!", description: "Boshqa tabga o'tish taqiqlangan! Tizimda qayd etildi.", variant: "destructive" });
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -202,7 +183,7 @@ export default function StudentExam() {
       setupSectionTimer('listening', exam.content);
       setHasStarted(true);
     } catch (err) {
-      toast({ title: "Error", description: "Failed to load exam content.", variant: "destructive" });
+      toast({ title: "Xatolik", description: "Imtihon ma'lumotlarini yuklashda xato.", variant: "destructive" });
     }
   };
 
@@ -219,16 +200,16 @@ export default function StudentExam() {
           {!cameraReady ? (
             <div className="space-y-4">
               <div className="aspect-video bg-slate-100 rounded-2xl flex items-center justify-center border-2 border-dashed border-slate-300">
-                <p className="text-slate-400 text-sm">Waiting for camera...</p>
+                <p className="text-slate-400 text-sm">Kamera kutilmoqda...</p>
               </div>
               <Button className="w-full h-14 text-lg font-bold bg-blue-600" onClick={checkCamera}>
-                Initialize Camera
+                Kamerani yoqish
               </Button>
             </div>
           ) : (
             <div className="space-y-4">
               <div className="aspect-video bg-black rounded-2xl overflow-hidden border-2 border-blue-500 shadow-lg">
-                <video key="setup-video" ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+                <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
               </div>
               <Input 
                 placeholder="Candidate Email Address" 
@@ -237,13 +218,10 @@ export default function StudentExam() {
                 onChange={(e) => setEmail(e.target.value)} 
               />
               <Button className="w-full h-14 text-lg font-bold bg-[#2c3e50]" onClick={startExamFlow} disabled={!email.includes("@")}>
-                Begin Assessment
+                Testni boshlash
               </Button>
             </div>
           )}
-          <footer className="mt-8 text-[10px] text-slate-400 font-medium">
-            Authorized IELTS Mock Platform | Managed by Instructor
-          </footer>
         </div>
       </div>
     );
@@ -278,16 +256,19 @@ export default function StudentExam() {
           </div>
         </div>
 
-        <Button variant="destructive" size="sm" className="font-bold px-6" onClick={() => confirm("Are you sure you want to finish the test? You cannot return to your questions.") && handleFinalSubmit()}>
+        <Button variant="destructive" size="sm" className="font-bold px-6" onClick={() => confirm("Haqiqatdan ham tugatmoqchimisiz?") && handleFinalSubmit()}>
           Finish Test
         </Button>
       </header>
 
-      <main className="flex-1 overflow-hidden" key={currentSection}>
+      <main className="flex-1 overflow-hidden">
         {currentSection === 'listening' ? (
           <ListeningComponent 
-            audioUrl={examContent?.listening?.audioUrl} 
+            audioUrl={getResourceUrl(examContent?.listening?.audioUrl)} 
             onSectionComplete={() => setCurrentSection('reading')} 
+            answers={answers}
+            setAnswers={setAnswers}
+            examContent={examContent} // BU JOYI TO'G'RILANDI
           />
         ) : (
           <ResizablePanelGroup direction="horizontal">
@@ -311,20 +292,16 @@ export default function StudentExam() {
                 </div>
 
                 <ScrollArea className="flex-1">
-                  <div className="p-12 max-w-3xl mx-auto select-text selection:bg-yellow-200" style={{ fontSize: `${zoom}%` }}>
+                  <div className="p-12 max-w-3xl mx-auto" style={{ fontSize: `${zoom}%` }}>
                     {currentSection === 'reading' ? (
                       <article>
                         <h2 className="text-3xl font-black mb-8 text-slate-900 leading-tight">{examContent?.reading?.passages?.[activePassageIdx]?.title}</h2>
                         {examContent?.reading?.passages?.[activePassageIdx]?.image && (
                           <div className="w-full mb-8 rounded-2xl border-4 border-slate-100 shadow-sm bg-white p-4">
                             <img 
-                              src={`/uploads/${examContent.reading.passages[activePassageIdx].image}`} 
-                              alt="Reading passage visual" 
+                              src={getResourceUrl(examContent.reading.passages[activePassageIdx].image)} 
+                              alt="Reading visual" 
                               className="w-full h-auto object-contain rounded-lg"
-                              onError={(e) => {
-                                console.error("Reading image loading error:", e);
-                                e.currentTarget.style.display = 'none';
-                              }}
                             />
                           </div>
                         )}
@@ -339,15 +316,9 @@ export default function StudentExam() {
                             {activeWritingTask === 0 && examContent?.writing?.tasks?.[0]?.image && (
                               <div className="w-full mb-6 rounded-lg border shadow-sm bg-white p-2">
                                 <img 
-                                  src={`/uploads/${examContent.writing.tasks[0].image}`} 
+                                  src={getResourceUrl(examContent.writing.tasks[0].image)} 
                                   alt="Task diagram" 
                                   className="w-full h-auto object-contain"
-                                  crossOrigin="anonymous"
-                                  onError={(e) => {
-                                    console.error("Image loading error:", e);
-                                    const target = e.currentTarget;
-                                    target.parentElement!.innerHTML = '<div class="p-4 text-center text-red-500 bg-red-50 rounded-lg text-sm font-bold">Image unavailable. Please re-upload in Admin Panel.</div>';
-                                  }}
                                 />
                               </div>
                             )}
@@ -367,32 +338,36 @@ export default function StudentExam() {
             <ResizablePanel defaultSize={55} className="bg-[#f8fafc]">
               <ScrollArea className="h-full">
                 <div className="p-12 max-w-2xl mx-auto">
-                  {currentSection === 'reading' ? (
+                  {currentSection === 'reading' && (
                     <div className="space-y-6">
                       {examContent?.reading?.passages?.[activePassageIdx]?.questions?.map((q: any, i: number) => {
-                        const qGlobalIdx = i + 1 + (activePassageIdx * 13);
+                        const qGlobalIdx = (activePassageIdx * 13) + (i + 1);
                         const qId = `q-${qGlobalIdx}`;
                         return (
-                          <div key={qId} id={`q-container-${qGlobalIdx}`} className="p-6 bg-white rounded-2xl border-2 border-slate-100 shadow-sm transition-all hover:border-blue-200 group">
+                          <div key={qId} id={`q-container-${qGlobalIdx}`} className="p-6 bg-white rounded-2xl border-2 border-slate-100 shadow-sm hover:border-blue-200">
                             <div className="flex gap-4">
                               <span className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm shrink-0">{qGlobalIdx}</span>
                               <div className="flex-1 space-y-4">
-                                <p className="font-bold text-slate-700">{q?.text}</p>
+                                <p className="font-bold text-slate-700">{q?.text || "Question"}</p>
                                 <Input 
                                   className="h-12 text-lg border-2 focus:border-blue-500 bg-slate-50/50" 
                                   value={answers.reading[qId] || ""}
-                                  onChange={(e) => setAnswers({...answers, reading: {...answers.reading, [qId]: e.target.value}})}
+                                  onChange={(e) => setAnswers({
+                                    ...answers, 
+                                    reading: {...answers.reading, [qId]: e.target.value}
+                                  })}
                                 />
                               </div>
                               <button onClick={() => setReviewFlags({...reviewFlags, [qId]: !reviewFlags[qId]})}>
-                                <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200 group-hover:text-slate-400"} />
+                                <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
                               </button>
                             </div>
                           </div>
                         );
                       })}
                     </div>
-                  ) : (
+                  )}
+                  {currentSection === 'writing' && (
                     <div className="h-full flex flex-col space-y-4">
                         <div className="flex justify-between items-center mb-2">
                           <Badge className="bg-slate-900 px-4 py-1 font-mono text-sm border-none">
@@ -408,7 +383,6 @@ export default function StudentExam() {
                           placeholder="Compose your response here..."
                           value={activeWritingTask === 0 ? answers.writingTask1 : answers.writingTask2}
                           onPaste={(e) => e.preventDefault()}
-                          onContextMenu={(e) => e.preventDefault()}
                           spellCheck={false}
                           onChange={(e) => {
                             const key = activeWritingTask === 0 ? 'writingTask1' : 'writingTask2';
@@ -427,7 +401,7 @@ export default function StudentExam() {
       <footer className="h-16 bg-white border-t flex items-center px-8 justify-between shadow-sm z-50">
         <div className="flex items-center gap-6 shrink-0">
           <div className="w-12 h-8 bg-black rounded border border-white/20 overflow-hidden">
-              <video key="footer-video" ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
+             <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
           </div>
         </div>
 
@@ -463,7 +437,7 @@ export default function StudentExam() {
           </div>
           {currentSection !== 'writing' && (
             <Button className="bg-emerald-600 hover:bg-emerald-700 font-bold" onClick={() => setCurrentSection(currentSection === 'listening' ? 'reading' : 'writing')}>
-              Next Section <ChevronRight className="ml-1" size={16}/>
+              Keyingi bo'lim <ChevronRight className="ml-1" size={16}/>
             </Button>
           )}
         </div>

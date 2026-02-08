@@ -67,19 +67,19 @@ const Modal = ({ open, onOpenChange, children }: any) => {
 const FileUploader = ({ onUpload, accept, isLoading }: { onUpload: (file: File) => void, accept: string, isLoading?: boolean }) => {
   return (
     <div className="relative group">
-       <input 
-         type="file" 
-         accept={accept} 
-         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-         onChange={(e) => {
-           if (e.target.files && e.target.files[0]) {
-             onUpload(e.target.files[0]);
-           }
-         }}
-       />
-       <div className="bg-slate-100 hover:bg-blue-50 border-2 border-slate-200 hover:border-blue-200 text-slate-500 hover:text-blue-600 transition-all h-full min-h-[56px] min-w-[56px] rounded-2xl flex items-center justify-center shadow-sm">
-          {isLoading ? <lucideReact.Loader2 className="animate-spin" size={20}/> : <lucideReact.Upload size={20} />}
-       </div>
+        <input 
+          type="file" 
+          accept={accept} 
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+          onChange={(e) => {
+            if (e.target.files && e.target.files[0]) {
+              onUpload(e.target.files[0]);
+            }
+          }}
+        />
+        <div className="bg-slate-100 hover:bg-blue-50 border-2 border-slate-200 hover:border-blue-200 text-slate-500 hover:text-blue-600 transition-all h-full min-h-[56px] min-w-[56px] rounded-2xl flex items-center justify-center shadow-sm">
+           {isLoading ? <lucideReact.Loader2 className="animate-spin" size={20}/> : <lucideReact.Upload size={20} />}
+        </div>
     </div>
   );
 };
@@ -112,7 +112,6 @@ export default function AdminExams() {
     { type: "task2", content: "", wordLimit: "250" }
   ]);
 
-  // --- INTEGRATED FILE UPLOAD FUNCTION ---
   const handleFileUpload = async (file: File, type: 'image' | 'audio'): Promise<string> => {
     const isAudio = type === 'audio';
     const limitMB = isAudio ? 100 : 10;
@@ -134,9 +133,7 @@ export default function AdminExams() {
       });
 
       if (!res.ok) throw new Error("Upload failed");
-
       const data = await res.json();
-      // Serverdan qaytgan URL (masalan: /uploads/fayl_nomi.mp3)
       return data.url;
     } catch (e) {
       console.error("Upload failed", e);
@@ -196,27 +193,30 @@ export default function AdminExams() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    // SAFE PARSING TO PREVENT NaN
+    const lTime = parseInt(listeningTime) || 0;
+    const rTime = parseInt(readingTime) || 0;
+    const wTime = parseInt(writingTime) || 0;
+    const lReview = parseInt(listeningReviewTime) || 0;
+
     const finalContent = {
-      listening: { audioUrl, duration: parseInt(listeningTime), reviewTime: parseInt(listeningReviewTime), parts: listeningParts },
-      reading: { timeLimit: parseInt(readingTime), passages: passages },
-      writing: { timeLimit: parseInt(writingTime), tasks: writingTasks }
+      listening: { audioUrl, duration: lTime, reviewTime: lReview, parts: listeningParts },
+      reading: { timeLimit: rTime, passages: passages },
+      writing: { timeLimit: wTime, tasks: writingTasks }
     };
+
     try {
+      const examData = {
+        title,
+        timeLimit: lTime + rTime + wTime,
+        content: finalContent,
+        isPublished: true
+      };
+
       if (editingExamId) {
-        await updateExam.mutateAsync({
-          id: editingExamId,
-          title,
-          timeLimit: parseInt(listeningTime) + parseInt(readingTime) + parseInt(writingTime),
-          content: finalContent,
-          isPublished: true
-        });
+        await updateExam.mutateAsync({ id: editingExamId, ...examData });
       } else {
-        await createExam.mutateAsync({ 
-          title, 
-          timeLimit: parseInt(listeningTime) + parseInt(readingTime) + parseInt(writingTime),
-          content: finalContent, 
-          isPublished: true 
-        });
+        await createExam.mutateAsync(examData);
       }
       setIsModalOpen(false);
       resetForm();
@@ -245,7 +245,14 @@ export default function AdminExams() {
       </div>
       <div className="flex-1">
         <p className="text-[10px] font-black text-blue-600 uppercase mb-1">Live Audio Preview</p>
-        {url ? <audio controls key={url} className="h-8 w-full"><source src={url} type="audio/mpeg" /></audio> : <p className="text-xs text-slate-400 italic">No audio file uploaded</p>}
+        {url ? (
+          <audio controls key={url} className="h-8 w-full shadow-sm">
+            <source src={url} type="audio/mpeg" />
+            Browseringiz audioni qo'llab-quvvatlamaydi.
+          </audio>
+        ) : (
+          <p className="text-xs text-slate-400 italic">No audio file uploaded</p>
+        )}
       </div>
     </div>
   );
@@ -264,12 +271,6 @@ export default function AdminExams() {
       }
       onUpdate('type', newType); onUpdate('instruction', dI);
       if (dO.length > 0) onUpdate('options', dO);
-    };
-
-    const handlePaste = (e: React.ClipboardEvent) => {
-      // Allow pasting by default unless we specifically want to prevent it.
-      // The current implementation has e.stopPropagation() on many inputs.
-      // If we want to allow normal pasting, we should remove those or make sure they don't block.
     };
 
     return (
@@ -463,7 +464,7 @@ export default function AdminExams() {
                     <div className="flex gap-3">
                         <Input placeholder="Audio URL..." value={audioUrl} onChange={e => setAudioUrl(e.target.value)} className="h-16 rounded-2xl bg-slate-50 border-none px-6 font-bold shadow-inner flex-1" />
                         <div className="h-16 w-16">
-                           <FileUploader accept="audio/*" onUpload={async (file) => { const url = await handleFileUpload(file, 'audio'); setAudioUrl(url); }} isLoading={isUploading} />
+                            <FileUploader accept="audio/*" onUpload={async (file) => { const url = await handleFileUpload(file, 'audio'); setAudioUrl(url); }} isLoading={isUploading} />
                         </div>
                     </div>
                   </div>

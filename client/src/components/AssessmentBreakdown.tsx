@@ -1,5 +1,4 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CheckCircle2, XCircle, Info } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
@@ -17,29 +16,45 @@ interface AssessmentBreakdownProps {
 }
 
 export function AssessmentBreakdown({ examContent, answers, section }: AssessmentBreakdownProps) {
+  // 1. Dastlabki tekshiruv
   if (!examContent || !answers) return null;
 
   const sectionAnswers = answers[section] || {};
   let allQuestions: Question[] = [];
 
+  // 2. Savollarni to'g'ri yig'ish (Listening Parts va Reading Passages bo'yicha)
   if (section === "listening") {
-    allQuestions = examContent.listening?.questions || [];
+    // Admin panelingizda listening savollari parts[] ichida keladi
+    examContent.listening?.parts?.forEach((part: any) => {
+      if (part.questions) {
+        allQuestions = [...allQuestions, ...part.questions];
+      }
+    });
   } else {
+    // Reading savollari passages[] ichida keladi
     examContent.reading?.passages?.forEach((passage: any) => {
-      allQuestions = [...allQuestions, ...(passage.questions || [])];
+      if (passage.questions) {
+        allQuestions = [...allQuestions, ...passage.questions];
+      }
     });
   }
 
-  // Question Type Mapping & Accuracy
+  // 3. Savol turlari bo'yicha statistikani hisoblash
   const statsByType = allQuestions.reduce((acc: any, q) => {
     const type = q.type || "Other";
     if (!acc[type]) acc[type] = { correct: 0, total: 0 };
-    
+
     const studentAnswer = String(sectionAnswers[q.id] || "").trim().toLowerCase();
-    const correctAnswer = String(q.answer || "").trim().toLowerCase();
-    
+
+    // Gap Fill uchun bir nechta variantni tekshirish (masalan: "the airport / airport")
+    const correctVariants = String(q.answer || "")
+      .split('/')
+      .map(v => v.trim().toLowerCase());
+
     acc[type].total++;
-    if (studentAnswer === correctAnswer && studentAnswer !== "") {
+
+    // Agar talaba javobi variantlardan biriga mos kelsa
+    if (studentAnswer !== "" && correctVariants.includes(studentAnswer)) {
       acc[type].correct++;
     }
     return acc;
@@ -48,6 +63,8 @@ export function AssessmentBreakdown({ examContent, answers, section }: Assessmen
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        {/* accuracy by type card */}
         <Card className="border-none shadow-sm bg-slate-50">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-bold flex items-center gap-2">
@@ -57,20 +74,23 @@ export function AssessmentBreakdown({ examContent, answers, section }: Assessmen
           </CardHeader>
           <CardContent className="space-y-4">
             {Object.entries(statsByType).map(([type, stats]: [string, any]) => {
-              const percentage = Math.round((stats.correct / stats.total) * 100);
+              const percentage = Math.round((stats.correct / stats.total) * 100) || 0;
               return (
                 <div key={type} className="space-y-1">
-                  <div className="flex justify-between text-xs font-medium">
+                  <div className="flex justify-between text-[11px] font-medium">
                     <span className="capitalize">{type.replace("_", " ")}</span>
-                    <span>{stats.correct}/{stats.total} ({percentage}%)</span>
+                    <span className="text-slate-500">
+                      {stats.correct}/{stats.total} ({percentage}%)
+                    </span>
                   </div>
-                  <Progress value={percentage} className="h-1.5" />
+                  <Progress value={percentage} className="h-1.5 bg-slate-200" />
                 </div>
               );
             })}
           </CardContent>
         </Card>
 
+        {/* correction key card */}
         <Card className="border-none shadow-sm bg-slate-50">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-bold flex items-center gap-2">
@@ -78,36 +98,44 @@ export function AssessmentBreakdown({ examContent, answers, section }: Assessmen
               Correction Key
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-0 max-h-[300px] overflow-y-auto">
+          <CardContent className="p-0 max-h-[400px] overflow-y-auto border-t border-slate-100">
             <Table>
-              <TableHeader className="bg-slate-100 sticky top-0 z-10">
+              <TableHeader className="bg-slate-100 sticky top-0 z-10 shadow-sm">
                 <TableRow>
-                  <TableHead className="w-16 text-[10px] font-bold uppercase">No.</TableHead>
-                  <TableHead className="text-[10px] font-bold uppercase">Answer</TableHead>
-                  <TableHead className="text-[10px] font-bold uppercase">Correct</TableHead>
-                  <TableHead className="w-12 text-center text-[10px] font-bold uppercase">Status</TableHead>
+                  <TableHead className="w-12 text-[10px] font-black uppercase">No.</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase text-slate-500">Your Answer</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase text-slate-500">Correct Key</TableHead>
+                  <TableHead className="w-10 text-center text-[10px] font-black uppercase text-slate-500">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {allQuestions.map((q, index) => {
-                  const studentAnswer = sectionAnswers[q.id] || "-";
-                  const correctAnswer = q.answer;
-                  const isCorrect = String(studentAnswer).trim().toLowerCase() === String(correctAnswer).trim().toLowerCase();
-                  
+                  const studentAnswerRaw = sectionAnswers[q.id] || "-";
+                  const studentAnswer = String(studentAnswerRaw).trim().toLowerCase();
+
+                  // Slash bilan ajratilgan variantlarni tekshirish mantiqi
+                  const correctVariants = String(q.answer || "")
+                    .split('/')
+                    .map(v => v.trim().toLowerCase());
+
+                  const isCorrect = studentAnswer !== "-" && correctVariants.includes(studentAnswer);
+
                   return (
-                    <TableRow key={q.id} className="hover:bg-white transition-colors">
-                      <TableCell className="font-mono text-xs">{index + 1}</TableCell>
-                      <TableCell className="text-xs truncate max-w-[100px]" title={String(studentAnswer)}>
-                        {studentAnswer}
+                    <TableRow key={q.id} className="hover:bg-white transition-colors h-11 border-b border-slate-100">
+                      <TableCell className="font-mono text-[11px] font-bold text-slate-400 py-1">
+                        {index + 1}
                       </TableCell>
-                      <TableCell className="text-xs font-medium text-emerald-600">
-                        {correctAnswer}
+                      <TableCell className={`text-[12px] py-1 font-medium ${isCorrect ? 'text-slate-700' : 'text-red-500 font-bold'}`}>
+                        {studentAnswerRaw === "" ? "-" : studentAnswerRaw}
                       </TableCell>
-                      <TableCell className="text-center">
+                      <TableCell className="text-[12px] py-1 font-bold text-emerald-600">
+                        {q.answer}
+                      </TableCell>
+                      <TableCell className="text-center py-1">
                         {isCorrect ? (
                           <CheckCircle2 className="size-4 text-emerald-500 mx-auto" />
                         ) : (
-                          <XCircle className="size-4 text-red-500 mx-auto" />
+                          <XCircle className="size-4 text-red-400 mx-auto" />
                         )}
                       </TableCell>
                     </TableRow>

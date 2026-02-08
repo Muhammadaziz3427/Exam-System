@@ -4,7 +4,7 @@ import {
   type User, type Exam, type ExamSession, type Submission, type Violation,
   type InsertUser, type InsertExam, type InsertSession, type InsertSubmission, type InsertViolation
 } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import * as drizzleOrm from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -50,7 +50,7 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   // --- USERS ---
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
+    const [user] = await db.select().from(users).where(drizzleOrm.eq(users.username, username));
     return user;
   }
 
@@ -60,24 +60,25 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTeachers(): Promise<User[]> {
-    return await db.select().from(users).where(eq(users.role, 'teacher')).orderBy(desc(users.id));
+    return await db.select().from(users).where(drizzleOrm.eq(users.role, 'teacher')).orderBy(drizzleOrm.desc(users.id));
   }
 
   async deleteUser(id: number): Promise<void> {
-    await db.delete(users).where(eq(users.id, id));
+    await db.delete(users).where(drizzleOrm.eq(users.id, id));
   }
 
   // --- EXAMS ---
   async getExams(): Promise<Exam[]> {
-    return await db.select().from(exams).orderBy(desc(exams.id));
+    return await db.select().from(exams).orderBy(drizzleOrm.desc(exams.id));
   }
 
   async getExam(id: number): Promise<Exam | undefined> {
-    const [exam] = await db.select().from(exams).where(eq(exams.id, id));
+    const [exam] = await db.select().from(exams).where(drizzleOrm.eq(exams.id, id));
     return exam;
   }
 
   async createExam(exam: InsertExam): Promise<Exam> {
+    // Content JSON formatda ekanligiga ishonch hosil qilamiz
     const [newExam] = await db.insert(exams).values(exam).returning();
     return newExam;
   }
@@ -87,33 +88,35 @@ export class DatabaseStorage implements IStorage {
     const [newSession] = await db.insert(examSessions).values({
       ...session,
       status: 'active',
-      resultStatus: 'active'
-    }).returning();
+      resultStatus: 'active',
+      startTime: null, // Hali boshlanmagan
+      isCameraActive: false
+    } as any).returning();
     return newSession;
   }
 
   async getSessionByCode(code: string): Promise<ExamSession | undefined> {
-    const [session] = await db.select().from(examSessions).where(eq(examSessions.accessCode, code));
+    const [session] = await db.select().from(examSessions).where(drizzleOrm.eq(examSessions.accessCode, code));
     return session;
   }
 
   async getSession(id: number): Promise<ExamSession | undefined> {
-    const [session] = await db.select().from(examSessions).where(eq(examSessions.id, id));
+    const [session] = await db.select().from(examSessions).where(drizzleOrm.eq(examSessions.id, id));
     return session;
   }
 
   async getSessions(): Promise<ExamSession[]> {
-    return await db.select().from(examSessions).orderBy(desc(examSessions.id));
+    return await db.select().from(examSessions).orderBy(drizzleOrm.desc(examSessions.id));
   }
 
   async getSessionsByTeacher(teacherId: number): Promise<ExamSession[]> {
-    return await db.select().from(examSessions).where(eq(examSessions.assignedTeacherId, teacherId)).orderBy(desc(examSessions.id));
+    return await db.select().from(examSessions).where(drizzleOrm.eq(examSessions.assignedTeacherId, teacherId)).orderBy(drizzleOrm.desc(examSessions.id));
   }
 
   async updateSessionStatus(id: number, status: string): Promise<ExamSession> {
     const [updated] = await db.update(examSessions)
       .set({ status: status as any })
-      .where(eq(examSessions.id, id))
+      .where(drizzleOrm.eq(examSessions.id, id))
       .returning();
     return updated;
   }
@@ -124,7 +127,7 @@ export class DatabaseStorage implements IStorage {
         currentSection: state.currentSection,
         remainingTime: state.remainingTime
       })
-      .where(eq(examSessions.id, id))
+      .where(drizzleOrm.eq(examSessions.id, id))
       .returning();
     return updated;
   }
@@ -132,7 +135,7 @@ export class DatabaseStorage implements IStorage {
   async updateSessionResultStatus(id: number, resultStatus: string): Promise<ExamSession> {
     const [updated] = await db.update(examSessions)
       .set({ resultStatus: resultStatus as any })
-      .where(eq(examSessions.id, id))
+      .where(drizzleOrm.eq(examSessions.id, id))
       .returning();
     return updated;
   }
@@ -146,7 +149,7 @@ export class DatabaseStorage implements IStorage {
         listeningScore: scores.listeningScore,
         overallBand: scores.overallBand,
       })
-      .where(eq(examSessions.id, id))
+      .where(drizzleOrm.eq(examSessions.id, id))
       .returning();
     return updated;
   }
@@ -154,7 +157,7 @@ export class DatabaseStorage implements IStorage {
   async updateSessionInfo(id: number, info: { firstName?: string, lastName?: string, email?: string }): Promise<ExamSession> {
     const [updated] = await db.update(examSessions)
       .set(info)
-      .where(eq(examSessions.id, id))
+      .where(drizzleOrm.eq(examSessions.id, id))
       .returning();
     return updated;
   }
@@ -165,7 +168,7 @@ export class DatabaseStorage implements IStorage {
         isCameraActive: isActive,
         lastCameraPulse: new Date()
       })
-      .where(eq(examSessions.id, id));
+      .where(drizzleOrm.eq(examSessions.id, id));
   }
 
   async startSession(id: number): Promise<ExamSession> {
@@ -174,7 +177,7 @@ export class DatabaseStorage implements IStorage {
         status: 'in_progress', 
         startTime: new Date() 
       })
-      .where(eq(examSessions.id, id))
+      .where(drizzleOrm.eq(examSessions.id, id))
       .returning();
     return updated;
   }
@@ -182,18 +185,15 @@ export class DatabaseStorage implements IStorage {
   async releaseResults(id: number): Promise<ExamSession> {
     const [updated] = await db.update(examSessions)
       .set({ resultsReleased: true })
-      .where(eq(examSessions.id, id))
+      .where(drizzleOrm.eq(examSessions.id, id))
       .returning();
     return updated;
   }
 
   async deleteSession(id: number): Promise<void> {
-    // Delete violations first due to foreign key constraints if any (though not explicitly defined in schema, good practice)
-    await db.delete(violations).where(eq(violations.sessionId, id));
-    // Delete submission
-    await db.delete(submissions).where(eq(submissions.sessionId, id));
-    // Delete session
-    await db.delete(examSessions).where(eq(examSessions.id, id));
+    await db.delete(violations).where(drizzleOrm.eq(violations.sessionId, id));
+    await db.delete(submissions).where(drizzleOrm.eq(submissions.sessionId, id));
+    await db.delete(examSessions).where(drizzleOrm.eq(examSessions.id, id));
   }
 
   // --- SUBMISSIONS ---
@@ -201,7 +201,7 @@ export class DatabaseStorage implements IStorage {
     const [existing] = await db
       .select()
       .from(submissions)
-      .where(eq(submissions.sessionId, submission.sessionId));
+      .where(drizzleOrm.eq(submissions.sessionId, submission.sessionId));
 
     if (existing) {
       const [updated] = await db.update(submissions)
@@ -209,7 +209,7 @@ export class DatabaseStorage implements IStorage {
           answers: submission.answers, 
           lastSavedAt: new Date() 
         })
-        .where(eq(submissions.id, existing.id))
+        .where(drizzleOrm.eq(submissions.id, existing.id))
         .returning();
       return updated;
     } else {
@@ -222,7 +222,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSubmission(sessionId: number): Promise<Submission | undefined> {
-    const [sub] = await db.select().from(submissions).where(eq(submissions.sessionId, sessionId));
+    const [sub] = await db.select().from(submissions).where(drizzleOrm.eq(submissions.sessionId, sessionId));
     return sub;
   }
 
@@ -238,10 +238,9 @@ export class DatabaseStorage implements IStorage {
 
     const [updated] = await db.update(submissions)
       .set({ grading: updatedGrading })
-      .where(eq(submissions.sessionId, sessionId))
+      .where(drizzleOrm.eq(submissions.sessionId, sessionId))
       .returning();
 
-    // Baholangandan so'ng sessiya statusini yangilaymiz
     await this.updateSessionStatus(sessionId, 'graded');
     return updated;
   }
@@ -261,9 +260,9 @@ export class DatabaseStorage implements IStorage {
 
     const [updated] = await db.update(submissions)
       .set({ grading: updatedGrading })
-      .where(eq(submissions.sessionId, sessionId))
+      .where(drizzleOrm.eq(submissions.sessionId, sessionId))
       .returning();
-    
+
     return updated;
   }
 
@@ -282,7 +281,7 @@ export class DatabaseStorage implements IStorage {
 
     const [updated] = await db.update(submissions)
       .set({ grading: updatedGrading })
-      .where(eq(submissions.sessionId, sessionId))
+      .where(drizzleOrm.eq(submissions.sessionId, sessionId))
       .returning();
 
     return updated;
@@ -294,8 +293,8 @@ export class DatabaseStorage implements IStorage {
       session: examSessions
     })
     .from(submissions)
-    .innerJoin(examSessions, eq(submissions.sessionId, examSessions.id))
-    .where(eq(examSessions.status, 'pending_grading'));
+    .innerJoin(examSessions, drizzleOrm.eq(submissions.sessionId, examSessions.id))
+    .where(drizzleOrm.eq(examSessions.status, 'pending_grading'));
 
     return results.map(r => ({ ...r.submission, session: r.session }));
   }
@@ -307,7 +306,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getViolations(): Promise<Violation[]> {
-    return await db.select().from(violations).orderBy(desc(violations.timestamp));
+    return await db.select().from(violations).orderBy(drizzleOrm.desc(violations.timestamp));
   }
 }
 
