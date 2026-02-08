@@ -228,7 +228,8 @@ export class DatabaseStorage implements IStorage {
 
   async updateGrading(sessionId: number, grading: any): Promise<Submission> {
     const submission = await this.getSubmission(sessionId);
-    const currentGrading = (submission?.grading as any) || {};
+    if (!submission) throw new Error("Submission not found");
+    const currentGrading = (submission.grading as any) || {};
 
     const updatedGrading = {
       ...currentGrading,
