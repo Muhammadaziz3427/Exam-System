@@ -14,7 +14,6 @@ import AdminDetailedAssessment from "@/pages/admin-detailed-assessment";
 import TeacherDashboard from "@/pages/teacher-dashboard";
 import StudentExam from "@/pages/student-exam";
 import AdminExamEditor from "@/pages/admin-exam-editor"; 
-import StudentDetailedResults from "@/pages/student-detailed-results";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -46,9 +45,6 @@ function Router() {
       </Route>
 
       <Route path="/exam/:id" component={StudentExam} />
-      <Route path="/results/breakdown/:id" component={StudentDetailedResults} />
-      <Route path="/student/detailed-results/:id" component={StudentDetailedResults} />
-
       <Route component={NotFound} />
     </Switch>
   );

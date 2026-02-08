@@ -1,11 +1,11 @@
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import * as card from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import * as tabs from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -161,15 +161,15 @@ export default function TeacherDashboard() {
             <Badge variant="outline" className="bg-white">{filteredSessions.length}</Badge>
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid grid-cols-4 bg-slate-100 p-1 rounded-xl mb-2">
-              <TabsTrigger value="waiting" className="rounded-lg text-[10px] font-bold py-1 px-0">Waiting</TabsTrigger>
-              <TabsTrigger value="marking" className="rounded-lg text-[10px] font-bold py-1 px-0">Marking</TabsTrigger>
-              <TabsTrigger value="graded" className="rounded-lg text-[10px] font-bold py-1 px-0">Graded</TabsTrigger>
-              <TabsTrigger value="released" className="rounded-lg text-[10px] font-bold py-1 px-0">Rel.</TabsTrigger>
-            </TabsList>
+          <tabs.Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <tabs.TabsList className="grid grid-cols-4 bg-slate-100 p-1 rounded-xl mb-2">
+              <tabs.TabsTrigger value="waiting" className="rounded-lg text-[10px] font-bold py-1 px-0">Waiting</tabs.TabsTrigger>
+              <tabs.TabsTrigger value="marking" className="rounded-lg text-[10px] font-bold py-1 px-0">Marking</tabs.TabsTrigger>
+              <tabs.TabsTrigger value="graded" className="rounded-lg text-[10px] font-bold py-1 px-0">Graded</tabs.TabsTrigger>
+              <tabs.TabsTrigger value="released" className="rounded-lg text-[10px] font-bold py-1 px-0">Rel.</tabs.TabsTrigger>
+            </tabs.TabsList>
 
-            <Card className="flex-1 h-[calc(100vh-240px)] overflow-hidden border-slate-200 shadow-sm rounded-2xl">
+            <card.Card className="flex-1 h-[calc(100vh-240px)] overflow-hidden border-slate-200 shadow-sm rounded-2xl">
               <ScrollArea className="h-full">
                 <div className="p-3 space-y-2">
                   {filteredSessions.length === 0 ? (
@@ -211,12 +211,12 @@ export default function TeacherDashboard() {
                   )}
                 </div>
               </ScrollArea>
-            </Card>
-          </Tabs>
+            </card.Card>
+          </tabs.Tabs>
         </div>
 
         {/* RIGHT: GRADING PANEL */}
-        <Card className="flex-1 flex flex-col overflow-hidden border-slate-200 shadow-xl shadow-slate-200/50 rounded-3xl bg-white border-none">
+        <card.Card className="flex-1 flex flex-col overflow-hidden border-slate-200 shadow-xl shadow-slate-200/50 rounded-3xl bg-white border-none">
           {selectedSessionId ? (
             submissionLoading ? (
               <div className="flex flex-col items-center justify-center h-full gap-3">
@@ -343,7 +343,7 @@ export default function TeacherDashboard() {
               <p className="text-sm text-slate-300">Chap tarafdagi ro'yxatdan foydalaning</p>
             </div>
           )}
-        </Card>
+        </card.Card>
       </div>
     </AdminLayout>
   );
