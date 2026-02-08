@@ -104,6 +104,23 @@ export default function AdminExams() {
     ]);
   };
 
+  const handleFileUpload = async (file: File, type: 'audio' | 'image', callback: (url: string) => void) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.filename) {
+        callback(data.filename);
+      }
+    } catch (error) {
+      console.error("Upload failed:", error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const finalContent = {
@@ -233,9 +250,12 @@ export default function AdminExams() {
             {/* LISTENING */}
             <TabsContent value="listening" className="space-y-6">
               <div className="p-6 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-                <Label className="font-bold mb-2 block text-blue-600">Audio Source URL</Label>
-                <Input value={audioUrl} onChange={e => setAudioUrl(e.target.value.trim())} placeholder="https://..." />
-                {audioUrl && <audio controls className="w-full mt-4" key={audioUrl}><source src={audioUrl} /></audio>}
+                <Label className="font-bold mb-2 block text-blue-600">Audio Source</Label>
+                <div className="flex gap-2">
+                  <Input value={audioUrl} onChange={e => setAudioUrl(e.target.value.trim())} placeholder="filename.mp3" className="flex-1" />
+                  <Input type="file" accept="audio/*" onChange={e => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'audio', setAudioUrl)} className="w-60" />
+                </div>
+                {audioUrl && <audio controls className="w-full mt-4" key={audioUrl}><source src={audioUrl.startsWith('http') ? audioUrl : `/uploads/${audioUrl}`} /></audio>}
               </div>
 
               <div className="space-y-4">
@@ -278,11 +298,16 @@ export default function AdminExams() {
                       <Input placeholder="Passage Title" value={psg.title} onChange={e => {
                         const newP = [...passages]; newP[idx].title = e.target.value; setPassages(newP);
                       }} className="font-bold border-none bg-slate-50 h-12" />
-                      <Input placeholder="Image URL (Optional)" value={psg.image} onChange={e => {
-                        const newP = [...passages]; newP[idx].image = e.target.value; setPassages(newP);
-                      }} className="text-xs font-mono" />
+                      <div className="flex gap-2">
+                        <Input placeholder="Image Filename" value={psg.image} onChange={e => {
+                          const newP = [...passages]; newP[idx].image = e.target.value; setPassages(newP);
+                        }} className="text-xs font-mono flex-1" />
+                        <Input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'image', (url) => {
+                          const newP = [...passages]; newP[idx].image = url; setPassages(newP);
+                        })} className="w-40 text-xs" />
+                      </div>
                     </div>
-                    {psg.image && <div className="w-32 h-32 rounded-xl overflow-hidden border"><img src={psg.image} className="w-full h-full object-cover" /></div>}
+                    {psg.image && <div className="w-32 h-32 rounded-xl overflow-hidden border"><img src={psg.image.startsWith('http') ? psg.image : `/uploads/${psg.image}`} className="w-full h-full object-cover" /></div>}
                   </div>
                   <Textarea placeholder="Content..." className="min-h-[200px]" value={psg.content} onChange={e => {
                     const newP = [...passages]; newP[idx].content = e.target.value; setPassages(newP);

@@ -49,7 +49,7 @@ export async function registerRoutes(
       if (!req.file) {
         return res.status(400).json({ message: "Fayl yuklanmadi" });
       }
-      // Frontendga yuklangan fayl nomini qaytaramiz
+      // Frontendga yuklangan fayl nomini qaytaramiz (only filename)
       res.json({ 
         url: `/uploads/${req.file.filename}`, 
         filename: req.file.filename 

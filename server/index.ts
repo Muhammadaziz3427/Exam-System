@@ -9,7 +9,6 @@ const app = express();
 const httpServer = createServer(app);
 
 // 1. Papka mavjudligini tekshirish va yaratish
-// Bu qism server ishga tushishi bilan 'uploads' papkasi borligini ta'minlaydi
 const uploadsDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
@@ -32,7 +31,6 @@ app.use(
 app.use(express.urlencoded({ extended: false }));
 
 // 3. Statik fayllar (uploads papkasi) uchun yo'lak
-// Brauzer orqali rasmlar va audiolarni ko'rish imkonini beradi
 app.use("/uploads", express.static(uploadsDir));
 
 // 4. Logging funksiyasi
