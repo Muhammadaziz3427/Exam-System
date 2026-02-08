@@ -266,6 +266,12 @@ export default function AdminExams() {
       if (dO.length > 0) onUpdate('options', dO);
     };
 
+    const handlePaste = (e: React.ClipboardEvent) => {
+      // Allow pasting by default unless we specifically want to prevent it.
+      // The current implementation has e.stopPropagation() on many inputs.
+      // If we want to allow normal pasting, we should remove those or make sure they don't block.
+    };
+
     return (
       <div className="group p-5 border border-slate-200 rounded-2xl bg-slate-50/50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all space-y-4 mb-4 relative">
         <div className="flex justify-between items-start gap-4">
@@ -278,7 +284,6 @@ export default function AdminExams() {
             </div>
             <Input 
               placeholder="Instruction..." 
-              onPaste={(e) => e.stopPropagation()}
               value={q.instruction} 
               onChange={e => onUpdate('instruction', e.target.value)} 
               className="text-[11px] italic text-slate-500 bg-transparent border-none px-0 h-auto focus-visible:ring-0" 
@@ -295,7 +300,6 @@ export default function AdminExams() {
                 <span className="text-xs font-bold text-amber-500 pt-2 w-6">{hIdx + 1}.</span>
                 <Input 
                   value={h} 
-                  onPaste={(e) => e.stopPropagation()}
                   onChange={e => { const newList = [...(q.headingList || [])]; newList[hIdx] = e.target.value; onUpdate('headingList', newList); }} 
                   placeholder="Heading text..." 
                   className="h-9 bg-white" 
@@ -324,7 +328,6 @@ export default function AdminExams() {
               <div className="flex gap-2 items-center">
                 <Badge variant="outline" className="bg-slate-100">Paragraph</Badge>
                 <Input 
-                  onPaste={(e) => e.stopPropagation()}
                   placeholder="e.g. Paragraph A" 
                   value={q.text} 
                   onChange={e => onUpdate('text', e.target.value)} 
@@ -333,7 +336,6 @@ export default function AdminExams() {
               </div>
           ) : (
             <Textarea 
-              onPaste={(e) => e.stopPropagation()}
               placeholder="Question Text..." 
               value={q.text} 
               onChange={e => onUpdate('text', e.target.value)} 
@@ -348,7 +350,6 @@ export default function AdminExams() {
               <div key={oIdx} className="flex items-center gap-3">
                 <span className="bg-slate-100 w-6 h-6 flex items-center justify-center rounded text-[10px] font-black">{String.fromCharCode(65 + oIdx)}</span>
                 <Input 
-                  onPaste={(e) => e.stopPropagation()}
                   value={opt} 
                   onChange={e => { const newOpts = [...q.options]; newOpts[oIdx] = e.target.value; onUpdate('options', newOpts); }} 
                   className="h-9 text-sm bg-white" 
@@ -362,7 +363,6 @@ export default function AdminExams() {
         <div className="flex items-center gap-3 bg-emerald-50/80 px-4 py-3 rounded-xl border border-emerald-100/50">
           <lucideReact.CheckCircle2 size={16} className="text-emerald-500" />
           <Input 
-            onPaste={(e) => e.stopPropagation()}
             className="h-8 border-none bg-transparent font-black text-emerald-700 focus-visible:ring-0 text-sm" 
             placeholder="Correct Answer" 
             value={q.answer} 
@@ -427,7 +427,6 @@ export default function AdminExams() {
             <div className="col-span-12 lg:col-span-7 space-y-4">
               <Label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1">Assessment Title</Label>
               <Input 
-                onPaste={(e) => e.stopPropagation()}
                 placeholder="e.g. Cambridge IELTS 18" 
                 value={title} 
                 onChange={e => setTitle(e.target.value)} 
@@ -490,14 +489,12 @@ export default function AdminExams() {
                   <Badge className="absolute -top-4 left-10 bg-blue-600 h-9 px-6 rounded-xl font-black">Passage {pIdx + 1}</Badge>
                   <div className="space-y-6">
                     <Input 
-                      onPaste={(e) => e.stopPropagation()}
                       placeholder="Heading" 
                       value={psg.title} 
                       onChange={e => { const n = [...passages]; n[pIdx].title = e.target.value; setPassages(n); }} 
                       className="font-black text-xl bg-slate-50 h-14 rounded-2xl px-6" 
                     />
                     <Textarea 
-                      onPaste={(e) => e.stopPropagation()}
                       className="min-h-[600px] leading-relaxed font-serif text-lg p-8 rounded-[2rem] bg-slate-50/50" 
                       value={psg.content} 
                       onChange={e => { const n = [...passages]; n[pIdx].content = e.target.value; setPassages(n); }} 
@@ -531,7 +528,6 @@ export default function AdminExams() {
                     </div>
                   )}
                   <Textarea 
-                    onPaste={(e) => e.stopPropagation()}
                     className="min-h-[350px] text-xl bg-slate-50/50 rounded-[2rem] p-8" 
                     value={task.content} 
                     onChange={e => { const n = [...writingTasks]; n[idx].content = e.target.value; setWritingTasks(n); }} 
