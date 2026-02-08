@@ -22,7 +22,7 @@ export async function registerRoutes(
     fs.mkdirSync(uploadsDir, { recursive: true });
   }
 
-  // 2. STATIK FAYLLAR UCHUN YO'LAK (Tuzatildi)
+  // 2. STATIK FAYLLAR UCHUN YO'LAK (CORS va Siyosat tuzatildi)
   app.use("/uploads", express.static(uploadsDir, {
     maxAge: '1d',
     etag: true,
@@ -32,7 +32,7 @@ export async function registerRoutes(
     }
   }));
 
-  // 3. MULTER SOZLAMALARI (Tuzatildi)
+  // 3. MULTER SOZLAMALARI
   const storageConfig = multer.diskStorage({
     destination: (_req, _file, cb) => {
       cb(null, uploadsDir);
@@ -40,14 +40,13 @@ export async function registerRoutes(
     filename: (_req, file, cb) => {
       const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
       const ext = path.extname(file.originalname);
-      // Faqat xavfsiz nom qoldiramiz
       cb(null, uniqueSuffix + ext);
     },
   });
 
   const upload = multer({ 
     storage: storageConfig,
-    limits: { fileSize: 20 * 1024 * 1024 } // 20MB - Server o'chib qolmasligi uchun
+    limits: { fileSize: 50 * 1024 * 1024 } // 50MB
   });
 
   // 4. FAYL YUKLASH ENDPOINTI
@@ -186,6 +185,7 @@ export async function registerRoutes(
     res.json(sessions);
   });
 
+  // --- NATIJANI HISOBLASH (Tuzatildi: 0.0 muammosi uchun) ---
   app.post(api.sessions.submit.path, async (req, res) => {
     const sessionId = Number(req.params.id);
     const { answers, isFinal } = req.body;
@@ -194,7 +194,7 @@ export async function registerRoutes(
     if (isFinal) {
       const session = await storage.getSession(sessionId);
       const exam = session ? await storage.getExam(session.examId) : null;
-      if (exam) {
+      if (exam && exam.content) {
         const content = exam.content as any;
         ['listening', 'reading'].forEach(skill => {
           let score = 0;
@@ -203,16 +203,27 @@ export async function registerRoutes(
 
           const skillContent = content[skill];
           if (skillContent) {
-            const containers = skillContent.sections || skillContent.parts || skillContent.passages || [];
+            // Savollarni barcha mumkin bo'lgan konteynerlardan yig'amiz
+            const containers = [
+              ...(skillContent.sections || []),
+              ...(skillContent.parts || []),
+              ...(skillContent.passages || []),
+              ...(skillContent.questions ? [skillContent] : [])
+            ];
+
             containers.forEach((container: any) => {
-              if (container.questions) skillQuestions.push(...container.questions);
+              if (container.questions && Array.isArray(container.questions)) {
+                skillQuestions.push(...container.questions);
+              }
             });
           }
 
           skillQuestions.forEach((q: any) => {
+            if (!q || !q.id) return;
             total++;
             const studentAns = String(answers[skill]?.[q.id] || "").trim().toLowerCase();
             const correctVariants = String(q.answer || "").split('/').map(v => v.trim().toLowerCase());
+
             if (studentAns !== "" && correctVariants.includes(studentAns)) {
               score++;
             }
