@@ -6,7 +6,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save, FileSearch, PenTool, Mic, TrendingUp, ChevronRight, Search } from "lucide-react"; // Search ikonkasi qo'shildi
-import { AssessmentBreakdown } from "@/components/AssessmentBreakdown";
+import * as AssessmentBreakdown from "@/components/AssessmentBreakdown";
 
 export default function AdminDetailedAssessment() {
   const { data: sessions = [], isLoading: sessionsLoading } = useSessions();

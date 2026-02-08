@@ -1,16 +1,12 @@
-import { useState, useMemo, useEffect } from "react";
+import react from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import * as uiKit from "@/components/ui-kit"; 
 import { useSessions, useCreateSession } from "@/hooks/use-sessions";
 import { useExams } from "@/hooks/use-exams";
-import { 
-  Loader2, RefreshCw, UserPlus, AlertCircle, Eye, 
-  Copy, PowerOff, CheckCircle, ArrowLeft, Mail, ShieldCheck,
-  Trash2, Monitor, Tv, VideoOff, Video, Key, User
-} from "lucide-react";
+import * as lucideReact from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import * as tabs from "@/components/ui/tabs";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
@@ -19,16 +15,16 @@ export default function AdminSessions() {
   const { data: sessions, isLoading, refetch } = useSessions();
   const { data: exams } = useExams();
   const createSession = useCreateSession();
-  const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
-  const [isReleasing, setIsReleasing] = useState(false);
-  const [activeTab, setActiveTab] = useState("waiting");
-  const [isTvMode, setIsTvMode] = useState(false);
+  const [selectedSubmission, setSelectedSubmission] = react.useState<any>(null);
+  const [isReleasing, setIsReleasing] = react.useState(false);
+  const [activeTab, setActiveTab] = react.useState("waiting");
+  const [isTvMode, setIsTvMode] = react.useState(false);
   const { toast } = useToast();
-  const [studentName, setStudentName] = useState("");
-  const [selectedExamId, setSelectedExamId] = useState("");
+  const [studentName, setStudentName] = react.useState("");
+  const [selectedExamId, setSelectedExamId] = react.useState("");
 
   // YANGI: Yaratilgan sessiya ma'lumotlarini ko'rsatish uchun state
-  const [newSessionInfo, setNewSessionInfo] = useState<{code: string, pass: string, name: string} | null>(null);
+  const [newSessionInfo, setNewSessionInfo] = react.useState<{code: string, pass: string, name: string} | null>(null);
 
   const { data: allViolations } = useQuery({
     queryKey: ['/api/violations'],
@@ -39,12 +35,12 @@ export default function AdminSessions() {
     refetchInterval: 5000 
   });
 
-  const activeSessions = useMemo(() => {
+  const activeSessions = react.useMemo(() => {
     if (!sessions) return [];
     return sessions.filter((s: any) => s.status === "in_progress");
   }, [sessions]);
 
-  const filteredSessions = useMemo(() => {
+  const filteredSessions = react.useMemo(() => {
     if (!sessions) return [];
     return sessions.filter((s: any) => {
       if (activeTab === "waiting") return s.status === "pending_grading";
@@ -60,7 +56,7 @@ export default function AdminSessions() {
       <div className="fixed inset-0 bg-slate-950 z-[9999] p-4 flex flex-col overflow-hidden">
         <header className="flex justify-between items-center mb-4 px-2">
           <div className="flex items-center gap-3">
-            <Monitor className="text-blue-500" size={32} />
+            <lucideReact.Monitor className="text-blue-500" size={32} />
             <div>
               <h1 className="text-2xl font-black text-white tracking-tighter uppercase italic">Live Monitoring Wall</h1>
               <p className="text-slate-500 text-xs font-bold tracking-widest uppercase">Real-Time Exam Supervision</p>
@@ -81,7 +77,7 @@ export default function AdminSessions() {
           {activeSessions.length === 0 ? (
             <div className="col-span-full flex items-center justify-center">
               <div className="text-center text-slate-700">
-                <Monitor size={64} className="mx-auto mb-4 opacity-20" />
+                <lucideReact.Monitor size={64} className="mx-auto mb-4 opacity-20" />
                 <p className="text-xl font-bold uppercase tracking-widest opacity-30">No Active Sessions</p>
               </div>
             </div>
@@ -90,9 +86,9 @@ export default function AdminSessions() {
               <div key={session.id} className="relative aspect-video bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-2xl group transition-all hover:border-blue-500/50">
                  <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-950">
                     {session.isCameraActive ? (
-                      <Video size={48} className="text-blue-500/20 animate-pulse" />
+                      <lucideReact.Video size={48} className="text-blue-500/20 animate-pulse" />
                     ) : (
-                      <VideoOff size={48} className="text-red-500/20" />
+                      <lucideReact.VideoOff size={48} className="text-red-500/20" />
                     )}
                     <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-1 bg-black/60 rounded-md backdrop-blur-md">
                        <div className={`w-1.5 h-1.5 rounded-full ${session.isCameraActive ? 'bg-emerald-500' : 'bg-red-500'}`} />
@@ -214,13 +210,13 @@ export default function AdminSessions() {
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
             <uiKit.Button onClick={() => setIsTvMode(true)} variant="outline" size="sm" className="rounded-lg bg-slate-900 text-white border-slate-800 hover:bg-slate-800">
-              <Tv size={16} className="mr-2"/> TV Wall
+              <lucideReact.Tv size={16} className="mr-2"/> TV Wall
             </uiKit.Button>
             <Link href="/admin">
-              <uiKit.Button variant="outline" size="sm" className="rounded-lg"><ArrowLeft size={16} className="mr-2"/> Panel</uiKit.Button>
+              <uiKit.Button variant="outline" size="sm" className="rounded-lg"><lucideReact.ArrowLeft size={16} className="mr-2"/> Panel</uiKit.Button>
             </Link>
             <uiKit.Button onClick={() => refetch()} variant="secondary" size="sm" className="rounded-lg">
-              <RefreshCw size={14} className={`${isLoading ? 'animate-spin' : ''} mr-2`} /> Yangilash
+              <lucideReact.RefreshCw size={14} className={`${isLoading ? 'animate-spin' : ''} mr-2`} /> Yangilash
             </uiKit.Button>
           </div>
         </div>
@@ -234,7 +230,7 @@ export default function AdminSessions() {
             <uiKit.Card className="border-none shadow-sm bg-slate-50 rounded-2xl">
               <uiKit.CardContent className="p-6">
                 <div className="flex items-center gap-2 mb-4 text-slate-800 font-semibold text-sm">
-                  <UserPlus size={18} className="text-blue-600" />
+                  <lucideReact.UserPlus size={18} className="text-blue-600" />
                   <span>Sessiya yaratish</span>
                 </div>
                 <form onSubmit={onGenerate} className="flex flex-wrap md:flex-nowrap gap-4">
@@ -259,7 +255,7 @@ export default function AdminSessions() {
                     </select>
                   </div>
                   <uiKit.Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl h-10 px-6" disabled={createSession.isPending}>
-                    {createSession.isPending ? <Loader2 className="animate-spin" /> : "Generatsiya"}
+                    {createSession.isPending ? <lucideReact.Loader2 className="animate-spin" /> : "Generatsiya"}
                   </uiKit.Button>
                 </form>
 
@@ -268,11 +264,11 @@ export default function AdminSessions() {
                   <div className="mt-6 p-4 bg-blue-600 rounded-2xl text-white animate-in zoom-in-95 duration-300 shadow-xl shadow-blue-200">
                     <div className="flex justify-between items-start mb-3">
                        <div className="flex items-center gap-2">
-                          <ShieldCheck size={20} className="text-blue-200" />
+                          <lucideReact.ShieldCheck size={20} className="text-blue-200" />
                           <span className="text-xs font-bold uppercase tracking-widest">Yangi Sessiya Ma'lumotlari</span>
                        </div>
                        <button onClick={() => setNewSessionInfo(null)} className="text-blue-200 hover:text-white">
-                          <Trash2 size={16} />
+                          <lucideReact.Trash2 size={16} />
                        </button>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -289,7 +285,7 @@ export default function AdminSessions() {
                       onClick={() => handleCopyAccess(newSessionInfo.code, newSessionInfo.pass)}
                       className="w-full mt-3 bg-white text-blue-600 hover:bg-blue-50 font-bold rounded-xl py-2 flex items-center justify-center gap-2"
                     >
-                      <Copy size={16} /> NUSXA OLISH (COPY)
+                      <lucideReact.Copy size={16} /> NUSXA OLISH (COPY)
                     </uiKit.Button>
                   </div>
                 )}
@@ -302,17 +298,17 @@ export default function AdminSessions() {
                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Sessiyalar</h3>
               </div>
 
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid grid-cols-4 bg-slate-100 p-1 rounded-xl mb-6">
-                  <TabsTrigger value="waiting" className="rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-blue-600">Waiting</TabsTrigger>
-                  <TabsTrigger value="marking" className="rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-blue-600">Marking</TabsTrigger>
-                  <TabsTrigger value="graded" className="rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-blue-600">Graded</TabsTrigger>
-                  <TabsTrigger value="released" className="rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-blue-600">Released</TabsTrigger>
-                </TabsList>
+              <tabs.Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <tabs.TabsList className="grid grid-cols-4 bg-slate-100 p-1 rounded-xl mb-6">
+                  <tabs.TabsTrigger value="waiting" className="rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-blue-600">Waiting</tabs.TabsTrigger>
+                  <tabs.TabsTrigger value="marking" className="rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-blue-600">Marking</tabs.TabsTrigger>
+                  <tabs.TabsTrigger value="graded" className="rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-blue-600">Graded</tabs.TabsTrigger>
+                  <tabs.TabsTrigger value="released" className="rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-blue-600">Released</tabs.TabsTrigger>
+                </tabs.TabsList>
 
                 <div className="grid gap-3">
                   {isLoading ? (
-                    <div className="flex justify-center py-20"><Loader2 className="animate-spin text-slate-300" /></div>
+                    <div className="flex justify-center py-20"><lucideReact.Loader2 className="animate-spin text-slate-300" /></div>
                   ) : filteredSessions.length === 0 ? (
                     <div className="text-center py-20 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                       <p className="text-slate-400 text-sm">Hozircha hech narsa yo'q</p>
@@ -334,14 +330,14 @@ export default function AdminSessions() {
                             <div className="flex items-center gap-2 mt-1">
                               <code className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{session.accessCode}</code>
                               <span onClick={() => handleCopyAccess(session.accessCode, session.password)} className="text-slate-300 hover:text-blue-500 transition-colors cursor-pointer">
-                                 <Copy size={12} />
+                                 <lucideReact.Copy size={12} />
                               </span>
                             </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <uiKit.Button variant="ghost" size="sm" onClick={() => setSelectedSubmission(session)} className="text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
-                            <Eye size={18} />
+                            <lucideReact.Eye size={18} />
                           </uiKit.Button>
                           {(session.status === 'in_progress' || session.status === 'active') && (
                             <uiKit.Button 
@@ -350,7 +346,7 @@ export default function AdminSessions() {
                               className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg" 
                               onClick={() => handleTerminate(session.id)}
                             >
-                              <PowerOff size={18} />
+                              <lucideReact.PowerOff size={18} />
                             </uiKit.Button>
                           )}
                           <uiKit.Button 
@@ -359,14 +355,14 @@ export default function AdminSessions() {
                             className="text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg" 
                             onClick={() => handleDeleteSession(session.id)}
                           >
-                            <Trash2 size={18} />
+                            <lucideReact.Trash2 size={18} />
                           </uiKit.Button>
                         </div>
                       </div>
                     ))
                   )}
                 </div>
-              </Tabs>
+              </tabs.Tabs>
             </div>
             <footer className="mt-12 py-6 border-t border-slate-100 text-center">
               <p className="text-[10px] text-slate-400 font-medium tracking-widest uppercase">
@@ -380,7 +376,7 @@ export default function AdminSessions() {
             <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 sticky top-6">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-red-600 font-bold text-[11px] uppercase tracking-widest flex items-center gap-2">
-                  <AlertCircle size={14} /> Cheat Monitoring
+                  <lucideReact.AlertCircle size={14} /> Cheat Monitoring
                 </h3>
                 <uiKit.Badge variant="outline" className="text-[10px] border-red-200 text-red-600">{allViolations?.length || 0}</uiKit.Badge>
               </div>
@@ -388,7 +384,7 @@ export default function AdminSessions() {
               <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                 {allViolations?.length === 0 ? (
                   <div className="text-center py-12">
-                    <ShieldCheck size={32} className="mx-auto text-slate-200 mb-2" />
+                    <lucideReact.ShieldCheck size={32} className="mx-auto text-slate-200 mb-2" />
                     <p className="text-[11px] text-slate-400">Hech qanday qoidabuzarlik<br/>aniqlanmadi.</p>
                   </div>
                 ) : (
@@ -459,12 +455,12 @@ export default function AdminSessions() {
                     disabled={isReleasing} 
                     className="w-full bg-blue-600 hover:bg-blue-700 h-14 text-sm font-bold rounded-2xl shadow-lg shadow-blue-100 transition-all"
                   >
-                    {isReleasing ? <Loader2 className="animate-spin mr-2" /> : <Mail className="mr-2" size={18} />}
+                    {isReleasing ? <lucideReact.Loader2 className="animate-spin mr-2" /> : <lucideReact.Mail className="mr-2" size={18} />}
                     NATIJANI TASDIQLASH VA YUBORISH
                   </uiKit.Button>
                 ) : (
                   <div className="w-full p-4 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center text-sm font-bold">
-                    <CheckCircle className="mr-2" size={20} /> NATIJA O'QUVCHIGA YUBORILGAN
+                    <lucideReact.CheckCircle className="mr-2" size={20} /> NATIJA O'QUVCHIGA YUBORILGAN
                   </div>
                 )}
               </div>
