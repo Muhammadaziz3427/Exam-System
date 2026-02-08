@@ -74,6 +74,42 @@ export default function AdminExams() {
     { type: "task2", content: "", wordLimit: "250" }
   ]);
 
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: string, idx?: number) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingField(field + (idx !== undefined ? `-${idx}` : ""));
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.filename) {
+        if (field === "audioUrl") {
+          setAudioUrl(data.filename);
+        } else if (field === "passageImage" && idx !== undefined) {
+          const newP = [...passages];
+          newP[idx].image = data.filename;
+          setPassages(newP);
+        } else if (field === "writingImage") {
+          const nt = [...writingTasks];
+          nt[0].image = data.filename;
+          setWritingTasks(nt);
+        }
+      }
+    } catch (error) {
+      console.error("Upload failed", error);
+    } finally {
+      setUploadingField(null);
+    }
+  };
+
   const openEditModal = (exam: any) => {
     setEditingExam(exam);
     setTitle(exam.title);
@@ -102,23 +138,6 @@ export default function AdminExams() {
       { type: "task1", content: "", image: "", wordLimit: "150" },
       { type: "task2", content: "", wordLimit: "250" }
     ]);
-  };
-
-  const handleFileUpload = async (file: File, type: 'audio' | 'image', callback: (url: string) => void) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    try {
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-      if (data.filename) {
-        callback(data.filename);
-      }
-    } catch (error) {
-      console.error("Upload failed:", error);
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -252,10 +271,20 @@ export default function AdminExams() {
               <div className="p-6 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
                 <Label className="font-bold mb-2 block text-blue-600">Audio Source</Label>
                 <div className="flex gap-2">
-                  <Input value={audioUrl} onChange={e => setAudioUrl(e.target.value.trim())} placeholder="filename.mp3" className="flex-1" />
-                  <Input type="file" accept="audio/*" onChange={e => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'audio', setAudioUrl)} className="w-60" />
+                  <Input 
+                    type="file" 
+                    accept="audio/*" 
+                    onChange={(e) => handleFileUpload(e, "audioUrl")}
+                    className="flex-1"
+                  />
+                  {uploadingField === "audioUrl" && <Loader2 className="animate-spin" />}
                 </div>
-                {audioUrl && <audio controls className="w-full mt-4" key={audioUrl}><source src={audioUrl.startsWith('http') ? audioUrl : `/uploads/${audioUrl}`} /></audio>}
+                <p className="text-xs text-slate-400 mt-2">Current file: {audioUrl || "None"}</p>
+                {audioUrl && (
+                  <audio controls className="w-full mt-4" key={audioUrl}>
+                    <source src={`/uploads/${audioUrl}`} />
+                  </audio>
+                )}
               </div>
 
               <div className="space-y-4">
@@ -298,16 +327,13 @@ export default function AdminExams() {
                       <Input placeholder="Passage Title" value={psg.title} onChange={e => {
                         const newP = [...passages]; newP[idx].title = e.target.value; setPassages(newP);
                       }} className="font-bold border-none bg-slate-50 h-12" />
-                      <div className="flex gap-2">
-                        <Input placeholder="Image Filename" value={psg.image} onChange={e => {
-                          const newP = [...passages]; newP[idx].image = e.target.value; setPassages(newP);
-                        }} className="text-xs font-mono flex-1" />
-                        <Input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'image', (url) => {
-                          const newP = [...passages]; newP[idx].image = url; setPassages(newP);
-                        })} className="w-40 text-xs" />
+                      <div className="flex gap-2 items-center">
+                        <Input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, "passageImage", idx)} className="text-xs" />
+                        {uploadingField === `passageImage-${idx}` && <Loader2 className="animate-spin" size={16} />}
                       </div>
+                      <p className="text-[10px] text-slate-400 font-mono">File: {psg.image || "None"}</p>
                     </div>
-                    {psg.image && <div className="w-32 h-32 rounded-xl overflow-hidden border"><img src={psg.image.startsWith('http') ? psg.image : `/uploads/${psg.image}`} className="w-full h-full object-cover" /></div>}
+                    {psg.image && <div className="w-32 h-32 rounded-xl overflow-hidden border"><img src={`/uploads/${psg.image}`} className="w-full h-full object-cover" /></div>}
                   </div>
                   <Textarea placeholder="Content..." className="min-h-[200px]" value={psg.content} onChange={e => {
                     const newP = [...passages]; newP[idx].content = e.target.value; setPassages(newP);
@@ -330,10 +356,12 @@ export default function AdminExams() {
                     </div>
                     {idx === 0 && (
                       <div className="space-y-2">
-                        <Input placeholder="Image URL for Task 1" value={task.image} onChange={e => {
-                          const nt = [...writingTasks]; nt[0].image = e.target.value; setWritingTasks(nt);
-                        }} className="text-xs" />
-                        {task.image && <img src={task.image} className="h-24 rounded-lg border bg-white p-1 object-contain" />}
+                        <div className="flex gap-2 items-center">
+                          <Input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, "writingImage")} className="text-xs" />
+                          {uploadingField === "writingImage" && <Loader2 className="animate-spin" size={16} />}
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-mono">File: {task.image || "None"}</p>
+                        {task.image && <img src={`/uploads/${task.image}`} className="h-24 rounded-lg border bg-white p-1 object-contain" />}
                       </div>
                     )}
                     <Textarea className="min-h-[250px] bg-white rounded-xl shadow-inner" placeholder="Prompt details..." value={task.content} onChange={e => {

@@ -34,7 +34,8 @@ export async function registerRoutes(
     filename: (_req, file, cb) => {
       // Fayl nomini unikal qilish (Vaqt + original nomi)
       const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
-      cb(null, uniqueSuffix + path.extname(file.originalname));
+      const cleanName = file.originalname.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '');
+      cb(null, uniqueSuffix + "-" + cleanName);
     },
   });
 

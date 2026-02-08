@@ -318,7 +318,7 @@ export default function StudentExam() {
                         {examContent?.reading?.passages?.[activePassageIdx]?.image && (
                           <div className="w-full mb-8 rounded-2xl border-4 border-slate-100 shadow-sm bg-white p-4">
                             <img 
-                              src={examContent.reading.passages[activePassageIdx].image} 
+                              src={`/uploads/${examContent.reading.passages[activePassageIdx].image}`} 
                               alt="Reading passage visual" 
                               className="w-full h-auto object-contain rounded-lg"
                               onError={(e) => {
@@ -339,17 +339,14 @@ export default function StudentExam() {
                             {activeWritingTask === 0 && examContent?.writing?.tasks?.[0]?.image && (
                               <div className="w-full mb-6 rounded-lg border shadow-sm bg-white p-2">
                                 <img 
-                                  src={examContent.writing.tasks[0].image.startsWith('blob:') ? examContent.writing.tasks[0].image : examContent.writing.tasks[0].image} 
+                                  src={`/uploads/${examContent.writing.tasks[0].image}`} 
                                   alt="Task diagram" 
                                   className="w-full h-auto object-contain"
                                   crossOrigin="anonymous"
                                   onError={(e) => {
                                     console.error("Image loading error:", e);
                                     const target = e.currentTarget;
-                                    if (target.src.startsWith('blob:')) {
-                                      console.warn("Blob URL failed - this usually happens after page refresh or on a different device");
-                                      target.parentElement!.innerHTML = '<div class="p-4 text-center text-red-500 bg-red-50 rounded-lg text-sm font-bold">Image unavailable. Please re-upload in Admin Panel using a persistent URL.</div>';
-                                    }
+                                    target.parentElement!.innerHTML = '<div class="p-4 text-center text-red-500 bg-red-50 rounded-lg text-sm font-bold">Image unavailable. Please re-upload in Admin Panel.</div>';
                                   }}
                                 />
                               </div>
