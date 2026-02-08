@@ -1,17 +1,16 @@
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { Card, CardContent, CardHeader, CardTitle, Button, Input, Textarea, Tabs, TabsContent, TabsList, TabsTrigger, Badge } from "@/components/ui-kit";
+import * as uiKit from "@/components/ui-kit";
 import { useSessions } from "@/hooks/use-sessions";
 import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, FileSearch, PenTool, Mic, TrendingUp, ChevronRight, Search } from "lucide-react"; // Search ikonkasi qo'shildi
-import * as AssessmentBreakdown from "@/components/AssessmentBreakdown";
+import { Loader2, Save, FileSearch, PenTool, TrendingUp, ChevronRight, Search } from "lucide-react"; 
 
-export default function AdminDetailedAssessment() {
+export function AdminDetailedAssessment() {
   const { data: sessions = [], isLoading: sessionsLoading } = useSessions();
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
-  const [searchTerm, setSearchTerm] = useState(""); // Qidiruv uchun state
+  const [searchTerm, setSearchTerm] = useState(""); 
   const { toast } = useToast();
 
   const { data: submission, isLoading: submissionLoading } = useQuery<any>({
@@ -21,7 +20,8 @@ export default function AdminDetailedAssessment() {
 
   const selectedSession = sessions.find((s: any) => s.id === selectedSessionId);
 
-  const { data: exam } = useQuery<any>({
+  // Ishlatilmagan 'exam' o'zgaruvchisi olib tashlandi yoki console'ga chiqarildi
+  useQuery<any>({
     queryKey: [`/api/exams/${selectedSession?.examId}`],
     enabled: !!selectedSession?.examId,
   });
@@ -35,7 +35,6 @@ export default function AdminDetailedAssessment() {
       s.accessCode?.toLowerCase().includes(term)
     );
   }, [searchTerm, sessions]);
-  // -----------------------
 
   const [assessment, setAssessment] = useState<any>({
     writing: {
@@ -105,30 +104,28 @@ export default function AdminDetailedAssessment() {
             <h2 className="text-4xl font-black text-slate-900 tracking-tight italic">Detailed Assessment</h2>
             <p className="text-slate-500 font-medium">IELTS Standard Grading Interface</p>
           </div>
-          <Badge variant="outline" className="h-8 border-slate-200">
+          <uiKit.Badge variant="outline" className="h-8 border-slate-200">
             Session Status: {selectedSession?.status || 'Unknown'}
-          </Badge>
+          </uiKit.Badge>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Sidebar - Talabalar ro'yxati va Qidiruv */}
-          <Card className="lg:col-span-3 border-none shadow-xl rounded-3xl bg-white overflow-hidden flex flex-col h-fit">
-            <CardHeader className="bg-slate-50 border-b space-y-4">
-              <CardTitle className="text-xs uppercase tracking-widest text-slate-400">Student Directory</CardTitle>
-
-              {/* Qidiruv Inputi */}
+          {/* Sidebar */}
+          <uiKit.Card className="lg:col-span-3 border-none shadow-xl rounded-3xl bg-white overflow-hidden flex flex-col h-fit">
+            <uiKit.CardHeader className="bg-slate-50 border-b space-y-4">
+              <uiKit.CardTitle className="text-xs uppercase tracking-widest text-slate-400">Student Directory</uiKit.CardTitle>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
-                <Input 
+                <uiKit.Input 
                   placeholder="Ism yoki kod..." 
                   className="pl-9 bg-white border-slate-200 rounded-xl h-9 text-sm focus-visible:ring-blue-500"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-            </CardHeader>
+            </uiKit.CardHeader>
 
-            <CardContent className="p-4 max-h-[600px] overflow-y-auto">
+            <uiKit.CardContent className="p-4 max-h-[600px] overflow-y-auto">
               <div className="space-y-2">
                 {filteredSessions.length > 0 ? (
                   filteredSessions.map((session: any) => (
@@ -156,47 +153,46 @@ export default function AdminDetailedAssessment() {
                   </div>
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </uiKit.CardContent>
+          </uiKit.Card>
 
-          {/* O'ng tomon - Baholash interfeysi (O'zgarishsiz qoldi) */}
+          {/* Assessment Interface */}
           <div className="lg:col-span-9 space-y-6">
             {!selectedSessionId ? (
-              <Card className="h-[600px] flex flex-col items-center justify-center p-12 border-dashed border-2 rounded-[3rem] bg-slate-50/50">
+              <uiKit.Card className="h-[600px] flex flex-col items-center justify-center p-12 border-dashed border-2 rounded-[3rem] bg-slate-50/50">
                 <div className="p-6 bg-white rounded-full shadow-sm mb-4">
                   <FileSearch size={48} className="text-slate-300" />
                 </div>
                 <p className="text-slate-500 font-bold text-xl">Baholash uchun talabani tanlang</p>
-              </Card>
+              </uiKit.Card>
             ) : submissionLoading ? (
-              <Card className="h-[600px] flex items-center justify-center border-none shadow-sm rounded-[3rem]">
+              <uiKit.Card className="h-[600px] flex items-center justify-center border-none shadow-sm rounded-[3rem]">
                 <Loader2 className="animate-spin size-12 text-blue-600" />
-              </Card>
+              </uiKit.Card>
             ) : (
               <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <Card className="border-none shadow-2xl rounded-[2.5rem] bg-white overflow-hidden">
-                  <CardHeader className="flex flex-row items-center justify-between px-8 py-6 border-b border-slate-50 bg-slate-50/30">
+                <uiKit.Card className="border-none shadow-2xl rounded-[2.5rem] bg-white overflow-hidden">
+                  <uiKit.CardHeader className="flex flex-row items-center justify-between px-8 py-6 border-b border-slate-50 bg-slate-50/30">
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-white font-black text-xl">
                         {selectedSession?.studentName?.[0]}
                       </div>
                       <div>
-                        <CardTitle className="text-2xl font-black text-slate-900">{selectedSession?.studentName}</CardTitle>
-                        <Badge className="bg-blue-100 text-blue-700 border-none font-bold">Standard Exam</Badge>
+                        <uiKit.CardTitle className="text-2xl font-black text-slate-900">{selectedSession?.studentName}</uiKit.CardTitle>
+                        <uiKit.Badge className="bg-blue-100 text-blue-700 border-none font-bold">Standard Exam</uiKit.Badge>
                       </div>
                     </div>
-                    <Button 
+                    <uiKit.Button 
                       onClick={() => mutation.mutate(assessment)} 
                       disabled={mutation.isPending}
                       className="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl px-8 h-12 shadow-lg shadow-blue-200 gap-2 font-bold"
                     >
                       {mutation.isPending ? <Loader2 className="animate-spin size-4" /> : <Save size={18} />}
                       Saqlash
-                    </Button>
-                  </CardHeader>
+                    </uiKit.Button>
+                  </uiKit.CardHeader>
 
-                  <CardContent className="space-y-10 p-8">
-                    {/* Score Summary */}
+                  <uiKit.CardContent className="space-y-10 p-8">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-center justify-between">
                         <span className="font-bold text-blue-900">Task 1</span>
@@ -212,7 +208,6 @@ export default function AdminDetailedAssessment() {
                       </div>
                     </div>
 
-                    {/* Writing Section */}
                     <div className="space-y-6">
                       <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
                         <PenTool size={22} className="text-blue-500" /> Writing Assessment
@@ -221,11 +216,10 @@ export default function AdminDetailedAssessment() {
                         {['task1', 'task2'].map((task) => (
                           <div key={task} className="space-y-4 p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
                              <h4 className="font-black uppercase text-xs text-slate-400">{task} Score Breakdown</h4>
-                             {/* Kriteriyalar looping... */}
                              {Object.keys(assessment.writing[task]).map(crit => (
                                <div key={crit} className="flex justify-between items-center bg-white p-2 rounded-xl px-4 shadow-sm">
                                  <span className="text-sm font-medium capitalize">{crit.replace(/([A-Z])/g, ' $1')}</span>
-                                 <Input 
+                                 <uiKit.Input 
                                    type="number" step="0.5" className="w-16 h-8 border-none bg-slate-100 text-center font-bold" 
                                    value={assessment.writing[task][crit]} 
                                    onChange={(e) => handleScoreChange('writing', task, crit, e.target.value)}
@@ -237,19 +231,18 @@ export default function AdminDetailedAssessment() {
                       </div>
                     </div>
 
-                    {/* Feedback */}
                     <div className="space-y-4">
                       <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
                         <TrendingUp size={22} className="text-amber-500" /> Feedback
                       </h3>
-                      <Textarea
+                      <uiKit.Textarea
                         className="min-h-[150px] bg-slate-50 border-2 border-slate-100 rounded-[2rem] p-6 focus:border-blue-500"
                         value={assessment.diagnosticFeedback}
                         onChange={(e) => handleFeedbackChange(e.target.value)}
                       />
                     </div>
-                  </CardContent>
-                </Card>
+                  </uiKit.CardContent>
+                </uiKit.Card>
               </div>
             )}
           </div>
@@ -258,3 +251,6 @@ export default function AdminDetailedAssessment() {
     </AdminLayout>
   );
 }
+
+// Default export ham qo'shib qo'yamiz
+export default AdminDetailedAssessment;

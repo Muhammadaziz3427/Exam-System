@@ -10,7 +10,7 @@ import AdminDashboard from "@/pages/admin-dashboard";
 import AdminExams from "@/pages/admin-exams";
 import AdminTeachers from "@/pages/admin-teachers";
 import AdminSessions from "@/pages/admin-sessions";
-import AdminDetailedAssessment from "@/pages/admin-detailed-assessment";
+import { AdminDetailedAssessment } from "@/pages/admin-detailed-assessment";
 import TeacherDashboard from "@/pages/teacher-dashboard";
 import StudentExam from "@/pages/student-exam";
 import AdminExamEditor from "@/pages/admin-exam-editor"; 

@@ -3,14 +3,14 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Headphones, AlertCircle, Flag } from "lucide-react";
-import { Input } from "@/components/ui-kit"; // Input qo'shildi
+import { Input } from "@/components/ui-kit"; 
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ListeningComponentProps {
   audioUrl: string;
   onSectionComplete: () => void;
-  // Savollar va javoblar uchun yangi propslar
   examContent?: any; 
+  content?: any; // TypeScript xatosini yo'qotish uchun qo'shildi
   answers: any;
   setAnswers: (answers: any) => void;
 }
@@ -19,34 +19,38 @@ export function ListeningComponent({
   audioUrl, 
   onSectionComplete, 
   examContent, 
+  content, // 'content' propini ham qabul qilamiz
   answers, 
   setAnswers 
 }: ListeningComponentProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [progress, setProgress] = useState(0);
   const [isTransferring, setIsTransferring] = useState(false);
-  const [transferTimeLeft, setTransferTimeLeft] = useState(120); // 2 minutes
+  const [transferTimeLeft, setTransferTimeLeft] = useState(120); // 2 minut transfer vaqti
   const [error, setError] = useState<string | null>(null);
   const [reviewFlags, setReviewFlags] = useState<Record<string, boolean>>({});
 
-  const fullAudioPath = audioUrl?.startsWith('/uploads/') 
+  // Agar 'content' uzatilgan bo'lsa uni ishlatamiz, aks holda 'examContent'
+  const activeContent = content || examContent;
+
+  // Audio yo'lini tekshirish
+  const fullAudioPath = audioUrl?.startsWith('http') 
     ? audioUrl 
-    : `/uploads/${audioUrl}`;
+    : audioUrl?.startsWith('/uploads/') 
+      ? audioUrl 
+      : `/uploads/${audioUrl}`;
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !audioUrl) return;
 
-    const startAudio = () => {
-      audio.play().catch(err => {
-        console.log("Auto-play prevented", err);
-      });
-    };
-
-    const timer = setTimeout(startAudio, 3000);
+    // 3 soniyadan keyin avtomatik ijro etishga harakat qiladi
+    const timer = setTimeout(() => {
+        audio.play().catch(() => console.log("Auto-play blocked, waiting for interaction"));
+    }, 3000);
 
     const handleFirstClick = () => {
-      startAudio();
+      audio.play().catch(() => {});
       document.removeEventListener("click", handleFirstClick);
     };
     document.addEventListener("click", handleFirstClick);
@@ -96,7 +100,7 @@ export function ListeningComponent({
 
   return (
     <div className="h-full flex flex-col bg-white">
-      {/* Audio Player qismi - Tepada qotib turadi */}
+      {/* Audio Player qismi */}
       <div className="w-full bg-slate-50 border-b p-4 z-10">
         <Card className="max-w-4xl mx-auto p-4 bg-slate-900 text-white border-none shadow-lg">
           <div className="flex items-center justify-between mb-4">
@@ -131,7 +135,7 @@ export function ListeningComponent({
         </Card>
       </div>
 
-      {/* Savollar qismi - Scroll bo'ladigan joy */}
+      {/* Savollar qismi */}
       <ScrollArea className="flex-1">
         <div className="max-w-3xl mx-auto p-8 pb-24">
           {error && (
@@ -140,16 +144,27 @@ export function ListeningComponent({
             </div>
           )}
 
-          <div className="space-y-8">
-            {/* Listening savollarini render qilish (Section 1-4) */}
-            {examContent?.listening?.sections?.map((section: any, sIdx: number) => (
+          <div className="space-y-12">
+            {/* Listening savollarini render qilish */}
+            {activeContent?.sections?.map((section: any, sIdx: number) => (
               <div key={`l-sec-${sIdx}`} className="space-y-6">
-                <div className="border-l-4 border-blue-500 pl-4 py-1 bg-blue-50/50">
+                <div className="border-l-4 border-blue-500 pl-4 py-1 bg-blue-50/50 rounded-r-lg">
                   <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">
                     Section {sIdx + 1}
                   </h3>
-                  <p className="text-sm text-slate-500">Questions {sIdx * 10 + 1} - {sIdx * 10 + 10}</p>
+                  <p className="text-sm text-slate-500">Answer the questions based on the audio clip.</p>
                 </div>
+
+                {/* Section rasmi bo'lsa ko'rsatish */}
+                {section.image && (
+                  <div className="my-4">
+                    <img 
+                      src={section.image} 
+                      alt={`Section ${sIdx + 1} diagram`} 
+                      className="max-w-full h-auto rounded-lg border shadow-sm"
+                    />
+                  </div>
+                )}
 
                 <div className="grid gap-4">
                   {section.questions?.map((q: any, qIdx: number) => {
@@ -162,20 +177,25 @@ export function ListeningComponent({
                         id={`q-container-${qGlobalIdx}`}
                         className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm hover:border-blue-300 transition-all flex gap-4"
                       >
-                        <span className="w-7 h-7 rounded bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-xs shrink-0">
+                        <span className="w-7 h-7 rounded bg-slate-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
                           {qGlobalIdx}
                         </span>
 
                         <div className="flex-1 space-y-3">
                           <p className="text-slate-700 font-medium leading-relaxed">{q.text}</p>
+
+                          {q.image && (
+                            <img src={q.image} alt="" className="w-full max-w-md rounded border mb-2" />
+                          )}
+
                           <Input 
                             placeholder="Write your answer..."
-                            className="h-10 border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                            value={answers.listening[qId] || ""}
-                            onChange={(e) => setAnswers({
-                              ...answers,
-                              listening: { ...answers.listening, [qId]: e.target.value }
-                            })}
+                            className="h-10 border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50/30"
+                            value={answers[qId] || ""}
+                            onChange={(e) => {
+                                const newListeningAnswers = { ...answers, [qId]: e.target.value };
+                                setAnswers(newListeningAnswers);
+                            }}
                           />
                         </div>
 
@@ -185,7 +205,7 @@ export function ListeningComponent({
                         >
                           <Flag 
                             size={16} 
-                            className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-300 hover:text-slate-400"} 
+                            className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200 hover:text-slate-400"} 
                           />
                         </button>
                       </div>
@@ -196,8 +216,8 @@ export function ListeningComponent({
             ))}
           </div>
 
-          <div className="mt-12 text-center text-slate-400 text-xs italic">
-            End of Listening Questions. Ensure all answers are filled.
+          <div className="mt-12 text-center text-slate-400 text-xs italic border-t pt-8">
+            End of Listening Questions. The test will automatically transition after transfer time.
           </div>
         </div>
       </ScrollArea>

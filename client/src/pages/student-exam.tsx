@@ -110,7 +110,7 @@ export default function StudentExam() {
         answers, 
         email, 
         isFinal: true, 
-        status: "submitted" 
+        status: "submitted" // Status submitted bo'ladi, graded emas
       });
 
       // 2. Fullscreen rejimini yopish
@@ -118,14 +118,14 @@ export default function StudentExam() {
         document.exitFullscreen().catch(() => {});
       }
 
-      // 3. Muvaffaqiyatli yakunlash xabari
+      // 3. Muvaffaqiyatli yakunlash xabari (Natija ko'rsatilmaydi)
       toast({ 
         title: "Test Successfully Completed", 
-        description: "Your responses have been recorded and sent for evaluation. You will be notified of the results later." 
+        description: "Your responses have been recorded. Results will be sent to your email after evaluation." 
       });
 
-      // 4. DARXOL Bosh sahifaga yo'naltirish (Natija ko'rsatiladigan state'ga o'tmaslik uchun)
-      setHasStarted(false); // Exam view'dan chiqish
+      // 4. DARXOL Bosh sahifaga yo'naltirish
+      setHasStarted(false); 
       setLocation("/"); 
 
     } catch (err) {
@@ -286,10 +286,12 @@ export default function StudentExam() {
       <main className="flex-1 overflow-hidden" key={currentSection}>
         {currentSection === 'listening' ? (
           <ListeningComponent 
-                      audioUrl={examContent?.listening?.audioUrl}
-                      onSectionComplete={() => setCurrentSection('reading')} answers={undefined} setAnswers={function(answers: any): void {
-                          throw new Error("Function not implemented.");
-                      } }          />
+            content={examContent?.listening} // CONTENT UZATILDI
+            audioUrl={examContent?.listening?.audioUrl}
+            onSectionComplete={() => setCurrentSection('reading')} 
+            answers={answers.listening} // JAVOBLAR ULANDI
+            setAnswers={(val: any) => setAnswers({...answers, listening: val})} // SETTER ULANDI
+          />
         ) : (
           <ResizablePanelGroup direction="horizontal">
             <ResizablePanel defaultSize={45} className="bg-white border-r-4 border-slate-100">
@@ -316,6 +318,16 @@ export default function StudentExam() {
                     {currentSection === 'reading' ? (
                       <article>
                         <h2 className="text-3xl font-black mb-8 text-slate-900 leading-tight">{examContent?.reading?.passages?.[activePassageIdx]?.title}</h2>
+
+                        {/* READING IMAGE RENDER QILISH */}
+                        {examContent?.reading?.passages?.[activePassageIdx]?.image && (
+                          <img 
+                            src={examContent.reading.passages[activePassageIdx].image} 
+                            alt="Passage Visual" 
+                            className="w-full mb-6 rounded-lg border shadow-sm"
+                          />
+                        )}
+
                         <div className="text-xl leading-[1.8] text-slate-800 font-serif whitespace-pre-wrap">
                           {examContent?.reading?.passages?.[activePassageIdx]?.content}
                         </div>
@@ -324,9 +336,16 @@ export default function StudentExam() {
                       <div className="space-y-8">
                           <div className="bg-blue-50 p-8 rounded-2xl border-2 border-blue-100 relative">
                             <Badge className="absolute -top-3 left-6 bg-blue-600 border-none">Writing Task {activeWritingTask + 1}</Badge>
-                            {activeWritingTask === 0 && examContent?.writing?.tasks?.[0]?.image && (
-                              <img src={examContent.writing.tasks[0].image} alt="Task diagram" className="w-full mb-6 rounded-lg border shadow-sm bg-white p-2" />
+
+                            {/* WRITING IMAGE RENDER QILISH */}
+                            {examContent?.writing?.tasks?.[activeWritingTask]?.image && (
+                              <img 
+                                src={examContent.writing.tasks[activeWritingTask].image} 
+                                alt="Task diagram" 
+                                className="w-full mb-6 rounded-lg border shadow-sm bg-white p-2" 
+                              />
                             )}
+
                             <p className="text-xl font-medium text-slate-800 italic leading-relaxed">
                               "{examContent?.writing?.tasks?.[activeWritingTask]?.content}"
                             </p>
