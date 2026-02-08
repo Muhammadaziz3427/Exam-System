@@ -22,10 +22,14 @@ export async function registerRoutes(
     fs.mkdirSync(uploadsDir, { recursive: true });
   }
 
-  // 2. STATIK FAYLLAR UCHUN YO'LAK (Doimiy ishlashi uchun kesh bilan)
+  // 2. STATIK FAYLLAR UCHUN YO'LAK
+  // Muhim: Barcha turdagi fayllarga ruxsat berish va keshni sozlash
   app.use("/uploads", express.static(uploadsDir, {
     maxAge: '1d',
-    etag: true
+    etag: true,
+    setHeaders: (res) => {
+      res.set('Access-Control-Allow-Origin', '*'); // CORS xatolarini oldini olish uchun
+    }
   }));
 
   // 3. MULTER SOZLAMALARI
@@ -35,6 +39,7 @@ export async function registerRoutes(
     },
     filename: (_req, file, cb) => {
       const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
+      // Fayl nomidagi bo'shliqlarni va maxsus belgilarni tozalash
       const cleanName = file.originalname.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '');
       cb(null, uniqueSuffix + "-" + cleanName);
     },
@@ -42,7 +47,7 @@ export async function registerRoutes(
 
   const upload = multer({ 
     storage: storageConfig,
-    limits: { fileSize: 100 * 1024 * 1024 } // 100MB ga oshirildi
+    limits: { fileSize: 100 * 1024 * 1024 } // 100MB
   });
 
   // 4. FAYL YUKLASH ENDPOINTI
@@ -51,6 +56,7 @@ export async function registerRoutes(
       if (!req.file) {
         return res.status(400).json({ message: "Fayl yuklanmadi" });
       }
+      // Absolute URL o'rniga nisbiy yo'l qaytaramiz
       res.json({ 
         url: `/uploads/${req.file.filename}`, 
         filename: req.file.filename 
@@ -196,11 +202,13 @@ export async function registerRoutes(
           let total = 0;
           let skillQuestions: any[] = [];
 
-          // SAVOLLARNI TO'G'RI YIG'ISH (Parts/Passages ichidan)
-          if (skill === 'listening' && content.listening?.parts) {
-            content.listening.parts.forEach((p: any) => skillQuestions.push(...(p.questions || [])));
-          } else if (skill === 'reading' && content.reading?.passages) {
-            content.reading.passages.forEach((p: any) => skillQuestions.push(...(p.questions || [])));
+          // Savollarni massiv ichidan qidirish (Tuzatildi: sections yoki parts bo'lishi mumkin)
+          const skillContent = content[skill];
+          if (skillContent) {
+            const containers = skillContent.sections || skillContent.parts || skillContent.passages || [];
+            containers.forEach((container: any) => {
+              if (container.questions) skillQuestions.push(...container.questions);
+            });
           }
 
           skillQuestions.forEach((q: any) => {

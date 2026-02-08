@@ -13,7 +13,26 @@ import {
   TabsContent 
 } from "@/components/ui-kit";
 import { useExams, useCreateExam, useUpdateExam } from "@/hooks/use-exams";
-import * as lucideReact from "lucide-react";
+import { 
+  X, 
+  Upload, 
+  Loader2, 
+  Play, 
+  Trash2, 
+  CheckCircle2, 
+  Plus, 
+  Layers, 
+  Clock, 
+  Headset, 
+  BookOpen, 
+  PenTool,
+  Type,
+  CheckSquare,
+  List,
+  AlignLeft,
+  Image as ImageIcon,
+  MoreHorizontal
+} from "lucide-react";
 
 // --- INTERFACES ---
 interface Question {
@@ -40,15 +59,17 @@ interface Passage {
 }
 
 const QUESTION_TYPES = [
-  { value: 'gap_fill', label: 'Sentence/Summary Completion (Gap Fill)', icon: lucideReact.Type },
-  { value: 'mcq', label: 'Multiple Choice (A, B, C...)', icon: lucideReact.CheckSquare },
-  { value: 'tfng', label: 'True / False / Not Given', icon: lucideReact.CheckCircle2 },
-  { value: 'ynng', label: 'Yes / No / Not Given', icon: lucideReact.CheckCircle2 },
-  { value: 'matching_headings', label: 'Matching Headings (i, ii, iii...)', icon: lucideReact.List },
-  { value: 'matching_features', label: 'Matching Features (Names, Dates...)', icon: lucideReact.AlignLeft },
-  { value: 'diagram', label: 'Diagram/Map Labeling', icon: lucideReact.Image },
-  { value: 'short_answer', label: 'Short Answer Questions', icon: lucideReact.MoreHorizontal },
+  { value: 'gap_fill', label: 'Sentence/Summary Completion (Gap Fill)', icon: Type },
+  { value: 'mcq', label: 'Multiple Choice (A, B, C...)', icon: CheckSquare },
+  { value: 'tfng', label: 'True / False / Not Given', icon: CheckCircle2 },
+  { value: 'ynng', label: 'Yes / No / Not Given', icon: CheckCircle2 },
+  { value: 'matching_headings', label: 'Matching Headings (i, ii, iii...)', icon: List },
+  { value: 'matching_features', label: 'Matching Features (Names, Dates...)', icon: AlignLeft },
+  { value: 'diagram', label: 'Diagram/Map Labeling', icon: ImageIcon },
+  { value: 'short_answer', label: 'Short Answer Questions', icon: MoreHorizontal },
 ];
+
+// --- EXTERNAL HELPER COMPONENTS ---
 
 const Modal = ({ open, onOpenChange, children }: any) => {
   if (!open) return null;
@@ -56,7 +77,7 @@ const Modal = ({ open, onOpenChange, children }: any) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl my-8 p-8 relative max-h-[90vh] overflow-y-auto">
         <button onClick={() => onOpenChange(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors z-10">
-          <lucideReact.X size={24} />
+          <X size={24} />
         </button>
         {children}
       </div>
@@ -66,7 +87,7 @@ const Modal = ({ open, onOpenChange, children }: any) => {
 
 const FileUploader = ({ onUpload, accept, isLoading }: { onUpload: (file: File) => void, accept: string, isLoading?: boolean }) => {
   return (
-    <div className="relative group">
+    <div className="relative group h-full w-full">
         <input 
           type="file" 
           accept={accept} 
@@ -78,16 +99,156 @@ const FileUploader = ({ onUpload, accept, isLoading }: { onUpload: (file: File) 
           }}
         />
         <div className="bg-slate-100 hover:bg-blue-50 border-2 border-slate-200 hover:border-blue-200 text-slate-500 hover:text-blue-600 transition-all h-full min-h-[56px] min-w-[56px] rounded-2xl flex items-center justify-center shadow-sm">
-           {isLoading ? <lucideReact.Loader2 className="animate-spin" size={20}/> : <lucideReact.Upload size={20} />}
+           {isLoading ? <Loader2 className="animate-spin" size={20}/> : <Upload size={20} />}
         </div>
     </div>
   );
 };
 
+const AudioPreview = ({ url }: { url: string }) => (
+    <div className="mt-4 p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-center gap-4">
+      <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+        <Play size={20} fill="currentColor" />
+      </div>
+      <div className="flex-1">
+        <p className="text-[10px] font-black text-blue-600 uppercase mb-1">Live Audio Preview</p>
+        {url ? (
+          <audio controls key={url} className="h-8 w-full shadow-sm">
+            <source src={url} type="audio/mpeg" />
+            Browseringiz audioni qo'llab-quvvatlamaydi.
+          </audio>
+        ) : (
+          <p className="text-xs text-slate-400 italic">No audio file uploaded</p>
+        )}
+      </div>
+    </div>
+);
+
+const QuestionItem = ({ q, idx, onUpdate, onRemove, isUploading, handleFileUpload }: any) => {
+    const handleTypeChange = (newType: string) => {
+      let dI = ""; let dO: string[] = [];
+      switch(newType) {
+        case 'tfng': dI = "Do the following statements agree..."; dO = ["TRUE", "FALSE", "NOT GIVEN"]; break;
+        case 'ynng': dI = "Do the following statements agree..."; dO = ["YES", "NO", "NOT GIVEN"]; break;
+        case 'mcq': dI = "Choose the correct letter..."; dO = ["", "", "", ""]; break;
+        case 'matching_headings': dI = "Choose the correct heading..."; break;
+        case 'gap_fill': dI = "Complete the sentences below..."; break;
+        case 'diagram': dI = "Label the map/diagram below..."; break;
+        default: dI = q.instruction;
+      }
+      onUpdate('type', newType); 
+      onUpdate('instruction', dI);
+      if (dO.length > 0) onUpdate('options', dO);
+    };
+
+    return (
+      <div className="group p-5 border border-slate-200 rounded-2xl bg-slate-50/50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all space-y-4 mb-4 relative">
+        <div className="flex justify-between items-start gap-4">
+          <div className="flex flex-col gap-2 w-full">
+            <div className="flex items-center gap-3">
+              <Badge className="bg-slate-900 h-6 w-6 flex items-center justify-center p-0 rounded-full text-[10px]">{idx + 1}</Badge>
+              <select className="flex-1 text-xs font-black uppercase tracking-widest bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none text-blue-600 cursor-pointer" value={q.type} onChange={(e) => handleTypeChange(e.target.value)}>
+                {QUESTION_TYPES.map(type => <option key={type.value} value={type.value}>{type.label}</option>)}
+              </select>
+            </div>
+            <Input 
+              placeholder="Instruction..." 
+              value={q.instruction} 
+              onChange={e => onUpdate('instruction', e.target.value)} 
+              className="text-[11px] italic text-slate-500 bg-transparent border-none px-0 h-auto focus-visible:ring-0" 
+            />
+          </div>
+          <Button type="button" variant="ghost" size="sm" onClick={onRemove} className="text-slate-300 hover:text-red-500 rounded-lg -mr-2"><Trash2 size={16}/></Button>
+        </div>
+
+        {q.type === 'matching_headings' && (
+          <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 space-y-3">
+            <Label className="text-[10px] font-black text-amber-600 uppercase">List of Headings</Label>
+            {(q.headingList || [""]).map((h: string, hIdx: number) => (
+              <div key={hIdx} className="flex gap-2">
+                <span className="text-xs font-bold text-amber-500 pt-2 w-6">{hIdx + 1}.</span>
+                <Input 
+                  value={h} 
+                  onChange={e => { const newList = [...(q.headingList || [])]; newList[hIdx] = e.target.value; onUpdate('headingList', newList); }} 
+                  placeholder="Heading text..." 
+                  className="h-9 bg-white" 
+                />
+              </div>
+            ))}
+            <Button type="button" size="sm" variant="outline" onClick={() => onUpdate('headingList', [...(q.headingList || []), ""])} className="w-full text-[10px] font-bold border-amber-200 text-amber-600">+ Add Heading</Button>
+          </div>
+        )}
+
+        {q.type === 'diagram' && (
+          <div className="space-y-2">
+            <Label className="text-[10px] uppercase text-slate-400 font-bold">Map / Diagram Image</Label>
+            <div className="flex gap-2 items-center">
+                <Input placeholder="URL or Upload..." value={q.imageUrl || ""} onChange={e => onUpdate('imageUrl', e.target.value)} className="bg-white flex-1" />
+                <div className="w-10 h-10">
+                    <FileUploader accept="image/*" onUpload={async (file) => { const url = await handleFileUpload(file, 'image'); onUpdate('imageUrl', url); }} isLoading={isUploading} />
+                </div>
+            </div>
+            {q.imageUrl && <img src={q.imageUrl} className="h-20 rounded-lg object-cover border" alt="Preview" />}
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {q.type === 'matching_headings' ? (
+              <div className="flex gap-2 items-center">
+                <Badge variant="outline" className="bg-slate-100">Paragraph</Badge>
+                <Input 
+                  placeholder="e.g. Paragraph A" 
+                  value={q.text} 
+                  onChange={e => onUpdate('text', e.target.value)} 
+                  className="font-bold bg-white" 
+                />
+              </div>
+          ) : (
+            <Textarea 
+              placeholder="Question Text..." 
+              value={q.text} 
+              onChange={e => onUpdate('text', e.target.value)} 
+              className="font-medium bg-white min-h-[60px] text-sm" 
+            />
+          )}
+        </div>
+
+        {q.type === 'mcq' && (
+          <div className="space-y-2 pl-4 border-l-4 border-blue-100">
+            {q.options.map((opt: string, oIdx: number) => (
+              <div key={oIdx} className="flex items-center gap-3">
+                <span className="bg-slate-100 w-6 h-6 flex items-center justify-center rounded text-[10px] font-black">{String.fromCharCode(65 + oIdx)}</span>
+                <Input 
+                  value={opt} 
+                  onChange={e => { const newOpts = [...q.options]; newOpts[oIdx] = e.target.value; onUpdate('options', newOpts); }} 
+                  className="h-9 text-sm bg-white" 
+                />
+              </div>
+            ))}
+            <Button type="button" variant="outline" size="sm" onClick={() => onUpdate('options', [...q.options, ""])} className="text-xs h-7">+ Option</Button>
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 bg-emerald-50/80 px-4 py-3 rounded-xl border border-emerald-100/50">
+          <CheckCircle2 size={16} className="text-emerald-500" />
+          <Input 
+            className="h-8 border-none bg-transparent font-black text-emerald-700 focus-visible:ring-0 text-sm" 
+            placeholder="Correct Answer" 
+            value={q.answer} 
+            onChange={e => onUpdate('answer', e.target.value)} 
+          />
+        </div>
+      </div>
+    );
+};
+
+// --- MAIN COMPONENT ---
+
 export default function AdminExams() {
   const { data: exams, isLoading } = useExams();
   const createExam = useCreateExam();
   const updateExam = useUpdateExam();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExamId, setEditingExamId] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -144,6 +305,19 @@ export default function AdminExams() {
     }
   };
 
+  const resetForm = () => {
+    setEditingExamId(null);
+    setTitle("");
+    setListeningTime("40");
+    setReadingTime("60");
+    setWritingTime("60");
+    setListeningReviewTime("10");
+    setPassages([{ id: Date.now(), title: "Passage 1", content: "", questions: [] }]);
+    setListeningParts([{ id: 1, questions: [] }, { id: 2, questions: [] }, { id: 3, questions: [] }, { id: 4, questions: [] }]);
+    setAudioUrl("");
+    setWritingTasks([{ type: "task1", content: "", image: "", wordLimit: "150" }, { type: "task2", content: "", wordLimit: "250" }]);
+  };
+
   const handleEdit = (exam: any) => {
     setEditingExamId(exam.id);
     setTitle(exam.title);
@@ -193,7 +367,6 @@ export default function AdminExams() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    // SAFE PARSING TO PREVENT NaN
     const lTime = parseInt(listeningTime) || 0;
     const rTime = parseInt(readingTime) || 0;
     const wTime = parseInt(writingTime) || 0;
@@ -225,155 +398,6 @@ export default function AdminExams() {
     }
   };
 
-  const resetForm = () => {
-    setEditingExamId(null);
-    setTitle("");
-    setListeningTime("40");
-    setReadingTime("60");
-    setWritingTime("60");
-    setListeningReviewTime("10");
-    setPassages([{ id: Date.now(), title: "Passage 1", content: "", questions: [] }]);
-    setListeningParts([{ id: 1, questions: [] }, { id: 2, questions: [] }, { id: 3, questions: [] }, { id: 4, questions: [] }]);
-    setAudioUrl("");
-    setWritingTasks([{ type: "task1", content: "", image: "", wordLimit: "150" }, { type: "task2", content: "", wordLimit: "250" }]);
-  };
-
-  const AudioPreview = ({ url }: { url: string }) => (
-    <div className="mt-4 p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-center gap-4">
-      <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg">
-        <lucideReact.Play size={20} fill="currentColor" />
-      </div>
-      <div className="flex-1">
-        <p className="text-[10px] font-black text-blue-600 uppercase mb-1">Live Audio Preview</p>
-        {url ? (
-          <audio controls key={url} className="h-8 w-full shadow-sm">
-            <source src={url} type="audio/mpeg" />
-            Browseringiz audioni qo'llab-quvvatlamaydi.
-          </audio>
-        ) : (
-          <p className="text-xs text-slate-400 italic">No audio file uploaded</p>
-        )}
-      </div>
-    </div>
-  );
-
-  const QuestionItem = ({ q, idx, onUpdate, onRemove }: { q: Question, idx: number, onUpdate: any, onRemove: any }) => {
-    const handleTypeChange = (newType: string) => {
-      let dI = ""; let dO: string[] = [];
-      switch(newType) {
-        case 'tfng': dI = "Do the following statements agree..."; dO = ["TRUE", "FALSE", "NOT GIVEN"]; break;
-        case 'ynng': dI = "Do the following statements agree..."; dO = ["YES", "NO", "NOT GIVEN"]; break;
-        case 'mcq': dI = "Choose the correct letter..."; dO = ["", "", "", ""]; break;
-        case 'matching_headings': dI = "Choose the correct heading..."; break;
-        case 'gap_fill': dI = "Complete the sentences below..."; break;
-        case 'diagram': dI = "Label the map/diagram below..."; break;
-        default: dI = q.instruction;
-      }
-      onUpdate('type', newType); onUpdate('instruction', dI);
-      if (dO.length > 0) onUpdate('options', dO);
-    };
-
-    return (
-      <div className="group p-5 border border-slate-200 rounded-2xl bg-slate-50/50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all space-y-4 mb-4 relative">
-        <div className="flex justify-between items-start gap-4">
-          <div className="flex flex-col gap-2 w-full">
-            <div className="flex items-center gap-3">
-              <Badge className="bg-slate-900 h-6 w-6 flex items-center justify-center p-0 rounded-full text-[10px]">{idx + 1}</Badge>
-              <select className="flex-1 text-xs font-black uppercase tracking-widest bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none text-blue-600 cursor-pointer" value={q.type} onChange={(e) => handleTypeChange(e.target.value)}>
-                {QUESTION_TYPES.map(type => <option key={type.value} value={type.value}>{type.label}</option>)}
-              </select>
-            </div>
-            <Input 
-              placeholder="Instruction..." 
-              value={q.instruction} 
-              onChange={e => onUpdate('instruction', e.target.value)} 
-              className="text-[11px] italic text-slate-500 bg-transparent border-none px-0 h-auto focus-visible:ring-0" 
-            />
-          </div>
-          <Button type="button" variant="ghost" size="sm" onClick={onRemove} className="text-slate-300 hover:text-red-500 rounded-lg -mr-2"><lucideReact.Trash2 size={16}/></Button>
-        </div>
-
-        {q.type === 'matching_headings' && (
-          <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 space-y-3">
-            <Label className="text-[10px] font-black text-amber-600 uppercase">List of Headings</Label>
-            {(q.headingList || [""]).map((h, hIdx) => (
-              <div key={hIdx} className="flex gap-2">
-                <span className="text-xs font-bold text-amber-500 pt-2 w-6">{hIdx + 1}.</span>
-                <Input 
-                  value={h} 
-                  onChange={e => { const newList = [...(q.headingList || [])]; newList[hIdx] = e.target.value; onUpdate('headingList', newList); }} 
-                  placeholder="Heading text..." 
-                  className="h-9 bg-white" 
-                />
-              </div>
-            ))}
-            <Button type="button" size="sm" variant="outline" onClick={() => onUpdate('headingList', [...(q.headingList || []), ""])} className="w-full text-[10px] font-bold border-amber-200 text-amber-600">+ Add Heading</Button>
-          </div>
-        )}
-
-        {q.type === 'diagram' && (
-          <div className="space-y-2">
-            <Label className="text-[10px] uppercase text-slate-400 font-bold">Map / Diagram Image</Label>
-            <div className="flex gap-2 items-center">
-                <Input placeholder="URL or Upload..." value={q.imageUrl || ""} onChange={e => onUpdate('imageUrl', e.target.value)} className="bg-white flex-1" />
-                <div className="w-10 h-10">
-                    <FileUploader accept="image/*" onUpload={async (file) => { const url = await handleFileUpload(file, 'image'); onUpdate('imageUrl', url); }} isLoading={isUploading} />
-                </div>
-            </div>
-            {q.imageUrl && <img src={q.imageUrl} className="h-20 rounded-lg object-cover border" alt="Preview" />}
-          </div>
-        )}
-
-        <div className="space-y-3">
-          {q.type === 'matching_headings' ? (
-              <div className="flex gap-2 items-center">
-                <Badge variant="outline" className="bg-slate-100">Paragraph</Badge>
-                <Input 
-                  placeholder="e.g. Paragraph A" 
-                  value={q.text} 
-                  onChange={e => onUpdate('text', e.target.value)} 
-                  className="font-bold bg-white" 
-                />
-              </div>
-          ) : (
-            <Textarea 
-              placeholder="Question Text..." 
-              value={q.text} 
-              onChange={e => onUpdate('text', e.target.value)} 
-              className="font-medium bg-white min-h-[60px] text-sm" 
-            />
-          )}
-        </div>
-
-        {q.type === 'mcq' && (
-          <div className="space-y-2 pl-4 border-l-4 border-blue-100">
-            {q.options.map((opt, oIdx) => (
-              <div key={oIdx} className="flex items-center gap-3">
-                <span className="bg-slate-100 w-6 h-6 flex items-center justify-center rounded text-[10px] font-black">{String.fromCharCode(65 + oIdx)}</span>
-                <Input 
-                  value={opt} 
-                  onChange={e => { const newOpts = [...q.options]; newOpts[oIdx] = e.target.value; onUpdate('options', newOpts); }} 
-                  className="h-9 text-sm bg-white" 
-                />
-              </div>
-            ))}
-            <Button type="button" variant="outline" size="sm" onClick={() => onUpdate('options', [...q.options, ""])} className="text-xs h-7">+ Option</Button>
-          </div>
-        )}
-
-        <div className="flex items-center gap-3 bg-emerald-50/80 px-4 py-3 rounded-xl border border-emerald-100/50">
-          <lucideReact.CheckCircle2 size={16} className="text-emerald-500" />
-          <Input 
-            className="h-8 border-none bg-transparent font-black text-emerald-700 focus-visible:ring-0 text-sm" 
-            placeholder="Correct Answer" 
-            value={q.answer} 
-            onChange={e => onUpdate('answer', e.target.value)} 
-          />
-        </div>
-      </div>
-    );
-  };
-
   return (
     <AdminLayout>
       <div className="flex justify-between items-center mb-10">
@@ -382,17 +406,17 @@ export default function AdminExams() {
           <p className="text-slate-500 font-medium mt-1">Professional IELTS Test Builder</p>
         </div>
         <Button onClick={() => { resetForm(); setIsModalOpen(true); }} className="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl px-8 h-14 font-black shadow-xl transition-all">
-          <lucideReact.Plus className="mr-2" size={20} /> Create New Exam
+          <Plus className="mr-2" size={20} /> Create New Exam
         </Button>
       </div>
 
       <Card className="border-none shadow-2xl shadow-slate-200/60 rounded-[2rem] overflow-hidden bg-white">
         <div className="p-8 border-b bg-slate-50/50 flex items-center justify-between">
-          <h3 className="font-black text-slate-800 flex items-center gap-3 uppercase tracking-widest text-sm"><lucideReact.Layers size={20} className="text-blue-600"/> Current Exam Library</h3>
+          <h3 className="font-black text-slate-800 flex items-center gap-3 uppercase tracking-widest text-sm"><Layers size={20} className="text-blue-600"/> Current Exam Library</h3>
           <Badge className="bg-white text-slate-900 border-slate-200 px-4 py-1.5 rounded-full shadow-sm">{exams?.length || 0} Total</Badge>
         </div>
         <div className="p-0 overflow-x-auto">
-          {isLoading ? <div className="p-20 text-center"><lucideReact.Loader2 className="animate-spin mx-auto text-slate-300" size={40}/></div> : (
+          {isLoading ? <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-slate-300" size={40}/></div> : (
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-100">
@@ -443,7 +467,7 @@ export default function AdminExams() {
                 { label: 'L-Review', val: listeningReviewTime, set: setListeningReviewTime },
               ].map(t => (
                 <div key={t.label} className="space-y-2">
-                  <Label className="text-[9px] font-black uppercase text-slate-500 flex items-center justify-center gap-1"><lucideReact.Clock size={10}/> {t.label}</Label>
+                  <Label className="text-[9px] font-black uppercase text-slate-500 flex items-center justify-center gap-1"><Clock size={10}/> {t.label}</Label>
                   <input type="number" value={t.val} onChange={(e: any) => t.set(e.target.value)} className="w-full bg-white/10 border-none rounded-xl h-10 text-white font-black text-center text-lg focus:ring-2 ring-blue-500 outline-none" />
                 </div>
               ))}
@@ -452,9 +476,9 @@ export default function AdminExams() {
 
           <Tabs defaultValue="reading" className="w-full">
             <TabsList className="inline-flex p-1.5 bg-slate-100 rounded-[1.5rem] mb-10 border border-slate-200/50">
-              <TabsTrigger value="listening" className="px-10 py-3.5 rounded-2xl data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xl font-black flex gap-3"><lucideReact.Headset size={20}/> Listening</TabsTrigger>
-              <TabsTrigger value="reading" className="px-10 py-3.5 rounded-2xl data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xl font-black flex gap-3"><lucideReact.BookOpen size={20}/> Reading</TabsTrigger>
-              <TabsTrigger value="writing" className="px-10 py-3.5 rounded-2xl data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xl font-black flex gap-3"><lucideReact.PenTool size={20}/> Writing</TabsTrigger>
+              <TabsTrigger value="listening" className="px-10 py-3.5 rounded-2xl data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xl font-black flex gap-3"><Headset size={20}/> Listening</TabsTrigger>
+              <TabsTrigger value="reading" className="px-10 py-3.5 rounded-2xl data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xl font-black flex gap-3"><BookOpen size={20}/> Reading</TabsTrigger>
+              <TabsTrigger value="writing" className="px-10 py-3.5 rounded-2xl data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xl font-black flex gap-3"><PenTool size={20}/> Writing</TabsTrigger>
             </TabsList>
 
             <TabsContent value="listening" className="space-y-10">
@@ -472,11 +496,19 @@ export default function AdminExams() {
                 </div>
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                  {listeningParts.map((part, pIdx) => (
-                   <div key={pIdx} className="p-8 bg-white border border-slate-100 shadow-xl rounded-[2.5rem] space-y-6">
+                   <div key={part.id || pIdx} className="p-8 bg-white border border-slate-100 shadow-xl rounded-[2.5rem] space-y-6">
                      <div className="flex justify-between items-center"><Badge className="bg-slate-900 px-4 py-1.5 rounded-lg">Part {pIdx + 1}</Badge><Button type="button" onClick={() => addQuestionGroup('listening', pIdx)} className="rounded-xl bg-blue-600">+ Question</Button></div>
                      <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
                        {part.questions.map((q, qIdx) => (
-                         <QuestionItem key={q.id} q={q} idx={qIdx} onUpdate={(k: string, v: any) => { const n = [...listeningParts]; (n[pIdx].questions[qIdx] as any)[k] = v; setListeningParts(n); }} onRemove={() => { const n = [...listeningParts]; n[pIdx].questions.splice(qIdx, 1); setListeningParts(n); }} />
+                         <QuestionItem 
+                           key={q.id} 
+                           q={q} 
+                           idx={qIdx} 
+                           isUploading={isUploading}
+                           handleFileUpload={handleFileUpload}
+                           onUpdate={(k: string, v: any) => { const n = [...listeningParts]; (n[pIdx].questions[qIdx] as any)[k] = v; setListeningParts(n); }} 
+                           onRemove={() => { const n = [...listeningParts]; n[pIdx].questions.splice(qIdx, 1); setListeningParts(n); }} 
+                         />
                        ))}
                      </div>
                    </div>
@@ -505,7 +537,15 @@ export default function AdminExams() {
                     <div className="flex justify-between items-center"><h4 className="font-black text-xs uppercase text-slate-400">Questions</h4><Button type="button" variant="outline" onClick={() => addQuestionGroup('reading', pIdx)} className="rounded-xl bg-white border-2">+ Question</Button></div>
                     <div className="overflow-y-auto pr-4 space-y-2 flex-1">
                       {psg.questions.map((q, qIdx) => (
-                        <QuestionItem key={q.id} q={q} idx={qIdx} onUpdate={(k: string, v: any) => { const n = [...passages]; (n[pIdx].questions[qIdx] as any)[k] = v; setPassages(n); }} onRemove={() => { const n = [...passages]; n[pIdx].questions.splice(qIdx, 1); setPassages(n); }} />
+                        <QuestionItem 
+                           key={q.id} 
+                           q={q} 
+                           idx={qIdx} 
+                           isUploading={isUploading}
+                           handleFileUpload={handleFileUpload}
+                           onUpdate={(k: string, v: any) => { const n = [...passages]; (n[pIdx].questions[qIdx] as any)[k] = v; setPassages(n); }} 
+                           onRemove={() => { const n = [...passages]; n[pIdx].questions.splice(qIdx, 1); setPassages(n); }} 
+                        />
                       ))}
                     </div>
                   </div>
@@ -542,7 +582,7 @@ export default function AdminExams() {
           <div className="flex justify-end items-center gap-6 pt-10 border-t-2 border-slate-100">
              <Button type="button" variant="ghost" className="font-black text-slate-400" onClick={() => { setIsModalOpen(false); resetForm(); }}>Discard</Button>
              <Button type="submit" className="bg-blue-600 h-16 px-16 rounded-[1.5rem] font-black text-xl shadow-2xl" disabled={createExam.isPending || updateExam.isPending}>
-               {createExam.isPending || updateExam.isPending ? <lucideReact.Loader2 className="animate-spin" /> : (editingExamId ? 'UPDATE EXAM' : 'PUBLISH EXAM')}
+                {createExam.isPending || updateExam.isPending ? <Loader2 className="animate-spin" /> : (editingExamId ? 'UPDATE EXAM' : 'PUBLISH EXAM')}
              </Button>
           </div>
         </form>
