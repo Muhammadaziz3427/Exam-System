@@ -10,7 +10,7 @@ interface ListeningComponentProps {
   audioUrl: string;
   onSectionComplete: () => void;
   examContent?: any; 
-  content?: any; // TypeScript xatosini yo'qotish uchun qo'shildi
+  content?: any; 
   answers: any;
   setAnswers: (answers: any) => void;
 }
@@ -19,21 +19,19 @@ export function ListeningComponent({
   audioUrl, 
   onSectionComplete, 
   examContent, 
-  content, // 'content' propini ham qabul qilamiz
+  content, 
   answers, 
   setAnswers 
 }: ListeningComponentProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [progress, setProgress] = useState(0);
   const [isTransferring, setIsTransferring] = useState(false);
-  const [transferTimeLeft, setTransferTimeLeft] = useState(120); // 2 minut transfer vaqti
+  const [transferTimeLeft, setTransferTimeLeft] = useState(120); 
   const [error, setError] = useState<string | null>(null);
   const [reviewFlags, setReviewFlags] = useState<Record<string, boolean>>({});
 
-  // Agar 'content' uzatilgan bo'lsa uni ishlatamiz, aks holda 'examContent'
   const activeContent = content || examContent;
 
-  // Audio yo'lini tekshirish
   const fullAudioPath = audioUrl?.startsWith('http') 
     ? audioUrl 
     : audioUrl?.startsWith('/uploads/') 
@@ -44,7 +42,6 @@ export function ListeningComponent({
     const audio = audioRef.current;
     if (!audio || !audioUrl) return;
 
-    // 3 soniyadan keyin avtomatik ijro etishga harakat qiladi
     const timer = setTimeout(() => {
         audio.play().catch(() => console.log("Auto-play blocked, waiting for interaction"));
     }, 3000);
@@ -98,9 +95,11 @@ export function ListeningComponent({
     }
   }, [isTransferring, onSectionComplete]);
 
+  // Listening savollari kolleksiyasini aniqlash (parts yoki sections)
+  const collections = activeContent?.parts || activeContent?.sections || [];
+
   return (
     <div className="h-full flex flex-col bg-white">
-      {/* Audio Player qismi */}
       <div className="w-full bg-slate-50 border-b p-4 z-10">
         <Card className="max-w-4xl mx-auto p-4 bg-slate-900 text-white border-none shadow-lg">
           <div className="flex items-center justify-between mb-4">
@@ -135,7 +134,6 @@ export function ListeningComponent({
         </Card>
       </div>
 
-      {/* Savollar qismi */}
       <ScrollArea className="flex-1">
         <div className="max-w-3xl mx-auto p-8 pb-24">
           {error && (
@@ -145,9 +143,9 @@ export function ListeningComponent({
           )}
 
           <div className="space-y-12">
-            {/* Listening savollarini render qilish */}
-            {activeContent?.sections?.map((section: any, sIdx: number) => {
-              const questionsBefore = activeContent.sections
+            {collections.map((section: any, sIdx: number) => {
+              // Oldingi bo'limlardagi jami savollar sonini hisoblash
+              const questionsBefore = collections
                 .slice(0, sIdx)
                 .reduce((acc: number, s: any) => acc + (s.questions?.length || 0), 0);
 
@@ -155,12 +153,11 @@ export function ListeningComponent({
                 <div key={`l-sec-${sIdx}`} className="space-y-6">
                   <div className="border-l-4 border-blue-500 pl-4 py-1 bg-blue-50/50 rounded-r-lg">
                     <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">
-                      Section {sIdx + 1}
+                      Part {section.id || sIdx + 1}
                     </h3>
                     <p className="text-sm text-slate-500">Answer the questions based on the audio clip.</p>
                   </div>
 
-                  {/* Section rasmi bo'lsa ko'rsatish */}
                   {section.image && (
                     <div className="my-4">
                       <img 
@@ -189,8 +186,15 @@ export function ListeningComponent({
                           <div className="flex-1 space-y-3">
                             <p className="text-slate-700 font-medium leading-relaxed">{q.text}</p>
 
-                            {q.image && (
-                              <img src={q.image} alt="" className="w-full max-w-md rounded border mb-2" />
+                            {/* Ko'rsatma (Instruction) mavjud bo'lsa */}
+                            {q.instruction && (
+                              <p className="text-xs font-semibold text-blue-600 italic">
+                                {q.instruction}
+                              </p>
+                            )}
+
+                            {(q.imageUrl || q.image) && (
+                              <img src={q.imageUrl || q.image} alt="" className="w-full max-w-md rounded border mb-2" />
                             )}
 
                             <Input 

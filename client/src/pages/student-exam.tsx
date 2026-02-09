@@ -97,37 +97,27 @@ export default function StudentExam() {
     setTimeLeft(minutes * 60);
   };
 
-  // --- NATIJALARNI KO'RSATMAYDIGAN FINAL SUBMIT ---
   const handleFinalSubmit = async (autoSubmit: boolean = false) => {
     try {
       if (autoSubmit) {
         toast({ title: "Time is up", description: "System is automatically submitting your work..." });
       }
-
-      // 1. Javoblarni yuborish
       await submitAnswers.mutateAsync({ 
         id: sessionId, 
         answers, 
         email, 
         isFinal: true, 
-        status: "submitted" // Status submitted bo'ladi, graded emas
+        status: "submitted" 
       });
-
-      // 2. Fullscreen rejimini yopish
       if (document.fullscreenElement) {
         document.exitFullscreen().catch(() => {});
       }
-
-      // 3. Muvaffaqiyatli yakunlash xabari (Natija ko'rsatilmaydi)
       toast({ 
         title: "Test Successfully Completed", 
         description: "Your responses have been recorded. Results will be sent to your email after evaluation." 
       });
-
-      // 4. DARXOL Bosh sahifaga yo'naltirish
       setHasStarted(false); 
       setLocation("/"); 
-
     } catch (err) {
       toast({ title: "Submission Error", description: "There was a problem saving your answers. Please try again.", variant: "destructive" });
     }
@@ -197,7 +187,6 @@ export default function StudentExam() {
       const session = await startSession.mutateAsync(sessionId);
       const examRes = await fetch(buildUrl(api.exams.get.path, { id: session.examId }));
       const exam = await examRes.json();
-
       setExamContent(exam.content);
       setupSectionTimer('listening', exam.content);
       setHasStarted(true);
@@ -215,7 +204,6 @@ export default function StudentExam() {
           </div>
           <h1 className="text-2xl font-black text-slate-900 mb-1">IELTS Mock Test</h1>
           <p className="text-slate-500 mb-6 text-sm">Security monitor is active. Camera access required.</p>
-
           {!cameraReady ? (
             <div className="space-y-4">
               <div className="aspect-video bg-slate-100 rounded-2xl flex items-center justify-center border-2 border-dashed border-slate-300">
@@ -230,20 +218,12 @@ export default function StudentExam() {
               <div className="aspect-video bg-black rounded-2xl overflow-hidden border-2 border-blue-500 shadow-lg">
                 <video key="setup-video" ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
               </div>
-              <Input 
-                placeholder="Candidate Email Address" 
-                className="h-12 text-center text-lg rounded-xl border-2" 
-                value={email} 
-                onChange={(e) => setEmail(e.target.value)} 
-              />
+              <Input placeholder="Candidate Email Address" className="h-12 text-center text-lg rounded-xl border-2" value={email} onChange={(e) => setEmail(e.target.value)} />
               <Button className="w-full h-14 text-lg font-bold bg-[#2c3e50]" onClick={startExamFlow} disabled={!email.includes("@")}>
                 Begin Assessment
               </Button>
             </div>
           )}
-          <footer className="mt-8 text-[10px] text-slate-400 font-medium">
-            Authorized IELTS Mock Platform | Managed by Instructor
-          </footer>
         </div>
       </div>
     );
@@ -262,14 +242,12 @@ export default function StudentExam() {
             {currentSection}
           </div>
         </div>
-
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1 bg-black/20 p-1 rounded-md border border-white/10">
             <button onClick={() => setZoom(Math.max(80, zoom - 10))} className="p-1 hover:bg-white/10 rounded transition-colors"><Minus size={14}/></button>
             <span className="text-[10px] font-mono w-10 text-center font-bold">{zoom}%</span>
             <button onClick={() => setZoom(Math.min(150, zoom + 10))} className="p-1 hover:bg-white/10 rounded transition-colors"><Plus size={14}/></button>
           </div>
-
           <div className={`flex items-center gap-3 px-6 py-1.5 rounded-md border ${timeLeft < 300 ? 'bg-red-500/20 border-red-500 text-red-500 animate-pulse' : 'bg-black/20 border-white/10 text-blue-400'}`}>
             <Clock size={20} />
             <span className="font-mono text-2xl font-bold tabular-nums">
@@ -277,8 +255,7 @@ export default function StudentExam() {
             </span>
           </div>
         </div>
-
-        <Button variant="destructive" size="sm" className="font-bold px-6" onClick={() => confirm("Are you sure you want to finish the test? You cannot return to your questions.") && handleFinalSubmit()}>
+        <Button variant="destructive" size="sm" className="font-bold px-6" onClick={() => confirm("Are you sure?") && handleFinalSubmit()}>
           Finish Test
         </Button>
       </header>
@@ -286,11 +263,11 @@ export default function StudentExam() {
       <main className="flex-1 overflow-hidden">
         {currentSection === 'listening' ? (
           <ListeningComponent 
-            content={examContent?.listening} // CONTENT UZATILDI
+            content={examContent?.listening} 
             audioUrl={examContent?.listening?.audioUrl}
             onSectionComplete={() => setCurrentSection('reading')} 
-            answers={answers.listening} // JAVOBLAR ULANDI
-            setAnswers={(val: any) => setAnswers({...answers, listening: val})} // SETTER ULANDI
+            answers={answers.listening} 
+            setAnswers={(val: any) => setAnswers({...answers, listening: val})} 
           />
         ) : (
           <ResizablePanelGroup direction="horizontal">
@@ -312,22 +289,14 @@ export default function StudentExam() {
                     </div>
                   )}
                 </div>
-
                 <ScrollArea className="flex-1">
                   <div className="p-12 max-w-3xl mx-auto select-text selection:bg-yellow-200" style={{ fontSize: `${zoom}%` }}>
                     {currentSection === 'reading' ? (
                       <article>
                         <h2 className="text-3xl font-black mb-8 text-slate-900 leading-tight">{examContent?.reading?.passages?.[activePassageIdx]?.title}</h2>
-
-                        {/* READING IMAGE RENDER QILISH */}
                         {examContent?.reading?.passages?.[activePassageIdx]?.image && (
-                          <img 
-                            src={examContent.reading.passages[activePassageIdx].image} 
-                            alt="Passage Visual" 
-                            className="w-full mb-6 rounded-lg border shadow-sm"
-                          />
+                          <img src={examContent.reading.passages[activePassageIdx].image} alt="Visual" className="w-full mb-6 rounded-lg border shadow-sm" />
                         )}
-
                         <div className="text-xl leading-[1.8] text-slate-800 font-serif whitespace-pre-wrap">
                           {examContent?.reading?.passages?.[activePassageIdx]?.content}
                         </div>
@@ -336,16 +305,9 @@ export default function StudentExam() {
                       <div className="space-y-8">
                           <div className="bg-blue-50 p-8 rounded-2xl border-2 border-blue-100 relative">
                             <Badge className="absolute -top-3 left-6 bg-blue-600 border-none">Writing Task {activeWritingTask + 1}</Badge>
-
-                            {/* WRITING IMAGE RENDER QILISH */}
                             {examContent?.writing?.tasks?.[activeWritingTask]?.image && (
-                              <img 
-                                src={examContent.writing.tasks[activeWritingTask].image} 
-                                alt="Task diagram" 
-                                className="w-full mb-6 rounded-lg border shadow-sm bg-white p-2" 
-                              />
+                              <img src={examContent.writing.tasks[activeWritingTask].image} alt="Task diagram" className="w-full mb-6 rounded-lg border shadow-sm bg-white p-2" />
                             )}
-
                             <p className="text-xl font-medium text-slate-800 italic leading-relaxed">
                               "{examContent?.writing?.tasks?.[activeWritingTask]?.content}"
                             </p>
@@ -356,9 +318,7 @@ export default function StudentExam() {
                 </ScrollArea>
               </div>
             </ResizablePanel>
-
             <ResizableHandle withHandle className="w-2 hover:bg-blue-500 transition-colors" />
-
             <ResizablePanel defaultSize={55} className="bg-[#f8fafc]">
               <ScrollArea className="h-full">
                 <div className="p-12 max-w-2xl mx-auto">
@@ -368,16 +328,12 @@ export default function StudentExam() {
                         const qGlobalIdx = i + 1 + (activePassageIdx * 13);
                         const qId = `q-${qGlobalIdx}`;
                         return (
-                          <div key={qId} id={`q-container-${qGlobalIdx}`} className="p-6 bg-white rounded-2xl border-2 border-slate-100 shadow-sm transition-all hover:border-blue-200 group">
+                          <div key={qId} id={`q-container-${qGlobalIdx}`} className="p-6 bg-white rounded-2xl border-2 border-slate-100 shadow-sm hover:border-blue-200 group">
                             <div className="flex gap-4">
                               <span className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm shrink-0">{qGlobalIdx}</span>
                               <div className="flex-1 space-y-4">
                                 <p className="font-bold text-slate-700">{q?.text}</p>
-                                <Input 
-                                  className="h-12 text-lg border-2 focus:border-blue-500 bg-slate-50/50" 
-                                  value={answers.reading[qId] || ""}
-                                  onChange={(e) => setAnswers({...answers, reading: {...answers.reading, [qId]: e.target.value}})}
-                                />
+                                <Input className="h-12 text-lg border-2 focus:border-blue-500 bg-slate-50/50" value={answers.reading[qId] || ""} onChange={(e) => setAnswers({...answers, reading: {...answers.reading, [qId]: e.target.value}})} />
                               </div>
                               <button onClick={() => setReviewFlags({...reviewFlags, [qId]: !reviewFlags[qId]})}>
                                 <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200 group-hover:text-slate-400"} />
@@ -391,25 +347,10 @@ export default function StudentExam() {
                     <div className="h-full flex flex-col space-y-4">
                         <div className="flex justify-between items-center mb-2">
                           <Badge className="bg-slate-900 px-4 py-1 font-mono text-sm border-none">
-                            WORDS: {
-                               activeWritingTask === 0 
-                               ? (answers.writingTask1?.trim() ? answers.writingTask1.trim().split(/\s+/).length : 0)
-                               : (answers.writingTask2?.trim() ? answers.writingTask2.trim().split(/\s+/).length : 0)
-                            }
+                            WORDS: {activeWritingTask === 0 ? (answers.writingTask1?.trim() ? answers.writingTask1.trim().split(/\s+/).length : 0) : (answers.writingTask2?.trim() ? answers.writingTask2.trim().split(/\s+/).length : 0)}
                           </Badge>
                         </div>
-                        <Textarea 
-                          className="min-h-[500px] p-10 text-xl leading-[1.8] font-serif border-2 border-slate-200 rounded-3xl focus:border-blue-600 shadow-inner bg-white resize-none"
-                          placeholder="Compose your response here..."
-                          value={activeWritingTask === 0 ? answers.writingTask1 : answers.writingTask2}
-                          onPaste={(e) => e.preventDefault()}
-                          onContextMenu={(e) => e.preventDefault()}
-                          spellCheck={false}
-                          onChange={(e) => {
-                            const key = activeWritingTask === 0 ? 'writingTask1' : 'writingTask2';
-                            setAnswers({...answers, [key]: e.target.value});
-                          }}
-                        />
+                        <Textarea className="min-h-[500px] p-10 text-xl leading-[1.8] font-serif border-2 border-slate-200 rounded-3xl focus:border-blue-600 shadow-inner bg-white resize-none" value={activeWritingTask === 0 ? answers.writingTask1 : answers.writingTask2} spellCheck={false} onChange={(e) => setAnswers({...answers, [activeWritingTask === 0 ? 'writingTask1' : 'writingTask2']: e.target.value})} />
                     </div>
                   )}
                 </div>
@@ -425,25 +366,17 @@ export default function StudentExam() {
               <video key="footer-video" ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
           </div>
         </div>
-
         <div className="flex items-center gap-3 overflow-hidden mx-4 flex-1 justify-center">
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Navigator</span>
-          <div className="flex gap-1 overflow-x-auto no-scrollbar py-2 scroll-smooth max-w-full">
+          <div className="flex gap-1 overflow-x-auto no-scrollbar py-2 max-w-full">
             {Array.from({ length: 40 }).map((_, i) => {
               const qNum = i + 1;
               const qId = `q-${qNum}`;
               const hasAns = (currentSection === 'reading' && answers.reading?.[qId]) || 
                              (currentSection === 'listening' && answers.listening?.[qId]);
               const isFlagged = reviewFlags[qId];
-
               return (
-                <button 
-                  key={`nav-q-${i}`} 
-                  onClick={() => scrollToQuestion(qNum)} 
-                  className={`w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-[10px] font-bold border-2 relative transition-all active:scale-90 ${
-                    hasAns ? 'bg-[#2c3e50] border-[#2c3e50] text-white' : 'bg-white border-slate-100 text-slate-400'
-                  }`}
-                >
+                <button key={`nav-q-${i}`} onClick={() => scrollToQuestion(qNum)} className={`w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-[10px] font-bold border-2 relative ${hasAns ? 'bg-[#2c3e50] border-[#2c3e50] text-white' : 'bg-white border-slate-100 text-slate-400'}`}>
                   {qNum}
                   {isFlagged && <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white" />}
                 </button>
@@ -451,7 +384,6 @@ export default function StudentExam() {
             })}
           </div>
         </div>
-
         <div className="flex items-center gap-6 shrink-0">
           <div className="flex items-center gap-2 text-emerald-500 font-bold text-[10px] uppercase">
             <CheckCircle2 size={16} /> Auto-Saved
