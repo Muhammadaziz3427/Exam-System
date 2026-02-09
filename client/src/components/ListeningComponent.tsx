@@ -146,74 +146,80 @@ export function ListeningComponent({
 
           <div className="space-y-12">
             {/* Listening savollarini render qilish */}
-            {activeContent?.sections?.map((section: any, sIdx: number) => (
-              <div key={`l-sec-${sIdx}`} className="space-y-6">
-                <div className="border-l-4 border-blue-500 pl-4 py-1 bg-blue-50/50 rounded-r-lg">
-                  <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">
-                    Section {sIdx + 1}
-                  </h3>
-                  <p className="text-sm text-slate-500">Answer the questions based on the audio clip.</p>
-                </div>
+            {activeContent?.sections?.map((section: any, sIdx: number) => {
+              const questionsBefore = activeContent.sections
+                .slice(0, sIdx)
+                .reduce((acc: number, s: any) => acc + (s.questions?.length || 0), 0);
 
-                {/* Section rasmi bo'lsa ko'rsatish */}
-                {section.image && (
-                  <div className="my-4">
-                    <img 
-                      src={section.image} 
-                      alt={`Section ${sIdx + 1} diagram`} 
-                      className="max-w-full h-auto rounded-lg border shadow-sm"
-                    />
+              return (
+                <div key={`l-sec-${sIdx}`} className="space-y-6">
+                  <div className="border-l-4 border-blue-500 pl-4 py-1 bg-blue-50/50 rounded-r-lg">
+                    <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">
+                      Section {sIdx + 1}
+                    </h3>
+                    <p className="text-sm text-slate-500">Answer the questions based on the audio clip.</p>
                   </div>
-                )}
 
-                <div className="grid gap-4">
-                  {section.questions?.map((q: any, qIdx: number) => {
-                    const qGlobalIdx = (sIdx * 10) + (qIdx + 1);
-                    const qId = `q-${qGlobalIdx}`;
+                  {/* Section rasmi bo'lsa ko'rsatish */}
+                  {section.image && (
+                    <div className="my-4">
+                      <img 
+                        src={section.image} 
+                        alt={`Section ${sIdx + 1} diagram`} 
+                        className="max-w-full h-auto rounded-lg border shadow-sm"
+                      />
+                    </div>
+                  )}
 
-                    return (
-                      <div 
-                        key={qId} 
-                        id={`q-container-${qGlobalIdx}`}
-                        className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm hover:border-blue-300 transition-all flex gap-4"
-                      >
-                        <span className="w-7 h-7 rounded bg-slate-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                          {qGlobalIdx}
-                        </span>
+                  <div className="grid gap-4">
+                    {section.questions?.map((q: any, qIdx: number) => {
+                      const qGlobalIdx = questionsBefore + qIdx + 1;
+                      const qId = `q-${qGlobalIdx}`;
 
-                        <div className="flex-1 space-y-3">
-                          <p className="text-slate-700 font-medium leading-relaxed">{q.text}</p>
-
-                          {q.image && (
-                            <img src={q.image} alt="" className="w-full max-w-md rounded border mb-2" />
-                          )}
-
-                          <Input 
-                            placeholder="Write your answer..."
-                            className="h-10 border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50/30"
-                            value={answers[qId] || ""}
-                            onChange={(e) => {
-                                const newListeningAnswers = { ...answers, [qId]: e.target.value };
-                                setAnswers(newListeningAnswers);
-                            }}
-                          />
-                        </div>
-
-                        <button 
-                          onClick={() => setReviewFlags({...reviewFlags, [qId]: !reviewFlags[qId]})}
-                          className="pt-1"
+                      return (
+                        <div 
+                          key={qId} 
+                          id={`q-container-${qGlobalIdx}`}
+                          className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm hover:border-blue-300 transition-all flex gap-4"
                         >
-                          <Flag 
-                            size={16} 
-                            className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200 hover:text-slate-400"} 
-                          />
-                        </button>
-                      </div>
-                    );
-                  })}
+                          <span className="w-7 h-7 rounded bg-slate-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                            {qGlobalIdx}
+                          </span>
+
+                          <div className="flex-1 space-y-3">
+                            <p className="text-slate-700 font-medium leading-relaxed">{q.text}</p>
+
+                            {q.image && (
+                              <img src={q.image} alt="" className="w-full max-w-md rounded border mb-2" />
+                            )}
+
+                            <Input 
+                              placeholder="Write your answer..."
+                              className="h-10 border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50/30"
+                              value={answers[qId] || ""}
+                              onChange={(e) => {
+                                  const newListeningAnswers = { ...answers, [qId]: e.target.value };
+                                  setAnswers(newListeningAnswers);
+                              }}
+                            />
+                          </div>
+
+                          <button 
+                            onClick={() => setReviewFlags({...reviewFlags, [qId]: !reviewFlags[qId]})}
+                            className="pt-1"
+                          >
+                            <Flag 
+                              size={16} 
+                              className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200 hover:text-slate-400"} 
+                            />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="mt-12 text-center text-slate-400 text-xs italic border-t pt-8">

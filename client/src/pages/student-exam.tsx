@@ -283,7 +283,7 @@ export default function StudentExam() {
         </Button>
       </header>
 
-      <main className="flex-1 overflow-hidden" key={currentSection}>
+      <main className="flex-1 overflow-hidden">
         {currentSection === 'listening' ? (
           <ListeningComponent 
             content={examContent?.listening} // CONTENT UZATILDI
