@@ -158,13 +158,14 @@ export async function registerRoutes(
   // --- SESSION MANAGEMENT (MONITORING) ---
   app.post(api.sessions.create.path, async (req, res) => {
     try {
-      const { firstName, lastName, email, studentName, accessCode, password, examId } = req.body;
+      const { firstName, lastName, email, studentName, accessCode, password, examId, assignedTeacherId } = req.body;
       const existing = await storage.getSessionByCode(accessCode);
       if (existing) return res.status(400).json({ message: "Ushbu kod band" });
 
       const session = await storage.createSession({
         firstName, lastName, email, studentName,
-        accessCode, password, examId: Number(examId)
+        accessCode, password, examId: Number(examId),
+        assignedTeacherId: assignedTeacherId ? Number(assignedTeacherId) : undefined
       } as any);
       res.status(201).json(session);
     } catch (e) {

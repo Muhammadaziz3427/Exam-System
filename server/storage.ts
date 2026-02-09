@@ -241,7 +241,10 @@ export class DatabaseStorage implements IStorage {
       .where(drizzleOrm.eq(submissions.sessionId, sessionId))
       .returning();
 
-    await this.updateSessionStatus(sessionId, 'graded');
+    // Only update status if explicitly marking as graded or if results are being finalized
+    if (grading.status === 'graded') {
+      await this.updateSessionStatus(sessionId, 'graded');
+    }
     return updated;
   }
 
