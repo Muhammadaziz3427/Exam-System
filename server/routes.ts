@@ -32,24 +32,30 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
 });
 
+import { uploadToGCS } from "./gcs-service";
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
 
-  // --- STATIK PAPKA (Rasmlar brauzerda ko'rinishi uchun) ---
-  app.use("/uploads", express.static(uploadDir));
-
-  // --- FAYL YUKLASH ROUTE (Yangi qo'shildi) ---
-  app.post("/api/upload", upload.single("file"), (req, res) => {
+  // --- FAYL YUKLASH ROUTE (GCS-ga yuklash) ---
+  app.post("/api/upload", upload.single("file"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "Fayl yuklanmadi" });
       }
-      const fileUrl = `/uploads/${req.file.filename}`;
-      res.json({ url: fileUrl });
+      
+      const destination = `uploads/${Date.now()}-${req.file.originalname}`;
+      const publicUrl = await uploadToGCS(req.file.path, destination);
+      
+      // Local faylni o'chirish
+      fs.unlinkSync(req.file.path);
+      
+      res.json({ url: publicUrl });
     } catch (error) {
-      res.status(500).json({ message: "Serverda yuklash xatosi" });
+      console.error("GCS upload error:", error);
+      res.status(500).json({ message: "Serverda yuklash xatosi (GCS)" });
     }
   });
 

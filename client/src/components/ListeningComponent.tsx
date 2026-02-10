@@ -32,11 +32,7 @@ export function ListeningComponent({
 
   const activeContent = content || examContent;
 
-  const fullAudioPath = audioUrl?.startsWith('http') 
-    ? audioUrl 
-    : audioUrl?.startsWith('/uploads/') 
-      ? audioUrl 
-      : `/uploads/${audioUrl}`;
+  const fullAudioPath = audioUrl;
 
   useEffect(() => {
     const audio = audioRef.current;
