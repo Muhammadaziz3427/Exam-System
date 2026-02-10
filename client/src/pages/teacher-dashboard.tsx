@@ -10,7 +10,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Loader2, Clock, PenTool, MessageSquare, Award, CheckCircle2, User, Trash2 } from "lucide-react";
+import { 
+  Loader2, Clock, PenTool, MessageSquare, Award, 
+  CheckCircle2, User, Trash2, BookOpen, Headphones, 
+  TrendingUp, FileText, ExternalLink
+} from "lucide-react";
 import type { ExamSession, Submission } from "@shared/schema";
 
 interface WritingCriteria {
@@ -20,15 +24,49 @@ interface WritingCriteria {
   gra: number;
 }
 
+// IELTS yaxlitlash qoidasi: 6.25 -> 6.5, 6.75 -> 7.0
+const ieltsRound = (score: number) => {
+  return Math.round(score * 2) / 2;
+};
+
 export default function TeacherDashboard() {
   const { toast } = useToast();
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("waiting");
 
+  // --- DATA FETCHING ---
   const { data: sessions, isLoading: sessionsLoading } = useQuery<ExamSession[]>({
     queryKey: ["/api/sessions"],
   });
 
+  const { data: submission, isLoading: submissionLoading } = useQuery<Submission>({
+    queryKey: ["/api/sessions", selectedSessionId, "submission"],
+    enabled: !!selectedSessionId,
+  });
+
+  // --- STATE ---
+  const [wCriteria, setWCriteria] = useState<WritingCriteria>({ tr: 0, cc: 0, lr: 0, gra: 0 });
+  const [speakingScore, setSpeakingScore] = useState<number>(0);
+  const [feedback, setFeedback] = useState<string>("");
+
+  // Sync state when submission loads
+  useEffect(() => {
+    if (submission) {
+      const g = (submission.grading as any) || {};
+      const writingData = g.advancedAssessment?.writing?.task2 || {};
+
+      setWCriteria({
+        tr: writingData.taskResponse || 0,
+        cc: writingData.coherenceCohesion || 0,
+        lr: writingData.lexicalResource || 0,
+        gra: writingData.grammaticalRange || 0
+      });
+      setSpeakingScore(parseFloat(g.speaking?.score) || 0);
+      setFeedback(g.writing?.feedback || g.feedback || "");
+    }
+  }, [submission]);
+
+  // --- LOGIC ---
   const filteredSessions = useMemo(() => {
     if (!sessions) return [];
     return sessions.filter((s: any) => {
@@ -40,55 +78,29 @@ export default function TeacherDashboard() {
     });
   }, [sessions, activeTab]);
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/sessions/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
-      setSelectedSessionId(null);
-      toast({ title: "Sessiya o'chirildi" });
-    },
-  });
+  const liveOverall = useMemo(() => {
+    const wAvg = (wCriteria.tr + wCriteria.cc + wCriteria.lr + wCriteria.gra) / 4;
+    const wFinal = ieltsRound(wAvg);
+    const s = speakingScore || 0;
 
-  const handleDelete = (e: React.MouseEvent, id: number) => {
-    e.stopPropagation();
-    if (!confirm("Ushbu sessiyani butunlay o'chirib tashlamoqchimisiz?")) return;
-    deleteMutation.mutate(id);
-  };
+    const auto = (submission?.grading as any)?.autoGraded || {};
+    const lBand = ieltsRound(((auto.listening?.score || 0) / 40) * 9);
+    const rBand = ieltsRound(((auto.reading?.score || 0) / 40) * 9);
 
-  const { data: submission, isLoading: submissionLoading } = useQuery<Submission>({
-    queryKey: ["/api/sessions", selectedSessionId, "submission"],
-    enabled: !!selectedSessionId,
-  });
+    const overall = (lBand + rBand + wFinal + s) / 4;
+    return ieltsRound(overall).toFixed(1);
+  }, [wCriteria, speakingScore, submission]);
 
-  const [wCriteria, setWCriteria] = useState<WritingCriteria>({ tr: 0, cc: 0, lr: 0, gra: 0 });
-  const [speakingScore, setSpeakingScore] = useState<string>("0");
-  const [feedback, setFeedback] = useState<string>("");
-
-  useEffect(() => {
-    if (submission) {
-      const g = submission.grading as any;
-      const adv = g?.advancedAssessment?.writing?.task2 || {};
-      setWCriteria({
-        tr: adv.taskResponse || 0,
-        cc: adv.coherenceCohesion || 0,
-        lr: adv.lexicalResource || 0,
-        gra: adv.grammaticalRange || 0
-      });
-      setSpeakingScore(g?.speaking?.score?.toString() || "0");
-      setFeedback(g?.writing?.feedback || g?.feedback || "");
-    }
-  }, [submission]);
-
+  // --- MUTATIONS ---
   const gradeMutation = useMutation({
     mutationFn: async ({ id, grading, scores }: { id: number, grading: any, scores: any }) => {
       const res = await apiRequest("POST", `/api/sessions/${id}/grade`, { grading, scores });
+      if (!res.ok) throw new Error("Saqlashda xatolik yuz berdi");
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
-      toast({ title: "Muvaffaqiyatli", description: "Ballar saqlandi va hisoblandi." });
+      toast({ title: "Muvaffaqiyatli", description: "Ballar va hisobot saqlandi." });
     },
   });
 
@@ -96,21 +108,15 @@ export default function TeacherDashboard() {
     if (!selectedSessionId || !submission) return;
 
     const wAvg = (wCriteria.tr + wCriteria.cc + wCriteria.lr + wCriteria.gra) / 4;
-    const wFinal = Math.round(wAvg * 2) / 2;
-    const s = parseFloat(speakingScore) || 0;
+    const wFinal = ieltsRound(wAvg);
 
-    const currentGrading = submission.grading as any;
-    const auto = currentGrading?.autoGraded || {};
-
-    const lBand = Math.min(9, Math.max(0, ((auto.listening?.score || 0) / 40) * 9));
-    const rBand = Math.min(9, Math.max(0, ((auto.reading?.score || 0) / 40) * 9));
-
-    const overall = ((lBand + rBand + wFinal + s) / 4);
-    const overallRounded = (Math.round(overall * 2) / 2).toFixed(1);
+    const currentGrading = (submission.grading as any) || {};
+    const auto = currentGrading.autoGraded || {};
 
     const updatedGrading = {
       ...currentGrading,
       advancedAssessment: {
+        ...currentGrading.advancedAssessment,
         writing: { 
           task2: { 
             taskResponse: wCriteria.tr, 
@@ -118,12 +124,11 @@ export default function TeacherDashboard() {
             lexicalResource: wCriteria.lr, 
             grammaticalRange: wCriteria.gra 
           } 
-        },
-        speaking: { score: s }
+        }
       },
       writing: { feedback, score: wFinal },
-      speaking: { score: s },
-      feedback: feedback
+      speaking: { score: speakingScore },
+      feedback: feedback // Admin panelda ko'rinishi uchun asosiy feedback
     };
 
     gradeMutation.mutate({
@@ -131,204 +136,185 @@ export default function TeacherDashboard() {
       grading: updatedGrading,
       scores: {
         writingScore: wFinal.toString(),
-        speakingScore: s.toString(),
-        readingScore: rBand.toFixed(1),
-        listeningScore: lBand.toFixed(1),
-        overallBand: overallRounded,
+        speakingScore: speakingScore.toString(),
+        overallBand: liveOverall,
         status: 'graded'
       }
     });
   };
 
-  if (sessionsLoading) {
-    return (
-      <AdminLayout>
-        <div className="flex items-center justify-center h-[80vh]"><Loader2 className="h-10 w-10 animate-spin text-blue-600" /></div>
-      </AdminLayout>
-    );
-  }
-
-  const selectedSession = sessions?.find(s => s.id === selectedSessionId);
-
   return (
     <AdminLayout>
-      <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)]">
+      <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)] max-w-[1600px] mx-auto">
 
-        {/* LEFT: SESSION LIST */}
-        <div className="w-full lg:w-80 flex flex-col gap-4">
-          <div className="flex items-center justify-between px-1">
-            <h2 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Imtihonlar</h2>
-            <Badge variant="outline" className="bg-white">{filteredSessions.length}</Badge>
+        {/* LEFT SIDEBAR */}
+        <div className="w-full lg:w-[380px] flex flex-col gap-4 animate-in slide-in-from-left">
+          <div className="flex items-center justify-between px-2">
+            <div>
+              <h2 className="font-black text-2xl text-slate-900 tracking-tight">Examiner</h2>
+              <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest">Marking Dashboard</p>
+            </div>
+            <Badge variant="secondary" className="rounded-full px-4 py-1">{filteredSessions.length} sessions</Badge>
           </div>
 
           <tabs.Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <tabs.TabsList className="grid grid-cols-4 bg-slate-100 p-1 rounded-xl mb-2">
-              <tabs.TabsTrigger value="waiting" className="rounded-lg text-[10px] font-bold py-1 px-0">Waiting</tabs.TabsTrigger>
-              <tabs.TabsTrigger value="marking" className="rounded-lg text-[10px] font-bold py-1 px-0">Marking</tabs.TabsTrigger>
-              <tabs.TabsTrigger value="graded" className="rounded-lg text-[10px] font-bold py-1 px-0">Graded</tabs.TabsTrigger>
-              <tabs.TabsTrigger value="released" className="rounded-lg text-[10px] font-bold py-1 px-0">Rel.</tabs.TabsTrigger>
+            <tabs.TabsList className="grid grid-cols-4 bg-slate-100 p-1 rounded-xl mb-4">
+              {["waiting", "marking", "graded", "released"].map((t) => (
+                <tabs.TabsTrigger key={t} value={t} className="capitalize text-[10px] font-bold">
+                  {t}
+                </tabs.TabsTrigger>
+              ))}
             </tabs.TabsList>
 
-            <card.Card className="flex-1 h-[calc(100vh-240px)] overflow-hidden border-slate-200 shadow-sm rounded-2xl">
+            <card.Card className="h-[calc(100vh-280px)] overflow-hidden border-slate-100 shadow-xl rounded-[2rem]">
               <ScrollArea className="h-full">
-                <div className="p-3 space-y-2">
-                  {filteredSessions.length === 0 ? (
-                    <div className="text-center py-10">
-                      <p className="text-slate-400 text-xs font-medium">Sessiyalar topilmadi</p>
-                    </div>
-                  ) : (
-                    filteredSessions.map((session) => (
-                      <button
-                        key={session.id}
-                        onClick={() => setSelectedSessionId(session.id)}
-                        className={`w-full text-left p-4 rounded-xl border transition-all relative group/item ${
-                          selectedSessionId === session.id 
-                          ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-100" 
-                          : "bg-white border-slate-100 hover:border-blue-300 text-slate-700"
-                        }`}
-                      >
-                        <div className="flex justify-between items-start mb-1 pr-6">
-                          <span className="font-bold text-sm leading-tight">{session.firstName} {session.lastName}</span>
-                          {session.status === 'graded' && <CheckCircle2 size={14} className={selectedSessionId === session.id ? "text-blue-200" : "text-emerald-500"} />}
-                        </div>
-                        <p className={`text-[11px] font-mono ${selectedSessionId === session.id ? "text-blue-100" : "text-slate-400"}`}>
-                          {session.accessCode}
-                        </p>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => handleDelete(e, session.id)}
-                          className={`absolute top-2 right-2 h-7 w-7 rounded-lg transition-opacity ${
-                            selectedSessionId === session.id 
-                            ? "text-blue-200 hover:text-white hover:bg-blue-500" 
-                            : "text-slate-300 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover/item:opacity-100"
-                          }`}
-                        >
-                          <Trash2 size={14} />
-                        </Button>
-                      </button>
-                    ))
-                  )}
+                <div className="p-4 space-y-3">
+                  {filteredSessions.map((session) => (
+                    <button
+                      key={session.id}
+                      onClick={() => setSelectedSessionId(session.id)}
+                      className={`w-full text-left p-5 rounded-2xl border transition-all relative group ${
+                        selectedSessionId === session.id 
+                        ? "bg-slate-900 border-slate-900 text-white shadow-lg shadow-slate-200 scale-[0.98]" 
+                        : "bg-white border-slate-100 hover:border-blue-300"
+                      }`}
+                    >
+                      <div className="flex justify-between items-start mb-1">
+                        <p className="font-bold text-sm truncate w-[80%]">{session.firstName} {session.lastName}</p>
+                        {session.status === 'graded' && <CheckCircle2 size={14} className="text-emerald-500" />}
+                      </div>
+                      <div className="flex items-center gap-2 opacity-60 text-[10px] font-mono">
+                        <span>{session.accessCode}</span>
+                        <span>•</span>
+                        <span>{new Date(session.createdAt!).toLocaleDateString()}</span>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               </ScrollArea>
             </card.Card>
           </tabs.Tabs>
         </div>
 
-        {/* RIGHT: GRADING PANEL */}
-        <card.Card className="flex-1 flex flex-col overflow-hidden border-slate-200 shadow-xl shadow-slate-200/50 rounded-3xl bg-white border-none">
+        {/* MAIN GRADING AREA */}
+        <card.Card className="flex-1 flex flex-col overflow-hidden border-none shadow-2xl rounded-[2.5rem] bg-white border border-slate-100">
           {selectedSessionId ? (
             submissionLoading ? (
               <div className="flex flex-col items-center justify-center h-full gap-3">
                 <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
-                <p className="text-sm text-slate-400 animate-pulse">Ma'lumotlar yuklanmoqda...</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Loading Submission...</p>
               </div>
             ) : (
               <>
-                <div className="px-8 py-5 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-10">
+                {/* HEADER */}
+                <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-10">
                   <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
-                      <User size={20} />
+                    <div className="h-12 w-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white font-bold text-xl">
+                      {sessions?.find(s => s.id === selectedSessionId)?.firstName[0]}
                     </div>
                     <div>
-                      <h3 className="font-black text-slate-900 leading-tight">{selectedSession?.firstName} {selectedSession?.lastName}</h3>
-                      <p className="text-xs text-slate-500 font-medium italic">Sessiya ID: #{selectedSession?.id}</p>
+                      <h3 className="font-black text-xl text-slate-900 leading-none">
+                        {sessions?.find(s => s.id === selectedSessionId)?.firstName} {sessions?.find(s => s.id === selectedSessionId)?.lastName}
+                      </h3>
+                      <div className="flex gap-2 mt-1">
+                         <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-none text-[10px] font-black">
+                           LIVE BAND: {liveOverall}
+                         </Badge>
+                      </div>
                     </div>
                   </div>
                   <Button 
                     onClick={handleGrade} 
-                    disabled={gradeMutation.isPending} 
-                    className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-8 shadow-lg shadow-blue-100"
+                    disabled={gradeMutation.isPending}
+                    className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-8 font-bold shadow-lg shadow-blue-100"
                   >
                     {gradeMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                    Natijani Saqlash
+                    Save Results
                   </Button>
                 </div>
 
                 <div className="flex-1 overflow-hidden">
-                  <ScrollArea className="h-full">
-                    <div className="p-8 space-y-10">
+                  <ScrollArea className="h-full px-8 py-6">
+                    <div className="max-w-4xl mx-auto space-y-10">
 
-                      {/* WRITING RESPONSE */}
-                      <section className="space-y-4">
-                        <div className="flex items-center gap-2 text-blue-600">
-                          <PenTool size={20} className="stroke-[2.5px]" />
-                          <h3 className="font-black uppercase text-xs tracking-[0.2em]">Writing Submission</h3>
+                      {/* WRITING TASKS */}
+                      <section className="space-y-6">
+                        <div className="flex items-center gap-2 text-slate-400">
+                          <PenTool size={18} />
+                          <h4 className="text-xs font-black uppercase tracking-[0.2em]">Writing Submissions</h4>
                         </div>
-                        <div className="grid grid-cols-1 gap-6">
-                          <div className="space-y-2">
-                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Task 1</h4>
-                            <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 text-slate-800 text-md leading-relaxed font-serif shadow-inner min-h-[150px]">
-                              {(submission?.answers as any)?.writingTask1 || "Talaba tomonidan Task 1 inshosi yozilmagan."}
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Task 2</h4>
-                            <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 text-slate-800 text-md leading-relaxed font-serif shadow-inner min-h-[200px]">
-                              {(submission?.answers as any)?.writingTask2 || (submission?.answers as any)?.writing || "Talaba tomonidan Task 2 inshosi yozilmagan."}
-                            </div>
-                          </div>
+
+                        <div className="grid gap-6">
+                          {["writingTask1", "writingTask2"].map((taskKey) => {
+                            const content = (submission?.answers as any)?.[taskKey];
+                            return (
+                              <div key={taskKey} className="group">
+                                <div className="flex justify-between mb-2 px-1">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase">{taskKey.replace(/([A-Z])/g, ' $1')}</span>
+                                  <span className="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded">
+                                    Words: {content?.split(/\s+/).filter(Boolean).length || 0}
+                                  </span>
+                                </div>
+                                <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 text-slate-700 font-serif leading-relaxed group-hover:bg-white group-hover:shadow-md transition-all whitespace-pre-wrap">
+                                  {content || "No text submitted for this task."}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </section>
 
-                      {/* GRADING GRID */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        {/* Writing Criteria */}
-                        <div className="p-6 rounded-3xl bg-blue-50/50 border border-blue-100 space-y-5">
-                          <h4 className="text-xs font-black text-blue-700 uppercase tracking-widest flex items-center gap-2">
-                            <Award size={16}/> Writing Band Scores
+                      {/* SCORING GRID */}
+                      <div className="grid md:grid-cols-2 gap-6">
+                        <div className="p-6 rounded-3xl bg-blue-50/30 border border-blue-100 space-y-4">
+                          <h4 className="text-[11px] font-black text-blue-600 uppercase flex items-center gap-2">
+                            <Award size={16} /> Writing Assessment
                           </h4>
-                          <div className="space-y-4">
+                          <div className="space-y-2">
                             <CriteriaInput label="Task Response" value={wCriteria.tr} onChange={(v) => setWCriteria({...wCriteria, tr: v})} />
-                            <CriteriaInput label="Coherence & Cohesion" value={wCriteria.cc} onChange={(v) => setWCriteria({...wCriteria, cc: v})} />
-                            <CriteriaInput label="Lexical Resource" value={wCriteria.lr} onChange={(v) => setWCriteria({...wCriteria, lr: v})} />
-                            <CriteriaInput label="Grammatical Range" value={wCriteria.gra} onChange={(v) => setWCriteria({...wCriteria, gra: v})} />
+                            <CriteriaInput label="Cohesion" value={wCriteria.cc} onChange={(v) => setWCriteria({...wCriteria, cc: v})} />
+                            <CriteriaInput label="Lexical" value={wCriteria.lr} onChange={(v) => setWCriteria({...wCriteria, lr: v})} />
+                            <CriteriaInput label="Grammar" value={wCriteria.gra} onChange={(v) => setWCriteria({...wCriteria, gra: v})} />
                           </div>
                         </div>
 
-                        {/* Speaking & Auto Scores */}
                         <div className="space-y-6">
-                          <div className="p-6 rounded-3xl bg-emerald-50/50 border border-emerald-100 space-y-4">
-                            <h4 className="text-xs font-black text-emerald-700 uppercase tracking-widest flex items-center gap-2">
-                              <MessageSquare size={16}/> Speaking Assessment
+                          <div className="p-6 rounded-3xl bg-emerald-50/30 border border-emerald-100 space-y-4">
+                            <h4 className="text-[11px] font-black text-emerald-600 uppercase flex items-center gap-2">
+                              <MessageSquare size={16} /> Speaking Band
                             </h4>
-                            <div className="space-y-2">
-                              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Overall Speaking Band</label>
-                              <Input 
-                                type="number" 
-                                min="0" max="9" step="0.5" 
-                                className="h-12 text-lg font-bold rounded-xl border-emerald-200 focus:ring-emerald-500 bg-white" 
-                                value={speakingScore} 
-                                onChange={(e) => setSpeakingScore(e.target.value)} 
-                              />
-                            </div>
+                            <Input 
+                              type="number" min="0" max="9" step="0.5"
+                              className="h-14 text-2xl font-black rounded-xl border-emerald-200 text-emerald-700 bg-white"
+                              value={speakingScore}
+                              onChange={(e) => setSpeakingScore(parseFloat(e.target.value) || 0)}
+                            />
                           </div>
 
-                          <div className="p-6 rounded-3xl bg-slate-50 border border-slate-200/60 flex items-center justify-around text-center">
-                            <div>
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Listening</p>
-                              <p className="text-xl font-black text-slate-700">{(submission?.grading as any)?.autoGraded?.listening?.score || 0}<span className="text-xs text-slate-400">/40</span></p>
-                            </div>
-                            <div className="w-px h-8 bg-slate-200" />
-                            <div>
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Reading</p>
-                              <p className="text-xl font-black text-slate-700">{(submission?.grading as any)?.autoGraded?.reading?.score || 0}<span className="text-xs text-slate-400">/40</span></p>
-                            </div>
+                          <div className="grid grid-cols-2 gap-4">
+                             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-center">
+                               <p className="text-[9px] font-black text-slate-400 uppercase">Listening</p>
+                               <p className="text-xl font-black">{(submission?.grading as any)?.autoGraded?.listening?.score || 0}<span className="text-[10px] opacity-30">/40</span></p>
+                             </div>
+                             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-center">
+                               <p className="text-[9px] font-black text-slate-400 uppercase">Reading</p>
+                               <p className="text-xl font-black">{(submission?.grading as any)?.autoGraded?.reading?.score || 0}<span className="text-[10px] opacity-30">/40</span></p>
+                             </div>
                           </div>
                         </div>
                       </div>
 
-                      {/* FEEDBACK SECTION */}
-                      <section className="space-y-4 pb-10">
-                        <div className="flex items-center gap-2 text-slate-600">
-                          <MessageSquare size={20} className="stroke-[2.5px]" />
-                          <h3 className="font-black uppercase text-xs tracking-[0.2em]">Detailed Feedback</h3>
+                      {/* FEEDBACK */}
+                      <section className="space-y-4 pb-12">
+                         <div className="flex items-center gap-2 text-slate-400">
+                          <MessageSquare size={18} />
+                          <h4 className="text-xs font-black uppercase tracking-[0.2em]">Detailed Feedback</h4>
                         </div>
                         <Textarea 
-                          className="min-h-[200px] rounded-3xl bg-white border-slate-200 p-6 text-base shadow-sm focus:ring-blue-500" 
-                          placeholder="Talaba uchun xatolar ustida ishlash bo'yicha tavsiyalar yozing..." 
-                          value={feedback} 
-                          onChange={(e) => setFeedback(e.target.value)} 
+                          className="min-h-[200px] rounded-3xl border-slate-100 p-6 text-base font-serif leading-relaxed italic focus:ring-blue-500 bg-slate-50/30"
+                          placeholder="Write your professional feedback here..."
+                          value={feedback}
+                          onChange={(e) => setFeedback(e.target.value)}
                         />
                       </section>
                     </div>
@@ -337,10 +323,9 @@ export default function TeacherDashboard() {
               </>
             )
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-slate-300 bg-slate-50/30">
-              <Clock className="h-20 w-20 mb-6 opacity-20" />
-              <p className="text-lg font-bold text-slate-400">Tekshirishni boshlash uchun o'quvchini tanlang</p>
-              <p className="text-sm text-slate-300">Chap tarafdagi ro'yxatdan foydalaning</p>
+            <div className="flex flex-col items-center justify-center h-full opacity-20">
+              <Clock size={80} strokeWidth={1} />
+              <p className="mt-4 font-bold uppercase tracking-widest text-sm">Select a student to grade</p>
             </div>
           )}
         </card.Card>
@@ -351,17 +336,14 @@ export default function TeacherDashboard() {
 
 function CriteriaInput({ label, value, onChange }: { label: string, value: number, onChange: (v: number) => void }) {
   return (
-    <div className="flex items-center justify-between gap-4 p-3 rounded-2xl bg-white border border-blue-100/50 shadow-sm">
-      <span className="text-xs font-bold text-slate-600">{label}</span>
-      <div className="flex items-center gap-3">
-        <Input 
-          type="number" 
-          min="0" max="9" step="0.5" 
-          className="w-16 h-9 text-center font-bold border-none bg-blue-50 text-blue-700 rounded-lg focus:ring-0"
-          value={value} 
-          onChange={(e) => onChange(parseFloat(e.target.value) || 0)} 
-        />
-      </div>
+    <div className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-100 group transition-all hover:border-blue-200">
+      <span className="text-[10px] font-bold text-slate-500 uppercase">{label}</span>
+      <Input 
+        type="number" min="0" max="9" step="0.5" 
+        className="w-16 h-8 text-center font-black border-none bg-blue-50 text-blue-600 rounded-md p-0"
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+      />
     </div>
   );
 }
