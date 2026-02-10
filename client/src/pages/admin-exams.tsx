@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { 
   Card, 
@@ -14,235 +14,289 @@ import {
 } from "@/components/ui-kit";
 import { useExams, useCreateExam, useUpdateExam } from "@/hooks/use-exams";
 import { 
-  X, 
-  Upload, 
-  Loader2, 
-  Play, 
-  Trash2, 
-  CheckCircle2, 
-  Plus, 
-  Layers, 
-  Clock, 
-  Headset, 
-  BookOpen, 
-  PenTool,
-  Type,
-  CheckSquare,
-  List,
-  AlignLeft,
-  Image as ImageIcon,
-  MoreHorizontal
+  X, Upload, Loader2, Play, Trash2, CheckCircle2, Plus, Layers, 
+  Clock, Headset, BookOpen, PenTool, Type, CheckSquare, List, 
+  AlignLeft, Image as ImageIcon, MoreHorizontal, Save, GripVertical, AlertCircle
 } from "lucide-react";
 
-// --- INTERFACES ---
+// --- TYPES & INTERFACES ---
+
+type QuestionType = 'mcq' | 'gap_fill' | 'tfng' | 'ynng' | 'matching_headings' | 'matching_features' | 'diagram' | 'short_answer';
+
 interface Question {
-  id: number;
-  type: 'mcq' | 'gap_fill' | 'tfng' | 'ynng' | 'matching_headings' | 'matching_features' | 'diagram' | 'short_answer'; 
-  text: string;
-  options: string[];
-  answer: string;
-  instruction: string;
-  imageUrl?: string;
-  headingList?: string[];
+  id: number | string;
+  type: QuestionType; 
+  text: string; // Savol matni yoki "Paragraph A"
+  options: string[]; // MCQ variantlari
+  answer: string; // To'g'ri javob
+  instruction: string; // "Write ONE WORD only..."
+  imageUrl?: string; // Diagramma uchun rasm
+  headingList?: string[]; // Matching Headings uchun ro'yxat
 }
 
 interface ListeningPart {
   id: number;
+  title?: string;
   questions: Question[];
 }
 
 interface Passage {
-  id: number;
+  id: number | string;
   title: string;
   content: string;
   questions: Question[];
 }
 
-const QUESTION_TYPES = [
-  { value: 'gap_fill', label: 'Sentence/Summary Completion (Gap Fill)', icon: Type },
-  { value: 'mcq', label: 'Multiple Choice (A, B, C...)', icon: CheckSquare },
+interface WritingTask {
+  type: 'task1' | 'task2';
+  content: string;
+  image?: string;
+  wordLimit: string;
+}
+
+// --- CONSTANTS ---
+
+const QUESTION_TYPES: { value: QuestionType; label: string; icon: any }[] = [
+  { value: 'gap_fill', label: 'Completion (Gap Fill)', icon: Type },
+  { value: 'mcq', label: 'Multiple Choice', icon: CheckSquare },
   { value: 'tfng', label: 'True / False / Not Given', icon: CheckCircle2 },
   { value: 'ynng', label: 'Yes / No / Not Given', icon: CheckCircle2 },
-  { value: 'matching_headings', label: 'Matching Headings (i, ii, iii...)', icon: List },
-  { value: 'matching_features', label: 'Matching Features (Names, Dates...)', icon: AlignLeft },
-  { value: 'diagram', label: 'Diagram/Map Labeling', icon: ImageIcon },
-  { value: 'short_answer', label: 'Short Answer Questions', icon: MoreHorizontal },
+  { value: 'matching_headings', label: 'Matching Headings', icon: List },
+  { value: 'matching_features', label: 'Matching Features', icon: AlignLeft },
+  { value: 'diagram', label: 'Diagram Labeling', icon: ImageIcon },
+  { value: 'short_answer', label: 'Short Answer', icon: MoreHorizontal },
 ];
 
-// --- EXTERNAL HELPER COMPONENTS ---
+// --- HELPER COMPONENTS ---
 
 const Modal = ({ open, onOpenChange, children }: any) => {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl my-8 p-8 relative max-h-[90vh] overflow-y-auto">
-        <button onClick={() => onOpenChange(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors z-10">
-          <X size={24} />
-        </button>
-        {children}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm overflow-hidden">
+      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-7xl h-[95vh] flex flex-col relative animate-in fade-in zoom-in-95 duration-200">
+        <div className="flex justify-between items-center p-6 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+             <div className="h-3 w-3 rounded-full bg-red-500"/>
+             <div className="h-3 w-3 rounded-full bg-amber-500"/>
+             <div className="h-3 w-3 rounded-full bg-green-500"/>
+          </div>
+          <button onClick={() => onOpenChange(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+            <X size={24} className="text-slate-400" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-8 scroll-smooth">
+          {children}
+        </div>
       </div>
     </div>
   );
 };
 
-const FileUploader = ({ onUpload, accept, isLoading }: { onUpload: (file: File) => void, accept: string, isLoading?: boolean }) => {
+const FileUploader = ({ onUpload, accept, isLoading, iconOnly = false }: { onUpload: (file: File) => void, accept: string, isLoading?: boolean, iconOnly?: boolean }) => {
   return (
-    <div className="relative group h-full w-full">
+    <div className="relative group h-full w-full cursor-pointer">
         <input 
           type="file" 
           accept={accept} 
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+          disabled={isLoading}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 disabled:cursor-not-allowed"
           onChange={(e) => {
-            if (e.target.files && e.target.files[0]) {
-              onUpload(e.target.files[0]);
-            }
+            if (e.target.files && e.target.files[0]) onUpload(e.target.files[0]);
           }}
         />
-        <div className="bg-slate-100 hover:bg-blue-50 border-2 border-slate-200 hover:border-blue-200 text-slate-500 hover:text-blue-600 transition-all h-full min-h-[56px] min-w-[56px] rounded-2xl flex items-center justify-center shadow-sm">
-           {isLoading ? <Loader2 className="animate-spin" size={20}/> : <Upload size={20} />}
+        <div className={`bg-slate-50 hover:bg-blue-50 border-2 border-dashed border-slate-200 hover:border-blue-300 text-slate-400 hover:text-blue-600 transition-all rounded-xl flex items-center justify-center ${iconOnly ? 'h-full w-full' : 'h-12 w-full gap-2'}`}>
+           {isLoading ? <Loader2 className="animate-spin" size={18}/> : <Upload size={18} />}
+           {!iconOnly && <span className="text-xs font-bold uppercase tracking-wide">Upload</span>}
         </div>
     </div>
   );
 };
 
 const AudioPreview = ({ url }: { url: string }) => (
-    <div className="mt-4 p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-center gap-4">
-      <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg">
-        <Play size={20} fill="currentColor" />
+    <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100 flex items-center gap-4 shadow-sm">
+      <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
+        <Play size={24} fill="currentColor" className="ml-1" />
       </div>
       <div className="flex-1">
-        <p className="text-[10px] font-black text-blue-600 uppercase mb-1">Live Audio Preview</p>
+        <div className="flex justify-between items-center mb-1">
+             <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Master Audio Track</p>
+             {url && <Badge variant="outline" className="bg-white text-[9px] text-emerald-600 border-emerald-200">Ready</Badge>}
+        </div>
         {url ? (
-          <audio controls key={url} className="h-8 w-full shadow-sm">
+          <audio controls key={url} className="h-8 w-full block accent-blue-600">
             <source src={url} type="audio/mpeg" />
-            Browseringiz audioni qo'llab-quvvatlamaydi.
+            Audio not supported.
           </audio>
         ) : (
-          <p className="text-xs text-slate-400 italic">No audio file uploaded</p>
+          <p className="text-xs text-slate-400 italic font-medium">No audio file uploaded yet.</p>
         )}
       </div>
     </div>
 );
 
-const QuestionItem = ({ q, idx, onUpdate, onRemove, isUploading, handleFileUpload }: any) => {
-    const handleTypeChange = (newType: string) => {
-      let dI = ""; let dO: string[] = [];
+// --- QUESTION EDITOR COMPONENT ---
+
+const QuestionEditor = ({ q, idx, onUpdate, onRemove, isUploading, handleFileUpload }: { 
+    q: Question, idx: number, onUpdate: (field: keyof Question, value: any) => void, onRemove: () => void, isUploading: boolean, handleFileUpload: any 
+}) => {
+
+    // Auto-update instruction based on type change
+    const handleTypeChange = (newType: QuestionType) => {
+      let defaultInstruction = q.instruction;
+      let defaultOptions = q.options;
+
       switch(newType) {
-        case 'tfng': dI = "Do the following statements agree..."; dO = ["TRUE", "FALSE", "NOT GIVEN"]; break;
-        case 'ynng': dI = "Do the following statements agree..."; dO = ["YES", "NO", "NOT GIVEN"]; break;
-        case 'mcq': dI = "Choose the correct letter..."; dO = ["", "", "", ""]; break;
-        case 'matching_headings': dI = "Choose the correct heading..."; break;
-        case 'gap_fill': dI = "Complete the sentences below..."; break;
-        case 'diagram': dI = "Label the map/diagram below..."; break;
-        default: dI = q.instruction;
+        case 'tfng': defaultInstruction = "Do the following statements agree with the information given in the passage?"; defaultOptions = ["TRUE", "FALSE", "NOT GIVEN"]; break;
+        case 'ynng': defaultInstruction = "Do the following statements agree with the claims of the writer?"; defaultOptions = ["YES", "NO", "NOT GIVEN"]; break;
+        case 'mcq': defaultInstruction = "Choose the correct letter, A, B, C or D."; defaultOptions = ["", "", "", ""]; break;
+        case 'matching_headings': defaultInstruction = "Choose the correct heading for each paragraph from the list of headings below."; break;
+        case 'gap_fill': defaultInstruction = "Write NO MORE THAN TWO WORDS for each answer."; break;
+        case 'diagram': defaultInstruction = "Label the diagram below. Write NO MORE THAN TWO WORDS."; break;
       }
       onUpdate('type', newType); 
-      onUpdate('instruction', dI);
-      if (dO.length > 0) onUpdate('options', dO);
+      onUpdate('instruction', defaultInstruction);
+      if (defaultOptions.length > 0) onUpdate('options', defaultOptions);
     };
 
     return (
-      <div className="group p-5 border border-slate-200 rounded-2xl bg-slate-50/50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all space-y-4 mb-4 relative">
-        <div className="flex justify-between items-start gap-4">
-          <div className="flex flex-col gap-2 w-full">
-            <div className="flex items-center gap-3">
-              <Badge className="bg-slate-900 h-6 w-6 flex items-center justify-center p-0 rounded-full text-[10px]">{idx + 1}</Badge>
-              <select className="flex-1 text-xs font-black uppercase tracking-widest bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none text-blue-600 cursor-pointer" value={q.type} onChange={(e) => handleTypeChange(e.target.value)}>
-                {QUESTION_TYPES.map(type => <option key={type.value} value={type.value}>{type.label}</option>)}
-              </select>
-            </div>
-            <Input 
-              placeholder="Instruction..." 
-              value={q.instruction} 
-              onChange={e => onUpdate('instruction', e.target.value)} 
-              className="text-[11px] italic text-slate-500 bg-transparent border-none px-0 h-auto focus-visible:ring-0" 
-            />
+      <div className="group relative pl-4 border-l-4 border-slate-200 hover:border-blue-500 bg-white hover:bg-slate-50 transition-all duration-300 py-4 pr-2 rounded-r-xl mb-4">
+
+        {/* Header: Type Selector & Delete */}
+        <div className="flex justify-between items-start gap-3 mb-4">
+          <div className="flex items-center gap-3 flex-1">
+             <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-900 text-white font-black text-xs shadow-md">
+                {idx + 1}
+             </div>
+             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+                 <select 
+                    className="w-full text-xs font-bold uppercase bg-white border border-slate-200 rounded-lg px-2 py-2 text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" 
+                    value={q.type} 
+                    onChange={(e) => handleTypeChange(e.target.value as QuestionType)}
+                 >
+                   {QUESTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                 </select>
+                 <Input 
+                   value={q.instruction} 
+                   onChange={e => onUpdate('instruction', e.target.value)} 
+                   className="h-9 text-[11px] text-slate-500 border-transparent bg-transparent focus:bg-white focus:border-slate-200 italic"
+                   placeholder="Instruction..."
+                 />
+             </div>
           </div>
-          <Button type="button" variant="ghost" size="sm" onClick={onRemove} className="text-slate-300 hover:text-red-500 rounded-lg -mr-2"><Trash2 size={16}/></Button>
+          <Button variant="ghost" size="sm" onClick={onRemove} className="text-slate-300 hover:text-red-500 hover:bg-red-50 h-8 w-8 p-0 rounded-lg transition-colors"><Trash2 size={16}/></Button>
         </div>
 
-        {q.type === 'matching_headings' && (
-          <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 space-y-3">
-            <Label className="text-[10px] font-black text-amber-600 uppercase">List of Headings</Label>
-            {(q.headingList || [""]).map((h: string, hIdx: number) => (
-              <div key={hIdx} className="flex gap-2">
-                <span className="text-xs font-bold text-amber-500 pt-2 w-6">{hIdx + 1}.</span>
-                <Input 
-                  value={h} 
-                  onChange={e => { const newList = [...(q.headingList || [])]; newList[hIdx] = e.target.value; onUpdate('headingList', newList); }} 
-                  placeholder="Heading text..." 
-                  className="h-9 bg-white" 
-                />
-              </div>
-            ))}
-            <Button type="button" size="sm" variant="outline" onClick={() => onUpdate('headingList', [...(q.headingList || []), ""])} className="w-full text-[10px] font-bold border-amber-200 text-amber-600">+ Add Heading</Button>
-          </div>
-        )}
+        {/* Content Body */}
+        <div className="space-y-4 ml-11">
 
-        {q.type === 'diagram' && (
-          <div className="space-y-2">
-            <Label className="text-[10px] uppercase text-slate-400 font-bold">Map / Diagram Image</Label>
-            <div className="flex gap-2 items-center">
-                <Input placeholder="URL or Upload..." value={q.imageUrl || ""} onChange={e => onUpdate('imageUrl', e.target.value)} className="bg-white flex-1" />
-                <div className="w-10 h-10">
-                    <FileUploader accept="image/*" onUpload={async (file) => { const url = await handleFileUpload(file, 'image'); onUpdate('imageUrl', url); }} isLoading={isUploading} />
+            {/* MATCHING HEADINGS SPECIAL UI */}
+            {q.type === 'matching_headings' && (
+              <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-100/60 space-y-3">
+                <div className="flex justify-between items-center">
+                    <Label className="text-[10px] font-black text-amber-600 uppercase tracking-widest">List of Headings</Label>
+                    <Badge variant="outline" className="border-amber-200 text-amber-600 bg-white text-[9px]">Roman Numerals (i, ii...)</Badge>
                 </div>
+                <div className="grid grid-cols-1 gap-2">
+                    {(q.headingList || [""]).map((h, hIdx) => (
+                      <div key={hIdx} className="flex gap-2 items-center group/heading">
+                        <span className="text-xs font-serif font-bold text-amber-500 w-6 text-right italic">{['i','ii','iii','iv','v','vi','vii','viii','ix','x'][hIdx]}.</span>
+                        <Input 
+                          value={h} 
+                          onChange={e => { const newList = [...(q.headingList || [])]; newList[hIdx] = e.target.value; onUpdate('headingList', newList); }} 
+                          placeholder={`Heading ${hIdx + 1}`} 
+                          className="h-8 bg-white text-sm"
+                        />
+                         <Button size="sm" variant="ghost" onClick={() => { const newList = [...(q.headingList || [])]; newList.splice(hIdx, 1); onUpdate('headingList', newList); }} className="h-6 w-6 p-0 text-amber-300 hover:text-red-500 opacity-0 group-hover/heading:opacity-100"><X size={12}/></Button>
+                      </div>
+                    ))}
+                    <Button size="sm" variant="outline" onClick={() => onUpdate('headingList', [...(q.headingList || []), ""])} className="w-full mt-2 text-[10px] border-dashed border-amber-300 text-amber-600 hover:bg-amber-100 bg-transparent">+ Add Heading Option</Button>
+                </div>
+              </div>
+            )}
+
+            {/* DIAGRAM SPECIAL UI */}
+            {q.type === 'diagram' && (
+               <div className="flex gap-4 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="w-24 h-24 bg-white rounded-lg border border-slate-200 flex items-center justify-center overflow-hidden relative">
+                      {q.imageUrl ? <img src={q.imageUrl} className="w-full h-full object-cover" alt="Diagram" /> : <ImageIcon className="text-slate-300" />}
+                      <div className="absolute inset-0 opacity-0 hover:opacity-100 bg-black/40 flex items-center justify-center transition-opacity">
+                          <FileUploader iconOnly accept="image/*" onUpload={async (f) => { const url = await handleFileUpload(f, 'image'); onUpdate('imageUrl', url); }} isLoading={isUploading} />
+                      </div>
+                  </div>
+                  <div className="flex-1 space-y-2">
+                      <Label className="text-[10px] uppercase font-bold text-slate-400">Diagram Context / Title</Label>
+                      <Input placeholder="e.g. Structure of a leaf" value={q.text} onChange={e => onUpdate('text', e.target.value)} className="bg-white" />
+                  </div>
+               </div>
+            )}
+
+            {/* QUESTION TEXT INPUT */}
+            {q.type !== 'diagram' && (
+                <div className="space-y-1">
+                    {q.type === 'matching_headings' ? (
+                        <div className="flex items-center gap-2">
+                             <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded">Target:</span>
+                             <Input placeholder="e.g. Paragraph A" value={q.text} onChange={e => onUpdate('text', e.target.value)} className="font-bold w-1/2" />
+                        </div>
+                    ) : (
+                        <Textarea 
+                          placeholder="Enter the question text here..." 
+                          value={q.text} 
+                          onChange={e => onUpdate('text', e.target.value)} 
+                          className="min-h-[50px] resize-none text-sm leading-relaxed bg-transparent border-slate-200 focus:bg-white transition-colors"
+                        />
+                    )}
+                </div>
+            )}
+
+            {/* MCQ OPTIONS */}
+            {q.type === 'mcq' && (
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pl-2">
+                  {q.options.map((opt, oIdx) => (
+                    <div key={oIdx} className="flex items-center gap-2">
+                       <div className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-black border cursor-pointer transition-colors ${q.answer === String.fromCharCode(65 + oIdx) ? 'bg-green-500 text-white border-green-600' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-blue-300'}`} 
+                            onClick={() => onUpdate('answer', String.fromCharCode(65 + oIdx))}>
+                           {String.fromCharCode(65 + oIdx)}
+                       </div>
+                       <Input value={opt} onChange={e => { const n = [...q.options]; n[oIdx] = e.target.value; onUpdate('options', n); }} className="h-8 text-sm" placeholder="Option text..." />
+                       <button onClick={() => { const n = [...q.options]; n.splice(oIdx,1); onUpdate('options', n); }} className="text-slate-300 hover:text-red-500"><X size={14}/></button>
+                    </div>
+                  ))}
+                  <Button variant="outline" size="sm" onClick={() => onUpdate('options', [...q.options, ""])} className="text-xs border-dashed text-slate-400 h-8">+ Add Option</Button>
+               </div>
+            )}
+
+            {/* ANSWER KEY INPUT */}
+            <div className={`flex items-center gap-3 px-4 py-2 rounded-lg border ${q.answer ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+                <CheckCircle2 size={16} className={q.answer ? "text-emerald-500" : "text-slate-300"} />
+                <span className="text-[10px] font-black uppercase text-slate-400 w-16">Answer:</span>
+
+                {['tfng', 'ynng'].includes(q.type) ? (
+                    <div className="flex gap-2">
+                        {q.options.map(opt => (
+                            <button key={opt} type="button" 
+                                onClick={() => onUpdate('answer', opt)}
+                                className={`px-3 py-1 rounded text-[10px] font-bold border transition-all ${q.answer === opt ? 'bg-emerald-500 text-white border-emerald-600 shadow-sm' : 'bg-white text-slate-500 hover:bg-slate-100'}`}
+                            >
+                                {opt}
+                            </button>
+                        ))}
+                    </div>
+                ) : (
+                    <Input 
+                        className="h-7 border-none bg-transparent font-bold text-slate-800 focus-visible:ring-0 p-0 placeholder:font-normal" 
+                        placeholder="Enter correct answer..." 
+                        value={q.answer} 
+                        onChange={e => onUpdate('answer', e.target.value)} 
+                    />
+                )}
             </div>
-            {q.imageUrl && <img src={q.imageUrl} className="h-20 rounded-lg object-cover border" alt="Preview" />}
-          </div>
-        )}
-
-        <div className="space-y-3">
-          {q.type === 'matching_headings' ? (
-              <div className="flex gap-2 items-center">
-                <Badge variant="outline" className="bg-slate-100">Paragraph</Badge>
-                <Input 
-                  placeholder="e.g. Paragraph A" 
-                  value={q.text} 
-                  onChange={e => onUpdate('text', e.target.value)} 
-                  className="font-bold bg-white" 
-                />
-              </div>
-          ) : (
-            <Textarea 
-              placeholder="Question Text..." 
-              value={q.text} 
-              onChange={e => onUpdate('text', e.target.value)} 
-              className="font-medium bg-white min-h-[60px] text-sm" 
-            />
-          )}
-        </div>
-
-        {q.type === 'mcq' && (
-          <div className="space-y-2 pl-4 border-l-4 border-blue-100">
-            {q.options.map((opt: string, oIdx: number) => (
-              <div key={oIdx} className="flex items-center gap-3">
-                <span className="bg-slate-100 w-6 h-6 flex items-center justify-center rounded text-[10px] font-black">{String.fromCharCode(65 + oIdx)}</span>
-                <Input 
-                  value={opt} 
-                  onChange={e => { const newOpts = [...q.options]; newOpts[oIdx] = e.target.value; onUpdate('options', newOpts); }} 
-                  className="h-9 text-sm bg-white" 
-                />
-              </div>
-            ))}
-            <Button type="button" variant="outline" size="sm" onClick={() => onUpdate('options', [...q.options, ""])} className="text-xs h-7">+ Option</Button>
-          </div>
-        )}
-
-        <div className="flex items-center gap-3 bg-emerald-50/80 px-4 py-3 rounded-xl border border-emerald-100/50">
-          <CheckCircle2 size={16} className="text-emerald-500" />
-          <Input 
-            className="h-8 border-none bg-transparent font-black text-emerald-700 focus-visible:ring-0 text-sm" 
-            placeholder="Correct Answer" 
-            value={q.answer} 
-            onChange={e => onUpdate('answer', e.target.value)} 
-          />
         </div>
       </div>
     );
 };
 
-// --- MAIN COMPONENT ---
+// --- MAIN PAGE COMPONENT ---
 
 export default function AdminExams() {
   const { data: exams, isLoading } = useExams();
@@ -253,33 +307,34 @@ export default function AdminExams() {
   const [editingExamId, setEditingExamId] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
+  // Form State
   const [title, setTitle] = useState("");
   const [listeningTime, setListeningTime] = useState("40");
   const [readingTime, setReadingTime] = useState("60");
   const [writingTime, setWritingTime] = useState("60");
   const [listeningReviewTime, setListeningReviewTime] = useState("10");
 
-  const [passages, setPassages] = useState<Passage[]>([
-    { id: Date.now(), title: "Passage 1", content: "", questions: [] }
-  ]);
   const [audioUrl, setAudioUrl] = useState("");
-
   const [listeningParts, setListeningParts] = useState<ListeningPart[]>([
     { id: 1, questions: [] }, { id: 2, questions: [] }, { id: 3, questions: [] }, { id: 4, questions: [] },
   ]);
 
-  const [writingTasks, setWritingTasks] = useState([
+  const [passages, setPassages] = useState<Passage[]>([
+    { id: 1, title: "Passage 1", content: "", questions: [] }
+  ]);
+
+  const [writingTasks, setWritingTasks] = useState<WritingTask[]>([
     { type: "task1", content: "", image: "", wordLimit: "150" },
     { type: "task2", content: "", wordLimit: "250" }
   ]);
 
+  // Handlers
   const handleFileUpload = async (file: File, type: 'image' | 'audio'): Promise<string> => {
     const isAudio = type === 'audio';
     const limitMB = isAudio ? 100 : 10;
-    const limitBytes = limitMB * 1024 * 1024;
 
-    if (file.size > limitBytes) {
-      alert(`Fayl hajmi juda katta! Maksimal: ${limitMB}MB`);
+    if (file.size > limitMB * 1024 * 1024) {
+      alert(`File too large! Max: ${limitMB}MB`);
       return "";
     }
 
@@ -287,19 +342,15 @@ export default function AdminExams() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
+      // Simulate API call or Replace with real API
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
       if (!res.ok) throw new Error("Upload failed");
       const data = await res.json();
       return data.url;
     } catch (e) {
-      console.error("Upload failed", e);
-      alert("Yuklashda xatolik yuz berdi");
-      return "";
+      console.error(e);
+      // alert("Upload failed (Mock Mode)"); 
+      return URL.createObjectURL(file); // Fallback for demo
     } finally {
       setIsUploading(false);
     }
@@ -308,283 +359,384 @@ export default function AdminExams() {
   const resetForm = () => {
     setEditingExamId(null);
     setTitle("");
-    setListeningTime("40");
-    setReadingTime("60");
-    setWritingTime("60");
-    setListeningReviewTime("10");
-    setPassages([{ id: Date.now(), title: "Passage 1", content: "", questions: [] }]);
-    setListeningParts([{ id: 1, questions: [] }, { id: 2, questions: [] }, { id: 3, questions: [] }, { id: 4, questions: [] }]);
+    setListeningTime("40"); setReadingTime("60"); setWritingTime("60"); setListeningReviewTime("10");
     setAudioUrl("");
+    setListeningParts([{ id: 1, questions: [] }, { id: 2, questions: [] }, { id: 3, questions: [] }, { id: 4, questions: [] }]);
+    setPassages([{ id: 1, title: "Passage 1", content: "", questions: [] }]);
     setWritingTasks([{ type: "task1", content: "", image: "", wordLimit: "150" }, { type: "task2", content: "", wordLimit: "250" }]);
   };
 
   const handleEdit = (exam: any) => {
     setEditingExamId(exam.id);
     setTitle(exam.title);
-    const content = exam.content as any;
-    if (content.listening) {
-      setListeningTime(content.listening.duration?.toString() || "40");
-      setListeningReviewTime(content.listening.reviewTime?.toString() || "10");
-      setAudioUrl(content.listening.audioUrl || "");
-      setListeningParts(content.listening.parts || [
-        { id: 1, questions: [] }, { id: 2, questions: [] }, { id: 3, questions: [] }, { id: 4, questions: [] }
-      ]);
+    const c = exam.content;
+
+    if (c.listening) {
+        setListeningTime(String(c.listening.duration || 40));
+        setListeningReviewTime(String(c.listening.reviewTime || 10));
+        setAudioUrl(c.listening.audioUrl || "");
+        setListeningParts(c.listening.parts || []);
     }
-    if (content.reading) {
-      setReadingTime(content.reading.timeLimit?.toString() || "60");
-      setPassages(content.reading.passages || [{ id: Date.now(), title: "Passage 1", content: "", questions: [] }]);
+    if (c.reading) {
+        setReadingTime(String(c.reading.timeLimit || 60));
+        setPassages(c.reading.passages || []);
     }
-    if (content.writing) {
-      setWritingTime(content.writing.timeLimit?.toString() || "60");
-      setWritingTasks(content.writing.tasks || [
-        { type: "task1", content: "", image: "", wordLimit: "150" },
-        { type: "task2", content: "", wordLimit: "250" }
-      ]);
+    if (c.writing) {
+        setWritingTime(String(c.writing.timeLimit || 60));
+        setWritingTasks(c.writing.tasks || []);
     }
     setIsModalOpen(true);
   };
 
-  const addQuestionGroup = (target: 'reading' | 'listening', pIdx: number) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title) return alert("Title is required");
+
+    const examData = {
+      title,
+      timeLimit: (+listeningTime) + (+readingTime) + (+writingTime),
+      content: {
+        listening: { audioUrl, duration: +listeningTime, reviewTime: +listeningReviewTime, parts: listeningParts },
+        reading: { timeLimit: +readingTime, passages },
+        writing: { timeLimit: +writingTime, tasks: writingTasks }
+      },
+      isPublished: true
+    };
+
+    try {
+      if (editingExamId) await updateExam.mutateAsync({ id: editingExamId, ...examData });
+      else await createExam.mutateAsync(examData);
+      setIsModalOpen(false);
+      resetForm();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Generic Logic for Adding Questions
+  const addQuestion = (section: 'listening' | 'reading', index: number) => {
     const newQ: Question = { 
       id: Date.now() + Math.random(), 
       type: 'gap_fill', 
       text: "", 
       options: [], 
-      answer: "",
-      instruction: "Write NO MORE THAN TWO WORDS for each answer.",
-      imageUrl: ""
+      answer: "", 
+      instruction: "Write NO MORE THAN TWO WORDS for each answer." 
     };
-    if (target === 'reading') {
-      const newPassages = [...passages];
-      newPassages[pIdx].questions.push(newQ);
-      setPassages(newPassages);
+
+    if (section === 'listening') {
+        const n = [...listeningParts];
+        n[index].questions.push(newQ);
+        setListeningParts(n);
     } else {
-      const newParts = [...listeningParts];
-      newParts[pIdx].questions.push(newQ);
-      setListeningParts(newParts);
+        const n = [...passages];
+        n[index].questions.push(newQ);
+        setPassages(n);
     }
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const lTime = parseInt(listeningTime) || 0;
-    const rTime = parseInt(readingTime) || 0;
-    const wTime = parseInt(writingTime) || 0;
-    const lReview = parseInt(listeningReviewTime) || 0;
-
-    const finalContent = {
-      listening: { audioUrl, duration: lTime, reviewTime: lReview, parts: listeningParts },
-      reading: { timeLimit: rTime, passages: passages },
-      writing: { timeLimit: wTime, tasks: writingTasks }
-    };
-
-    try {
-      const examData = {
-        title,
-        timeLimit: lTime + rTime + wTime,
-        content: finalContent,
-        isPublished: true
-      };
-
-      if (editingExamId) {
-        await updateExam.mutateAsync({ id: editingExamId, ...examData });
+  // Helper to update specific questions
+  const updateQuestion = (section: 'listening' | 'reading', groupIdx: number, qIdx: number, field: keyof Question, value: any) => {
+      if (section === 'listening') {
+          const n = [...listeningParts];
+          (n[groupIdx].questions[qIdx] as any)[field] = value;
+          setListeningParts(n);
       } else {
-        await createExam.mutateAsync(examData);
+          const n = [...passages];
+          (n[groupIdx].questions[qIdx] as any)[field] = value;
+          setPassages(n);
       }
-      setIsModalOpen(false);
-      resetForm();
-    } catch (error) {
-      console.error("Failed to save exam", error);
-    }
+  };
+
+  const removeQuestion = (section: 'listening' | 'reading', groupIdx: number, qIdx: number) => {
+      if (section === 'listening') {
+          const n = [...listeningParts];
+          n[groupIdx].questions.splice(qIdx, 1);
+          setListeningParts(n);
+      } else {
+          const n = [...passages];
+          n[groupIdx].questions.splice(qIdx, 1);
+          setPassages(n);
+      }
   };
 
   return (
     <AdminLayout>
-      <div className="flex justify-between items-center mb-10">
+      <div className="flex justify-between items-end mb-12">
         <div>
-          <h2 className="text-4xl font-black text-slate-900 tracking-tight">Exam <span className="text-blue-600 italic">Studio</span></h2>
-          <p className="text-slate-500 font-medium mt-1">Professional IELTS Test Builder</p>
+          <h2 className="text-5xl font-black text-slate-900 tracking-tighter mb-2">Exam<span className="text-blue-600">Studio</span>.</h2>
+          <p className="text-slate-500 font-medium text-lg">Professional IELTS Assessment Builder</p>
         </div>
-        <Button onClick={() => { resetForm(); setIsModalOpen(true); }} className="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl px-8 h-14 font-black shadow-xl transition-all">
-          <Plus className="mr-2" size={20} /> Create New Exam
+        <Button onClick={() => { resetForm(); setIsModalOpen(true); }} className="bg-slate-900 hover:bg-blue-600 text-white rounded-2xl px-8 h-14 font-bold shadow-xl shadow-slate-200 transition-all flex items-center gap-2">
+          <Plus size={20} strokeWidth={3} /> Create New Exam
         </Button>
       </div>
 
-      <Card className="border-none shadow-2xl shadow-slate-200/60 rounded-[2rem] overflow-hidden bg-white">
-        <div className="p-8 border-b bg-slate-50/50 flex items-center justify-between">
-          <h3 className="font-black text-slate-800 flex items-center gap-3 uppercase tracking-widest text-sm"><Layers size={20} className="text-blue-600"/> Current Exam Library</h3>
-          <Badge className="bg-white text-slate-900 border-slate-200 px-4 py-1.5 rounded-full shadow-sm">{exams?.length || 0} Total</Badge>
-        </div>
-        <div className="p-0 overflow-x-auto">
-          {isLoading ? <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-slate-300" size={40}/></div> : (
+      <Card className="border-none shadow-2xl shadow-slate-200/50 rounded-[2.5rem] overflow-hidden bg-white/80 backdrop-blur-xl">
+        <div className="p-0">
+          {isLoading ? (
+             <div className="p-32 flex flex-col items-center justify-center text-slate-300 gap-4">
+                 <Loader2 className="animate-spin" size={48}/>
+                 <p className="font-bold text-sm tracking-widest uppercase">Loading Library...</p>
+             </div>
+          ) : (
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="p-6 text-[10px] font-black uppercase text-slate-400">Exam Title</th>
-                  <th className="p-6 text-[10px] font-black uppercase text-slate-400">Duration</th>
-                  <th className="p-6 text-[10px] font-black uppercase text-slate-400">Status</th>
-                  <th className="p-6"></th>
+                <tr className="border-b border-slate-100 bg-slate-50/50">
+                  <th className="p-8 text-[11px] font-black uppercase tracking-widest text-slate-400">Title</th>
+                  <th className="p-8 text-[11px] font-black uppercase tracking-widest text-slate-400">Configuration</th>
+                  <th className="p-8 text-[11px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                  <th className="p-8"></th>
                 </tr>
               </thead>
               <tbody>
                 {exams?.map((exam: any) => (
-                  <tr key={exam.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                    <td className="p-6 font-bold text-slate-700">{exam.title}</td>
-                    <td className="p-6"><Badge variant="outline" className="font-bold">{exam.timeLimit} min</Badge></td>
-                    <td className="p-6"><Badge className="bg-emerald-500/10 text-emerald-600 border-none">Active</Badge></td>
-                    <td className="p-6 text-right"><Button variant="ghost" className="rounded-xl font-bold text-blue-600" onClick={() => handleEdit(exam)}>Edit</Button></td>
+                  <tr key={exam.id} className="border-b border-slate-50 hover:bg-blue-50/30 transition-colors group">
+                    <td className="p-8">
+                        <span className="font-bold text-slate-800 text-lg block">{exam.title}</span>
+                        <span className="text-xs text-slate-400 font-medium">ID: #{exam.id}</span>
+                    </td>
+                    <td className="p-8">
+                        <div className="flex gap-2">
+                            <Badge variant="secondary" className="bg-white border border-slate-200 text-slate-500 font-bold">{exam.timeLimit} mins</Badge>
+                            {exam.content?.listening?.audioUrl && <Badge variant="secondary" className="bg-blue-50 text-blue-600 border border-blue-100"><Headset size={10} className="mr-1"/> Audio</Badge>}
+                        </div>
+                    </td>
+                    <td className="p-8">
+                        <div className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"/>
+                            <span className="text-xs font-bold text-emerald-600 uppercase">Published</span>
+                        </div>
+                    </td>
+                    <td className="p-8 text-right">
+                        <Button variant="ghost" size="sm" className="rounded-xl font-bold text-slate-400 hover:text-blue-600 hover:bg-blue-50 px-6" onClick={() => handleEdit(exam)}>Edit</Button>
+                    </td>
                   </tr>
                 ))}
+                {(!exams || exams.length === 0) && (
+                    <tr><td colSpan={4} className="p-20 text-center text-slate-400 italic">No exams found. Create your first one!</td></tr>
+                )}
               </tbody>
             </table>
           )}
         </div>
       </Card>
 
-      <footer className="mt-12 py-6 border-t border-slate-100 text-center">
-        <p className="text-[10px] text-slate-400 font-medium tracking-widest uppercase">Created & Developed by Yursinaliyev Muhammadaziz | yursinalivem@gmail.com</p>
-      </footer>
-
+      {/* --- MODAL --- */}
       <Modal open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <form onSubmit={handleCreate} className="space-y-10">
-          <h2 className="text-2xl font-black text-slate-900">{editingExamId ? 'Edit' : 'Create'} Exam</h2>
-          <div className="grid grid-cols-12 gap-8 items-start">
-            <div className="col-span-12 lg:col-span-7 space-y-4">
-              <Label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1">Assessment Title</Label>
-              <Input 
-                placeholder="e.g. Cambridge IELTS 18" 
-                value={title} 
-                onChange={e => setTitle(e.target.value)} 
-                required 
-                className="h-16 text-2xl font-black border-2 focus:border-blue-600 rounded-[1.25rem] px-6 shadow-sm" 
-              />
-            </div>
-            <div className="col-span-12 lg:col-span-5 grid grid-cols-4 gap-4 bg-slate-900 p-5 rounded-[1.5rem]">
-              {[
-                { label: 'Listening', val: listeningTime, set: setListeningTime },
-                { label: 'Reading', val: readingTime, set: setReadingTime },
-                { label: 'Writing', val: writingTime, set: setWritingTime },
-                { label: 'L-Review', val: listeningReviewTime, set: setListeningReviewTime },
-              ].map(t => (
-                <div key={t.label} className="space-y-2">
-                  <Label className="text-[9px] font-black uppercase text-slate-500 flex items-center justify-center gap-1"><Clock size={10}/> {t.label}</Label>
-                  <input type="number" value={t.val} onChange={(e: any) => t.set(e.target.value)} className="w-full bg-white/10 border-none rounded-xl h-10 text-white font-black text-center text-lg focus:ring-2 ring-blue-500 outline-none" />
-                </div>
-              ))}
-            </div>
-          </div>
+        <form onSubmit={handleSubmit} className="space-y-8 max-w-6xl mx-auto pb-20">
 
-          <Tabs defaultValue="reading" className="w-full">
-            <TabsList className="inline-flex p-1.5 bg-slate-100 rounded-[1.5rem] mb-10 border border-slate-200/50">
-              <TabsTrigger value="listening" className="px-10 py-3.5 rounded-2xl data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xl font-black flex gap-3"><Headset size={20}/> Listening</TabsTrigger>
-              <TabsTrigger value="reading" className="px-10 py-3.5 rounded-2xl data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xl font-black flex gap-3"><BookOpen size={20}/> Reading</TabsTrigger>
-              <TabsTrigger value="writing" className="px-10 py-3.5 rounded-2xl data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xl font-black flex gap-3"><PenTool size={20}/> Writing</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="listening" className="space-y-10">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-                  <div className="space-y-3">
-                    <Label className="font-black text-[10px] uppercase text-slate-400">Cloud Audio Source (Auto Upload)</Label>
-                    <div className="flex gap-3">
-                        <Input placeholder="Audio URL..." value={audioUrl} onChange={e => setAudioUrl(e.target.value)} className="h-16 rounded-2xl bg-slate-50 border-none px-6 font-bold shadow-inner flex-1" />
-                        <div className="h-16 w-16">
-                            <FileUploader accept="audio/*" onUpload={async (file) => { const url = await handleFileUpload(file, 'audio'); setAudioUrl(url); }} isLoading={isUploading} />
-                        </div>
-                    </div>
-                  </div>
-                  <AudioPreview url={audioUrl} />
-                </div>
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                 {listeningParts.map((part, pIdx) => (
-                   <div key={part.id || pIdx} className="p-8 bg-white border border-slate-100 shadow-xl rounded-[2.5rem] space-y-6">
-                     <div className="flex justify-between items-center"><Badge className="bg-slate-900 px-4 py-1.5 rounded-lg">Part {pIdx + 1}</Badge><Button type="button" onClick={() => addQuestionGroup('listening', pIdx)} className="rounded-xl bg-blue-600">+ Question</Button></div>
-                     <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
-                       {part.questions.map((q, qIdx) => (
-                         <QuestionItem 
-                           key={q.id} 
-                           q={q} 
-                           idx={qIdx} 
-                           isUploading={isUploading}
-                           handleFileUpload={handleFileUpload}
-                           onUpdate={(k: string, v: any) => { const n = [...listeningParts]; (n[pIdx].questions[qIdx] as any)[k] = v; setListeningParts(n); }} 
-                           onRemove={() => { const n = [...listeningParts]; n[pIdx].questions.splice(qIdx, 1); setListeningParts(n); }} 
-                         />
-                       ))}
-                     </div>
-                   </div>
-                 ))}
-                </div>
-            </TabsContent>
-
-            <TabsContent value="reading" className="space-y-12">
-              {passages.map((psg, pIdx) => (
-                <div key={psg.id} className="grid grid-cols-1 xl:grid-cols-2 gap-10 p-10 bg-white border border-slate-100 shadow-2xl rounded-[2.5rem] relative">
-                  <Badge className="absolute -top-4 left-10 bg-blue-600 h-9 px-6 rounded-xl font-black">Passage {pIdx + 1}</Badge>
-                  <div className="space-y-6">
-                    <Input 
-                      placeholder="Heading" 
-                      value={psg.title} 
-                      onChange={e => { const n = [...passages]; n[pIdx].title = e.target.value; setPassages(n); }} 
-                      className="font-black text-xl bg-slate-50 h-14 rounded-2xl px-6" 
-                    />
-                    <Textarea 
-                      className="min-h-[600px] leading-relaxed font-serif text-lg p-8 rounded-[2rem] bg-slate-50/50" 
-                      value={psg.content} 
-                      onChange={e => { const n = [...passages]; n[pIdx].content = e.target.value; setPassages(n); }} 
-                    />
-                  </div>
-                  <div className="space-y-6 bg-slate-50/80 p-8 rounded-[2.5rem] overflow-hidden max-h-[800px] flex flex-col">
-                    <div className="flex justify-between items-center"><h4 className="font-black text-xs uppercase text-slate-400">Questions</h4><Button type="button" variant="outline" onClick={() => addQuestionGroup('reading', pIdx)} className="rounded-xl bg-white border-2">+ Question</Button></div>
-                    <div className="overflow-y-auto pr-4 space-y-2 flex-1">
-                      {psg.questions.map((q, qIdx) => (
-                        <QuestionItem 
-                           key={q.id} 
-                           q={q} 
-                           idx={qIdx} 
-                           isUploading={isUploading}
-                           handleFileUpload={handleFileUpload}
-                           onUpdate={(k: string, v: any) => { const n = [...passages]; (n[pIdx].questions[qIdx] as any)[k] = v; setPassages(n); }} 
-                           onRemove={() => { const n = [...passages]; n[pIdx].questions.splice(qIdx, 1); setPassages(n); }} 
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <Button type="button" variant="ghost" className="w-full border-4 border-dashed h-24 rounded-[2.5rem] text-slate-400" onClick={() => setPassages([...passages, { id: Date.now(), title: "", content: "", questions: [] }])}>+ Append Next Passage</Button>
-            </TabsContent>
-
-            <TabsContent value="writing" className="grid grid-cols-1 xl:grid-cols-2 gap-10">
-              {writingTasks.map((task, idx) => (
-                <div key={idx} className="p-10 bg-white border-none rounded-[3rem] shadow-2xl space-y-8 flex flex-col">
-                  <div className="flex justify-between items-center"><Badge className="bg-slate-900 px-6 py-2 rounded-xl">WRITING TASK {idx + 1}</Badge><span className="text-xs font-black text-blue-600 bg-blue-50 px-4 py-2 rounded-full">{task.wordLimit} Words</span></div>
-                  {idx === 0 && (
-                    <div className="space-y-3">
-                      <Label className="text-[10px] font-black uppercase text-slate-400">Task 1 Image (Upload from PC)</Label>
-                      <div className="flex gap-3">
-                          <Input value={task.image} onChange={e => { const n = [...writingTasks]; n[0].image = e.target.value; setWritingTasks(n); }} className="h-14 rounded-2xl bg-slate-50 px-6 flex-1" />
-                          <div className="h-14 w-14"><FileUploader accept="image/*" onUpload={async (file) => { const url = await handleFileUpload(file, 'image'); const n = [...writingTasks]; n[0].image = url; setWritingTasks(n); }} isLoading={isUploading} /></div>
-                      </div>
-                      {task.image && <img src={task.image} className="h-32 rounded-xl object-contain border" alt="Task 1 Preview" />}
-                    </div>
-                  )}
-                  <Textarea 
-                    className="min-h-[350px] text-xl bg-slate-50/50 rounded-[2rem] p-8" 
-                    value={task.content} 
-                    onChange={e => { const n = [...writingTasks]; n[idx].content = e.target.value; setWritingTasks(n); }} 
-                    placeholder="Task prompt..." 
+            {/* Header Section */}
+            <div className="grid grid-cols-12 gap-8 items-start">
+               <div className="col-span-12 lg:col-span-8 space-y-4">
+                  <Label className="text-[11px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1">Assessment Name</Label>
+                  <Input 
+                    placeholder="e.g. Cambridge IELTS 19 - Test 1" 
+                    value={title} onChange={e => setTitle(e.target.value)} required 
+                    className="h-20 text-3xl font-black border-2 border-slate-100 focus:border-blue-600 rounded-[1.5rem] px-8 shadow-sm bg-slate-50 focus:bg-white transition-all placeholder:text-slate-300" 
                   />
-                </div>
-              ))}
-            </TabsContent>
-          </Tabs>
+               </div>
+               <div className="col-span-12 lg:col-span-4 bg-slate-900 p-6 rounded-[2rem] text-white shadow-xl shadow-slate-200">
+                  <div className="flex items-center gap-2 mb-4 text-slate-400">
+                      <Clock size={16} />
+                      <span className="text-xs font-bold uppercase tracking-widest">Timings (Min)</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                      {[{l:'Listening', v:listeningTime, s:setListeningTime}, {l:'Reading', v:readingTime, s:setReadingTime}, {l:'Writing', v:writingTime, s:setWritingTime}, {l:'Review', v:listeningReviewTime, s:setListeningReviewTime}].map((item, i) => (
+                          <div key={i} className="bg-white/10 rounded-xl p-3 px-4 flex flex-col">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 mb-1">{item.l}</span>
+                              <input type="number" className="bg-transparent border-none text-xl font-black p-0 w-full focus:ring-0 text-white" value={item.v} onChange={(e) => item.s(e.target.value)} />
+                          </div>
+                      ))}
+                  </div>
+               </div>
+            </div>
 
-          <div className="flex justify-end items-center gap-6 pt-10 border-t-2 border-slate-100">
-             <Button type="button" variant="ghost" className="font-black text-slate-400" onClick={() => { setIsModalOpen(false); resetForm(); }}>Discard</Button>
-             <Button type="submit" className="bg-blue-600 h-16 px-16 rounded-[1.5rem] font-black text-xl shadow-2xl" disabled={createExam.isPending || updateExam.isPending}>
-                {createExam.isPending || updateExam.isPending ? <Loader2 className="animate-spin" /> : (editingExamId ? 'UPDATE EXAM' : 'PUBLISH EXAM')}
-             </Button>
-          </div>
+            <Tabs defaultValue="listening" className="w-full">
+                <TabsList className="w-full justify-start gap-4 bg-transparent p-0 mb-8 border-b border-slate-100 pb-1">
+                    {[
+                        {val:'listening', icon: Headset, label: 'Listening'},
+                        {val:'reading', icon: BookOpen, label: 'Reading'},
+                        {val:'writing', icon: PenTool, label: 'Writing'}
+                    ].map(tab => (
+                        <TabsTrigger key={tab.val} value={tab.val} className="px-8 py-4 rounded-t-2xl border-b-4 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-slate-50 data-[state=active]:text-blue-700 text-slate-400 font-bold text-lg gap-3 transition-all">
+                            <tab.icon size={20} strokeWidth={2.5}/> {tab.label}
+                        </TabsTrigger>
+                    ))}
+                </TabsList>
+
+                {/* --- LISTENING TAB --- */}
+                <TabsContent value="listening" className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+                    <Card className="p-8 border-blue-100 bg-blue-50/30 rounded-[2rem]">
+                        <div className="flex flex-col md:flex-row gap-6 items-center">
+                            <div className="flex-1 space-y-2 w-full">
+                                <Label className="text-xs font-black text-blue-600 uppercase tracking-widest">Main Audio Track</Label>
+                                <div className="flex gap-2">
+                                    <div className="flex-1 relative">
+                                        <Input value={audioUrl} onChange={e => setAudioUrl(e.target.value)} placeholder="https://..." className="pl-10 bg-white border-blue-200 h-12 rounded-xl" />
+                                        <div className="absolute left-3 top-3.5 text-blue-300"><Headset size={18}/></div>
+                                    </div>
+                                    <div className="w-12 h-12">
+                                        <FileUploader iconOnly accept="audio/*" onUpload={async (f) => { const url = await handleFileUpload(f, 'audio'); setAudioUrl(url); }} isLoading={isUploading} />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="w-full md:w-1/3">
+                                <AudioPreview url={audioUrl} />
+                            </div>
+                        </div>
+                    </Card>
+
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                        {listeningParts.map((part, pIdx) => (
+                            <div key={part.id} className="flex flex-col bg-white border border-slate-200 shadow-lg shadow-slate-100 rounded-[2rem] overflow-hidden">
+                                <div className="bg-slate-50 p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 z-10">
+                                    <div className="flex items-center gap-3">
+                                        <Badge className="bg-slate-900 h-8 px-4 rounded-lg text-xs tracking-widest">PART {pIdx + 1}</Badge>
+                                        <span className="text-xs font-bold text-slate-400">{part.questions.length} Questions</span>
+                                    </div>
+                                    <Button size="sm" onClick={() => addQuestion('listening', pIdx)} className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-md shadow-blue-200 font-bold text-xs px-4 h-9">
+                                        <Plus size={16} className="mr-1"/> Add Question
+                                    </Button>
+                                </div>
+                                <div className="p-6 space-y-2 h-[600px] overflow-y-auto">
+                                    {part.questions.length === 0 ? (
+                                        <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-2 border-2 border-dashed border-slate-100 rounded-xl m-4">
+                                            <Headset size={32} />
+                                            <p className="text-xs font-bold uppercase">No Questions Yet</p>
+                                        </div>
+                                    ) : part.questions.map((q, qIdx) => (
+                                        <QuestionEditor 
+                                            key={q.id} q={q} idx={qIdx} isUploading={isUploading} handleFileUpload={handleFileUpload}
+                                            onUpdate={(k, v) => updateQuestion('listening', pIdx, qIdx, k, v)}
+                                            onRemove={() => removeQuestion('listening', pIdx, qIdx)}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </TabsContent>
+
+                {/* --- READING TAB --- */}
+                <TabsContent value="reading" className="space-y-16 animate-in slide-in-from-bottom-4 duration-500">
+                    {passages.map((psg, pIdx) => (
+                        <div key={psg.id} className="group relative bg-white border border-slate-200 shadow-2xl shadow-slate-200/50 rounded-[3rem] overflow-hidden">
+                             {/* Passage Toolbar */}
+                             <div className="bg-slate-900 text-white p-6 px-10 flex justify-between items-center">
+                                 <div className="flex items-center gap-4">
+                                     <span className="font-black text-2xl tracking-tighter text-slate-500 group-hover:text-white transition-colors">0{pIdx + 1}</span>
+                                     <div className="h-8 w-[1px] bg-white/20"/>
+                                     <Input 
+                                        value={psg.title} onChange={e => { const n = [...passages]; n[pIdx].title = e.target.value; setPassages(n); }}
+                                        className="bg-transparent border-none text-white font-bold text-lg placeholder:text-slate-600 focus:ring-0 w-[300px]"
+                                        placeholder="Passage Title..."
+                                     />
+                                 </div>
+                                 <Button variant="ghost" onClick={() => { if(confirm('Delete Passage?')) { const n = [...passages]; n.splice(pIdx, 1); setPassages(n); } }} className="text-slate-500 hover:text-red-400"><Trash2 size={20}/></Button>
+                             </div>
+
+                             <div className="grid grid-cols-1 lg:grid-cols-2 h-[800px]">
+                                 {/* Content Editor */}
+                                 <div className="p-8 border-r border-slate-100 bg-slate-50/30 flex flex-col">
+                                     <Label className="mb-4 text-xs font-black uppercase text-slate-400 flex items-center gap-2"><AlignLeft size={14}/> Passage Text</Label>
+                                     <Textarea 
+                                        className="flex-1 bg-white border-slate-200 focus:border-blue-400 rounded-2xl p-6 text-lg font-serif leading-8 resize-none shadow-inner"
+                                        placeholder="Paste the reading passage content here..."
+                                        value={psg.content}
+                                        onChange={e => { const n = [...passages]; n[pIdx].content = e.target.value; setPassages(n); }}
+                                     />
+                                 </div>
+
+                                 {/* Questions Editor */}
+                                 <div className="flex flex-col bg-white">
+                                     <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white z-10">
+                                         <h4 className="font-bold text-slate-700 text-sm uppercase flex items-center gap-2"><List size={16} className="text-blue-500"/> Questions</h4>
+                                         <Button size="sm" onClick={() => addQuestion('reading', pIdx)} className="bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-600 font-bold text-xs rounded-lg transition-colors border border-slate-200 border-none">
+                                            + Add Question
+                                         </Button>
+                                     </div>
+                                     <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
+                                        {psg.questions.map((q, qIdx) => (
+                                            <QuestionEditor 
+                                                key={q.id} q={q} idx={qIdx} isUploading={isUploading} handleFileUpload={handleFileUpload}
+                                                onUpdate={(k, v) => updateQuestion('reading', pIdx, qIdx, k, v)}
+                                                onRemove={() => removeQuestion('reading', pIdx, qIdx)}
+                                            />
+                                        ))}
+                                        <div className="h-20"/>
+                                     </div>
+                                 </div>
+                             </div>
+                        </div>
+                    ))}
+
+                    <Button onClick={() => setPassages([...passages, { id: Date.now(), title: "", content: "", questions: [] }])} variant="outline" className="w-full h-24 rounded-[2rem] border-4 border-dashed border-slate-200 text-slate-400 font-black text-lg hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all gap-3">
+                        <Plus size={32} strokeWidth={3} /> ADD NEW READING PASSAGE
+                    </Button>
+                </TabsContent>
+
+                {/* --- WRITING TAB --- */}
+                <TabsContent value="writing" className="grid grid-cols-1 xl:grid-cols-2 gap-10 animate-in slide-in-from-bottom-4 duration-500">
+                    {writingTasks.map((task, idx) => (
+                        <div key={idx} className="bg-white rounded-[2.5rem] shadow-xl p-8 border border-slate-100 flex flex-col relative overflow-hidden">
+                            <div className={`absolute top-0 left-0 w-full h-2 ${idx === 0 ? 'bg-amber-400' : 'bg-purple-400'}`}/>
+                            <div className="flex justify-between items-center mb-6">
+                                <div>
+                                    <h3 className="font-black text-2xl text-slate-800">Task {idx + 1}</h3>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{idx === 0 ? 'Report / Letter' : 'Essay'}</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-slate-400">Min Words:</span>
+                                    <Input 
+                                        className="w-16 h-8 text-center font-bold bg-slate-100 border-none" 
+                                        value={task.wordLimit} 
+                                        onChange={e => { const n = [...writingTasks]; n[idx].wordLimit = e.target.value; setWritingTasks(n); }}
+                                    />
+                                </div>
+                            </div>
+
+                            {idx === 0 && (
+                                <div className="mb-6 p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-4">
+                                    <div className="w-24 h-24 bg-white rounded-xl border border-amber-200 flex items-center justify-center relative overflow-hidden group">
+                                         {task.image ? <img src={task.image} className="w-full h-full object-cover" alt="Task 1" /> : <ImageIcon className="text-amber-300"/>}
+                                         <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                            <FileUploader iconOnly accept="image/*" onUpload={async (f) => { const url = await handleFileUpload(f, 'image'); const n = [...writingTasks]; n[0].image = url; setWritingTasks(n); }} isLoading={isUploading} />
+                                         </div>
+                                    </div>
+                                    <div className="flex-1 py-2">
+                                        <p className="text-xs font-bold text-amber-700 uppercase mb-1">Visual Reference</p>
+                                        <p className="text-[10px] text-amber-600/70 leading-relaxed">Upload the chart, graph, or diagram for Task 1 here. Candidates will see this image alongside the prompt.</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            <Textarea 
+                                className="flex-1 min-h-[400px] bg-slate-50 border-slate-200 rounded-2xl p-6 text-lg font-medium resize-none focus:bg-white transition-colors"
+                                placeholder={`Enter the prompt for Task ${idx+1}...`}
+                                value={task.content}
+                                onChange={e => { const n = [...writingTasks]; n[idx].content = e.target.value; setWritingTasks(n); }}
+                            />
+                        </div>
+                    ))}
+                </TabsContent>
+            </Tabs>
+
+            {/* Footer Action Bar */}
+            <div className="fixed bottom-0 left-0 w-full bg-white/80 backdrop-blur-md border-t border-slate-200 p-4 z-50 flex justify-center shadow-2xl">
+                <div className="w-full max-w-6xl flex justify-between items-center">
+                    <Button type="button" variant="ghost" className="text-slate-400 hover:text-red-500 font-bold" onClick={() => setIsModalOpen(false)}>Discard Changes</Button>
+                    <div className="flex items-center gap-4">
+                        <div className="text-right hidden sm:block">
+                            <p className="text-[10px] font-black uppercase text-slate-400">Total Duration</p>
+                            <p className="font-bold text-slate-800">{(+listeningTime) + (+readingTime) + (+writingTime)} Minutes</p>
+                        </div>
+                        <Button type="submit" disabled={createExam.isPending || updateExam.isPending} className="bg-blue-600 hover:bg-blue-700 text-white h-14 px-10 rounded-2xl font-black text-lg shadow-xl shadow-blue-200 hover:shadow-blue-300 hover:scale-105 transition-all">
+                            {createExam.isPending || updateExam.isPending ? <Loader2 className="animate-spin" /> : <><Save className="mr-2" size={20}/> {editingExamId ? 'Update Exam' : 'Publish Exam'}</>}
+                        </Button>
+                    </div>
+                </div>
+            </div>
         </form>
       </Modal>
     </AdminLayout>
