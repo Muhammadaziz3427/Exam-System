@@ -6,12 +6,14 @@ import { db } from "./db";
 import { exams, examSessions } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { sendExamResultsEmail } from "./email";
-import multer from "multer"; // Yangi qo'shildi
-import path from "path";   // Yangi qo'shildi
-import express from "express"; // Yangi qo'shildi
-import fs from "fs"; // Yangi qo'shildi
+import multer from "multer";
+import path from "path";
+import express from "express";
+import fs from "fs";
+// GCS importi o'rniga Supabase importi
+import { uploadToSupabase } from "./supabase-service";
 
-// --- MULTER SOZLAMALARI (Faylni saqlash uchun) ---
+// --- MULTER SOZLAMALARI (Faylni vaqtincha saqlash uchun) ---
 const uploadDir = "uploads";
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir);
@@ -32,30 +34,30 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
 });
 
-import { uploadToGCS } from "./gcs-service";
-
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
 
-  // --- FAYL YUKLASH ROUTE (GCS-ga yuklash) ---
+  // --- FAYL YUKLASH ROUTE (Supabase-ga yuklash) ---
   app.post("/api/upload", upload.single("file"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "Fayl yuklanmadi" });
       }
-      
-      const destination = `uploads/${Date.now()}-${req.file.originalname}`;
-      const publicUrl = await uploadToGCS(req.file.path, destination);
-      
-      // Local faylni o'chirish
-      fs.unlinkSync(req.file.path);
-      
+
+      // Supabase-ga yuklash va Public URL olish
+      const publicUrl = await uploadToSupabase(req.file.path, req.file.originalname);
+
+      // Local (uploads/ papkasidagi) vaqtincha faylni o'chirish
+      if (fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+
       res.json({ url: publicUrl });
     } catch (error) {
-      console.error("GCS upload error:", error);
-      res.status(500).json({ message: "Serverda yuklash xatosi (GCS)" });
+      console.error("Supabase upload error:", error);
+      res.status(500).json({ message: "Serverda yuklash xatosi (Supabase)" });
     }
   });
 

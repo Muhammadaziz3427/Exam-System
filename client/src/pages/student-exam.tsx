@@ -53,6 +53,12 @@ export default function StudentExam() {
   const submitAnswers = useSubmitAnswers();
   const logViolation = useLogViolation();
 
+  // Rasm manzilini formatlash uchun yordamchi funksiya
+  const getImageUrl = (path: string) => {
+    if (!path) return "";
+    return path.startsWith('http') ? path : `/uploads/${path}`;
+  };
+
   const scrollToQuestion = (qNum: number) => {
     const element = document.getElementById(`q-container-${qNum}`);
     if (element) {
@@ -295,7 +301,12 @@ export default function StudentExam() {
                       <article>
                         <h2 className="text-3xl font-black mb-8 text-slate-900 leading-tight">{examContent?.reading?.passages?.[activePassageIdx]?.title}</h2>
                         {examContent?.reading?.passages?.[activePassageIdx]?.image && (
-                          <img src={examContent.reading.passages[activePassageIdx].image} alt="Visual" className="w-full mb-6 rounded-lg border shadow-sm" />
+                          <img 
+                            src={getImageUrl(examContent.reading.passages[activePassageIdx].image)} 
+                            alt="Visual" 
+                            className="w-full mb-6 rounded-lg border shadow-sm"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          />
                         )}
                         <div className="text-xl leading-[1.8] text-slate-800 font-serif whitespace-pre-wrap">
                           {examContent?.reading?.passages?.[activePassageIdx]?.content}
@@ -306,7 +317,12 @@ export default function StudentExam() {
                           <div className="bg-blue-50 p-8 rounded-2xl border-2 border-blue-100 relative">
                             <Badge className="absolute -top-3 left-6 bg-blue-600 border-none">Writing Task {activeWritingTask + 1}</Badge>
                             {examContent?.writing?.tasks?.[activeWritingTask]?.image && (
-                              <img src={examContent.writing.tasks[activeWritingTask].image} alt="Task diagram" className="w-full mb-6 rounded-lg border shadow-sm bg-white p-2" />
+                              <img 
+                                src={getImageUrl(examContent.writing.tasks[activeWritingTask].image)} 
+                                alt="Task diagram" 
+                                className="w-full mb-6 rounded-lg border shadow-sm bg-white p-2"
+                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                              />
                             )}
                             <p className="text-xl font-medium text-slate-800 italic leading-relaxed">
                               "{examContent?.writing?.tasks?.[activeWritingTask]?.content}"
@@ -373,7 +389,7 @@ export default function StudentExam() {
               const qNum = i + 1;
               const qId = `q-${qNum}`;
               const hasAns = (currentSection === 'reading' && answers.reading?.[qId]) || 
-                             (currentSection === 'listening' && answers.listening?.[qId]);
+                               (currentSection === 'listening' && answers.listening?.[qId]);
               const isFlagged = reviewFlags[qId];
               return (
                 <button key={`nav-q-${i}`} onClick={() => scrollToQuestion(qNum)} className={`w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-[10px] font-bold border-2 relative ${hasAns ? 'bg-[#2c3e50] border-[#2c3e50] text-white' : 'bg-white border-slate-100 text-slate-400'}`}>
