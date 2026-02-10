@@ -8,12 +8,15 @@ import { eq } from "drizzle-orm";
 import { sendExamResultsEmail } from "./email";
 import multer from "multer";
 import path from "path";
-import express from "express";
 import fs from "fs";
-// GCS importi o'rniga Supabase importi
+import * as pdf from "pdf-parse"; // Tuzatildi: import * as pdf
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { uploadToSupabase } from "./supabase-service";
 
-// --- MULTER SOZLAMALARI (Faylni vaqtincha saqlash uchun) ---
+// AI sozlamalari
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+
+// --- MULTER SOZLAMALARI ---
 const uploadDir = "uploads";
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir);
@@ -39,29 +42,113 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
-  // --- FAYL YUKLASH ROUTE (Supabase-ga yuklash) ---
-  app.post("/api/upload", upload.single("file"), async (req, res) => {
+  // ==========================================
+  // --- AI EXAM GENERATION ROUTES ---
+  // ==========================================
+
+  app.post("/api/exams/analyze-pdf", upload.single("pdf"), async (req, res) => {
     try {
-      if (!req.file) {
-        return res.status(400).json({ message: "Fayl yuklanmadi" });
-      }
+      if (!req.file) return res.status(400).json({ message: "PDF yuklanmadi" });
 
-      // Supabase-ga yuklash va Public URL olish
-      const publicUrl = await uploadToSupabase(req.file.path, req.file.originalname);
+      const dataBuffer = fs.readFileSync(req.file.path);
+      // pdf-parse ba'zan asinxron emasdek ko'rinishi mumkin, lekin await bilan ishlatish xavfsiz
+      const pdfData = await (pdf as any)(dataBuffer); 
+      const pdfText = pdfData.text;
 
-      // Local (uploads/ papkasidagi) vaqtincha faylni o'chirish
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const prompt = `
+        I am building an IELTS exam system. Extract questions from this PDF text.
+        Text: ${pdfText.substring(0, 10000)}
+
+        Return ONLY a JSON object with this exact structure:
+        {
+          "questions": [
+            {
+              "id": 1,
+              "questionText": "Question text here",
+              "options": ["A", "B", "C", "D"],
+              "answer": "Correct answer text",
+              "type": "multiple-choice"
+            }
+          ]
+        }
+        Strictly return ONLY JSON.
+      `;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const responseText = response.text().replace(/```json|```/g, "").trim();
+
+      const parsedData = JSON.parse(responseText);
+
       if (fs.existsSync(req.file.path)) {
         fs.unlinkSync(req.file.path);
       }
 
-      res.json({ url: publicUrl });
+      res.json(parsedData);
     } catch (error) {
-      console.error("Supabase upload error:", error);
-      res.status(500).json({ message: "Serverda yuklash xatosi (Supabase)" });
+      console.error("AI Analysis error:", error);
+      res.status(500).json({ message: "AI tahlilida xatolik yuz berdi" });
     }
   });
 
+  app.post("/api/exams/save", upload.fields([
+    { name: 'audio', maxCount: 1 },
+    { name: 'images', maxCount: 10 }
+  ]), async (req, res) => {
+    try {
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      const { title, type, questions } = req.body;
+
+      let audioUrl = "";
+      if (files?.audio?.[0]) {
+        // uploadToSupabase Promise qaytarishiga ishonch hosil qiling
+        audioUrl = await uploadToSupabase(files.audio[0].path, files.audio[0].originalname);
+        fs.unlinkSync(files.audio[0].path);
+      }
+
+      const parsedQuestions = JSON.parse(questions);
+      const examContent: any = {};
+
+      if (type === 'reading') {
+        examContent.reading = { 
+          passages: [{ id: Date.now(), title, content: "Generated Passage", questions: parsedQuestions }] 
+        };
+      } else {
+        examContent.listening = { audioUrl, questions: parsedQuestions };
+      }
+
+      const exam = await storage.createExam({
+        title,
+        content: examContent,
+        timeLimit: 60,
+        isPublished: false
+      });
+
+      res.status(201).json(exam);
+    } catch (error) {
+      console.error("Save Exam error:", error);
+      res.status(500).json({ message: "Testni saqlashda xatolik" });
+    }
+  });
+
+  // ==========================================
+  // --- MAVJUD FAYL YUKLASH ROUTE ---
+  // ==========================================
+  app.post("/api/upload", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "Fayl yuklanmadi" });
+      const publicUrl = await uploadToSupabase(req.file.path, req.file.originalname);
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      res.json({ url: publicUrl });
+    } catch (error) {
+      res.status(500).json({ message: "Yuklash xatosi" });
+    }
+  });
+
+  // ==========================================
   // --- AUTH ROUTES ---
+  // ==========================================
   app.post(api.auth.adminLogin.path, async (req, res) => {
     const { username, password } = req.body;
     if (username === "admin" && password === "password123") {
@@ -80,19 +167,21 @@ export async function registerRoutes(
     const session = await storage.getSessionByCode(accessCode);
     if (!session) return res.status(401).json({ message: "Kirish kodi noto'g'ri" });
     if (session.password !== password) return res.status(401).json({ message: "Parol noto'g'ri" });
-    if (session.status === 'completed') return res.status(403).json({ message: "Bu imtihon allaqachon yakunlangan." });
+    if (session.status === 'completed') return res.status(403).json({ message: "Imtihon yakunlangan." });
     res.json({ session });
   });
 
+  // ==========================================
   // --- TEACHER MANAGEMENT ---
+  // ==========================================
   app.get("/api/admin/teachers", async (_req, res) => {
     const teachers = await storage.getTeachers();
     res.json(teachers);
   });
 
   app.post("/api/admin/teachers/generate", async (_req, res) => {
-    const adjectives = ["Smart", "Quick", "Wise", "Kind", "Bright", "Super", "Cool"];
-    const nouns = ["Mentor", "Coach", "Tutor", "Guide", "Sensei", "Guru"];
+    const adjectives = ["Smart", "Quick", "Wise", "Kind"];
+    const nouns = ["Mentor", "Coach", "Tutor"];
     const randomName = `${adjectives[Math.floor(Math.random() * adjectives.length)]}${nouns[Math.floor(Math.random() * nouns.length)]}${Math.floor(Math.random() * 1000)}`;
     const randomPassword = Math.random().toString(36).slice(-8);
     const teacher = await storage.createUser({
@@ -108,10 +197,12 @@ export async function registerRoutes(
     res.sendStatus(204);
   });
 
+  // ==========================================
   // --- EXAM MANAGEMENT ---
+  // ==========================================
   app.get(api.exams.list.path, async (_req, res) => {
-    const exams = await storage.getExams();
-    res.json(exams);
+    const examsList = await storage.getExams();
+    res.json(examsList);
   });
 
   app.post(api.exams.create.path, async (req, res) => {
@@ -120,7 +211,7 @@ export async function registerRoutes(
       const exam = await storage.createExam(input);
       res.status(201).json(exam);
     } catch (e) {
-      res.status(400).json({ message: "Imtihon ma'lumotlari xato" });
+      res.status(400).json({ message: "Ma'lumotlar xato" });
     }
   });
 
@@ -137,39 +228,23 @@ export async function registerRoutes(
         })
         .where(eq(exams.id, id))
         .returning();
-
-      if (!updated) {
-        return res.status(404).json({ message: "Imtihon topilmadi" });
-      }
       res.json(updated);
     } catch (e) {
-      res.status(400).json({ message: "Imtihon ma'lumotlari xato" });
+      res.status(400).json({ message: "Xato" });
     }
   });
 
   app.get(api.exams.get.path, async (req, res) => {
     const exam = await storage.getExam(Number(req.params.id));
-    if (!exam) return res.status(404).json({ message: "Imtihon topilmadi" });
     res.json(exam);
   });
 
-  app.patch("/api/exams/:id", async (req, res) => {
-    const id = Number(req.params.id);
-    const { title, content, timeLimit } = req.body;
-    const [updated] = await db.update(exams)
-      .set({ title, content, timeLimit })
-      .where(eq(exams.id, id))
-      .returning();
-    res.json(updated);
-  });
-
-  // --- SESSION MANAGEMENT (MONITORING) ---
+  // ==========================================
+  // --- SESSION MANAGEMENT ---
+  // ==========================================
   app.post(api.sessions.create.path, async (req, res) => {
     try {
       const { firstName, lastName, email, studentName, accessCode, password, examId, assignedTeacherId } = req.body;
-      const existing = await storage.getSessionByCode(accessCode);
-      if (existing) return res.status(400).json({ message: "Ushbu kod band" });
-
       const session = await storage.createSession({
         firstName, lastName, email, studentName,
         accessCode, password, examId: Number(examId),
@@ -177,7 +252,7 @@ export async function registerRoutes(
       } as any);
       res.status(201).json(session);
     } catch (e) {
-      res.status(400).json({ message: "Sessiya ma'lumotlari xato" });
+      res.status(400).json({ message: "Sessiya xatosi" });
     }
   });
 
@@ -200,106 +275,44 @@ export async function registerRoutes(
   });
 
   app.post("/api/sessions/:id/terminate", async (req, res) => {
-    const sessionId = Number(req.params.id);
-    try {
-      await db.update(examSessions)
-        .set({ 
-          status: 'completed',
-          resultStatus: 'marking'
-        })
-        .where(eq(examSessions.id, sessionId));
-
-      res.json({ success: true, message: "Sessiya muvaffaqiyatli yopildi" });
-    } catch (error) {
-      res.status(500).json({ message: "Bazani yangilashda xatolik" });
-    }
-  });
-
-  app.patch("/api/sessions/:id/info", async (req, res) => {
-    const sessionId = Number(req.params.id);
-    const { firstName, lastName, email } = req.body;
-    const updated = await storage.updateSessionInfo(sessionId, { firstName, lastName, email });
-    res.json(updated);
-  });
-
-  app.post("/api/sessions/:id/camera-pulse", async (req, res) => {
-    const sessionId = Number(req.params.id);
-    const { isActive } = req.body;
-    await storage.updateCameraStatus(sessionId, isActive);
+    await db.update(examSessions)
+      .set({ status: 'completed', resultStatus: 'marking' })
+      .where(eq(examSessions.id, Number(req.params.id)));
     res.json({ success: true });
   });
 
   app.get("/api/sessions/:id/submission", async (req, res) => {
     const submission = await storage.getSubmission(Number(req.params.id));
-    if (!submission) return res.status(404).json({ message: "Submission not found" });
     res.json(submission);
   });
 
   app.patch("/api/sessions/:id/progress", async (req, res) => {
-    const sessionId = Number(req.params.id);
-    const { answers } = req.body;
-    try {
-      await storage.upsertSubmission({ sessionId, answers });
-      res.json({ message: "Muvaffaqiyatli saqlandi" });
-    } catch (e) {
-      res.status(500).json({ message: "Progress saqlashda xatolik" });
-    }
-  });
-
-  app.patch("/api/sessions/:id", async (req, res) => {
-    const sessionId = Number(req.params.id);
-    const { email } = req.body;
-    try {
-      const updated = await storage.updateSessionInfo(sessionId, { email });
-      res.json(updated);
-    } catch (e) {
-      res.status(500).json({ message: "Failed to update session" });
-    }
-  });
-
-  app.get("/api/sessions/:id", async (req, res) => {
-    const session = await storage.getSession(Number(req.params.id));
-    if (!session) return res.status(404).json({ message: "Session not found" });
-    res.json(session);
+    await storage.upsertSubmission({ sessionId: Number(req.params.id), answers: req.body.answers });
+    res.json({ message: "Saqlandi" });
   });
 
   app.post("/api/sessions/:id/grade", async (req, res) => {
-    const sessionId = Number(req.params.id);
-    const { grading, scores } = req.body;
-    await storage.updateGrading(sessionId, grading);
-    await storage.updateSessionScores(sessionId, scores);
-    res.json({ message: "Grading saved" });
-  });
-
-  app.post("/api/sessions/:id/advanced-assessment", async (req, res) => {
-    const sessionId = Number(req.params.id);
-    const { assessment } = req.body;
-    try {
-      const updated = await storage.updateAdvancedAssessment(sessionId, assessment);
-      res.json(updated);
-    } catch (e) {
-      res.status(404).json({ message: "Submission not found" });
-    }
+    await storage.updateGrading(Number(req.params.id), req.body.grading);
+    await storage.updateSessionScores(Number(req.params.id), req.body.scores);
+    res.json({ message: "Baho saqlandi" });
   });
 
   app.post("/api/sessions/:id/release", async (req, res) => {
     const sessionId = Number(req.params.id);
-    const session = await storage.getSession(sessionId);
-    if (!session) return res.status(404).json({ message: "Sessiya topilmadi" });
-
     const updatedSession = await storage.releaseResults(sessionId);
     await storage.updateSessionResultStatus(sessionId, 'released');
     await sendExamResultsEmail(updatedSession);
-    res.json({ message: "Results released and email sent", session: updatedSession });
+    res.json({ message: "Yuborildi", session: updatedSession });
   });
 
   app.delete("/api/sessions/:id", async (req, res) => {
-    const sessionId = Number(req.params.id);
-    await storage.deleteSession(sessionId);
+    await storage.deleteSession(Number(req.params.id));
     res.sendStatus(204);
   });
 
+  // ==========================================
   // --- SUBMISSION & AUTO-GRADING ---
+  // ==========================================
   app.post(api.sessions.submit.path, async (req, res) => {
     const sessionId = Number(req.params.id);
     const { answers, isFinal } = req.body;
@@ -326,13 +339,6 @@ export async function registerRoutes(
 
     await storage.upsertSubmission({ sessionId, answers });
 
-    if (req.body.currentSection !== undefined || req.body.remainingTime !== undefined) {
-      await storage.updateSessionState(sessionId, {
-        currentSection: req.body.currentSection,
-        remainingTime: req.body.remainingTime
-      });
-    }
-
     if (isFinal) {
       const submission = await storage.getSubmission(sessionId);
       if (submission) {
@@ -345,20 +351,15 @@ export async function registerRoutes(
       await storage.updateSessionStatus(sessionId, hasWriting ? 'pending_grading' : 'completed');
       await storage.updateSessionResultStatus(sessionId, 'marking');
     }
-    res.json({ message: "Muvaffaqiyatli saqlandi" });
+    res.json({ message: "Muvaffaqiyatli yakunlandi" });
   });
 
+  // ==========================================
   // --- VIOLATIONS ---
+  // ==========================================
   app.post(api.sessions.logViolation.path, async (req, res) => {
-    const sessionId = Number(req.params.id);
-    const { type } = req.body;
-    const violation = await storage.logViolation({ sessionId, type });
+    const violation = await storage.logViolation({ sessionId: Number(req.params.id), type: req.body.type });
     res.status(201).json(violation);
-  });
-
-  app.get('/api/violations', async (_req, res) => {
-    const allViolations = await storage.getViolations();
-    res.json(allViolations);
   });
 
   try { await seedData(); } catch (err) { console.error("Seeding failed:", err); }

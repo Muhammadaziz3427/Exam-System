@@ -21,17 +21,22 @@ import {
 
 // --- TYPES & INTERFACES ---
 
-type QuestionType = 'mcq' | 'gap_fill' | 'tfng' | 'ynng' | 'matching_headings' | 'matching_features' | 'diagram' | 'short_answer';
+type QuestionType = 
+  | 'mcq' | 'gap_fill' | 'tfng' | 'ynng' 
+  | 'matching_headings' | 'matching_features' 
+  | 'diagram' | 'short_answer'
+  | 'matching_info' | 'summary_completion' | 'selection_list'; // Yangi qo'shilganlar
 
 interface Question {
   id: number | string;
   type: QuestionType; 
-  text: string; // Savol matni yoki "Paragraph A"
-  options: string[]; // MCQ variantlari
-  answer: string; // To'g'ri javob
-  instruction: string; // "Write ONE WORD only..."
-  imageUrl?: string; // Diagramma uchun rasm
-  headingList?: string[]; // Matching Headings uchun ro'yxat
+  text: string;
+  options?: string[]; 
+  answer: string | string[]; // Selection list uchun array bo'lishi mumkin
+  instruction: string;
+  imageUrl?: string;
+  headingList?: string[]; 
+  paragraphs?: string[]; // Matching info uchun: ["A", "B", "C", "D"]
 }
 
 interface ListeningPart {

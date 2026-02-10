@@ -118,22 +118,33 @@ export const Label = React.forwardRef<HTMLLabelElement, React.LabelHTMLAttribute
 Label.displayName = "Label";
 
 // --- BADGE ---
-export function Badge({ className, variant = "default", ...props }: React.HTMLAttributes<HTMLDivElement> & { variant?: "default" | "secondary" | "destructive" | "outline" | "success" | "warning" }) {
-  const variants = {
-    default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
-    secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
-    destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
-    outline: "text-foreground",
-    success: "border-transparent bg-green-500 text-white hover:bg-green-600",
-    warning: "border-transparent bg-amber-500 text-white hover:bg-amber-600",
-  };
+const badgeVariants = {
+  default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+  secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+  destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
+  outline: "text-foreground",
+  success: "border-transparent bg-green-500 text-white hover:bg-green-600",
+  warning: "border-transparent bg-amber-500 text-white hover:bg-amber-600",
+};
 
+export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
+  variant?: keyof typeof badgeVariants;
+}
+
+export function Badge({ className, variant = "default", ...props }: BadgeProps) {
   return (
-    <div className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2", variants[variant], className)} {...props} />
+    <div 
+      className={cn(
+        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2", 
+        badgeVariants[variant], 
+        className
+      )} 
+      {...props} 
+    />
   );
 }
 
-// --- NEW: PROGRESS ---
+// --- PROGRESS ---
 export function Progress({ value = 0, className }: { value?: number; className?: string }) {
   return (
     <div className={cn("relative h-2 w-full overflow-hidden rounded-full bg-secondary", className)}>
@@ -145,20 +156,28 @@ export function Progress({ value = 0, className }: { value?: number; className?:
   );
 }
 
-// --- NEW: TABS ---
-const TabsContext = React.createContext<{
+// --- TABS ---
+interface TabsContextType {
   value: string;
   onValueChange: (v: string) => void;
-} | null>(null);
+}
 
-export function Tabs({ defaultValue, value, onValueChange, children, className }: any) {
-  const [val, setVal] = React.useState(value || defaultValue);
-  const activeValue = value || val;
+const TabsContext = React.createContext<TabsContextType | null>(null);
+
+interface TabsProps extends React.HTMLAttributes<HTMLDivElement> {
+  defaultValue?: string;
+  value?: string;
+  onValueChange?: (v: string) => void;
+}
+
+export function Tabs({ defaultValue, value, onValueChange, children, className, ...props }: TabsProps) {
+  const [val, setVal] = React.useState(value || defaultValue || "");
+  const activeValue = value !== undefined ? value : val;
   const onChange = onValueChange || setVal;
 
   return (
     <TabsContext.Provider value={{ value: activeValue, onValueChange: onChange }}>
-      <div className={cn("w-full", className)}>{children}</div>
+      <div className={cn("w-full", className)} {...props}>{children}</div>
     </TabsContext.Provider>
   );
 }
@@ -189,3 +208,114 @@ export function TabsContent({ value, className, ...props }: React.HTMLAttributes
   if (context?.value !== value) return null;
   return <div className={cn("mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2", className)} {...props} />;
 }
+
+// --- SKELETON ---
+export function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn("animate-pulse rounded-md bg-muted", className)}
+      {...props}
+    />
+  );
+}
+
+// --- DROPDOWN MENU ---
+interface DropdownContextType {
+  open: boolean;
+  setOpen: (v: boolean) => void;
+}
+
+const DropdownContext = React.createContext<DropdownContextType | null>(null);
+
+export function DropdownMenu({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <DropdownContext.Provider value={{ open, setOpen }}>
+      <div ref={ref} className="relative inline-block text-left">{children}</div>
+    </DropdownContext.Provider>
+  );
+}
+
+interface DropdownMenuTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  asChild?: boolean;
+}
+
+export function DropdownMenuTrigger({ asChild, children, className, onClick, ...props }: DropdownMenuTriggerProps) {
+  const context = React.useContext(DropdownContext);
+  const Comp = asChild ? Slot : "button";
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    context?.setOpen(!context.open);
+    onClick?.(e);
+  };
+
+  return (
+    <Comp onClick={handleClick} className={className} {...props}>
+      {children}
+    </Comp>
+  );
+}
+
+interface DropdownMenuContentProps extends React.HTMLAttributes<HTMLDivElement> {
+  align?: "start" | "end";
+}
+
+export function DropdownMenuContent({ align = "end", children, className, ...props }: DropdownMenuContentProps) {
+  const context = React.useContext(DropdownContext);
+  if (!context?.open) return null;
+
+  return (
+    <div className={cn(
+      "absolute z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95",
+      align === "end" ? "right-0 mt-2" : "left-0 mt-2",
+      className
+    )} {...props}>
+      {children}
+    </div>
+  );
+}
+
+export function DropdownMenuItem({ children, className, onClick, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  const context = React.useContext(DropdownContext);
+
+  return (
+    <div
+      className={cn(
+        "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        className
+      )}
+      onClick={(e) => {
+        context?.setOpen(false);
+        onClick?.(e);
+      }}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+// --- SCROLL AREA (ui-kit.tsx fayliga qo'shing) ---
+export const ScrollArea = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, children, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn("relative overflow-auto", className)}
+      {...props}
+    >
+      {children}
+    </div>
+  )
+);
+ScrollArea.displayName = "ScrollArea";
