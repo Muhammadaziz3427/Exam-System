@@ -70,6 +70,7 @@ const QUESTION_TYPES: { value: QuestionType; label: string; icon: any }[] = [
   { value: 'matching_features', label: 'Matching Features', icon: AlignLeft },
   { value: 'diagram', label: 'Diagram Labeling', icon: ImageIcon },
   { value: 'short_answer', label: 'Short Answer', icon: MoreHorizontal },
+  { value: 'selection_list', label: 'Selection (List)', icon: List },
 ];
 
 // --- HELPER COMPONENTS ---
@@ -157,6 +158,7 @@ const QuestionEditor = ({ q, idx, onUpdate, onRemove, isUploading, handleFileUpl
         case 'matching_headings': defaultInstruction = "Choose the correct heading for each paragraph from the list of headings below."; break;
         case 'gap_fill': defaultInstruction = "Write NO MORE THAN TWO WORDS for each answer."; break;
         case 'diagram': defaultInstruction = "Label the diagram below. Write NO MORE THAN TWO WORDS."; break;
+        case 'selection_list': defaultInstruction = "Choose the correct letters, A-E."; defaultOptions = ["", "", "", "", ""]; break;
       }
       onUpdate('type', newType); 
       onUpdate('instruction', defaultInstruction);
@@ -254,19 +256,36 @@ const QuestionEditor = ({ q, idx, onUpdate, onRemove, isUploading, handleFileUpl
                 </div>
             )}
 
-            {/* MCQ OPTIONS */}
-            {q.type === 'mcq' && (
+            {/* MCQ & SELECTION LIST OPTIONS */}
+            {(q.type === 'mcq' || q.type === 'selection_list') && (
                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pl-2">
-                  {q.options.map((opt, oIdx) => (
-                    <div key={oIdx} className="flex items-center gap-2">
-                       <div className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-black border cursor-pointer transition-colors ${q.answer === String.fromCharCode(65 + oIdx) ? 'bg-green-500 text-white border-green-600' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-blue-300'}`} 
-                            onClick={() => onUpdate('answer', String.fromCharCode(65 + oIdx))}>
-                           {String.fromCharCode(65 + oIdx)}
-                       </div>
-                       <Input value={opt} onChange={e => { const n = [...q.options]; n[oIdx] = e.target.value; onUpdate('options', n); }} className="h-8 text-sm" placeholder="Option text..." />
-                       <button onClick={() => { const n = [...q.options]; n.splice(oIdx,1); onUpdate('options', n); }} className="text-slate-300 hover:text-red-500"><X size={14}/></button>
-                    </div>
-                  ))}
+                  {q.options.map((opt, oIdx) => {
+                    const optionLetter = String.fromCharCode(65 + oIdx);
+                    const isSelected = q.type === 'mcq' 
+                      ? q.answer === optionLetter 
+                      : (Array.isArray(q.answer) && q.answer.includes(optionLetter));
+
+                    return (
+                      <div key={oIdx} className="flex items-center gap-2">
+                         <div className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-black border cursor-pointer transition-colors ${isSelected ? 'bg-green-500 text-white border-green-600' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-blue-300'}`} 
+                              onClick={() => {
+                                if (q.type === 'mcq') {
+                                  onUpdate('answer', optionLetter);
+                                } else {
+                                  const currentAnswers = Array.isArray(q.answer) ? [...q.answer] : [];
+                                  const index = currentAnswers.indexOf(optionLetter);
+                                  if (index > -1) currentAnswers.splice(index, 1);
+                                  else currentAnswers.push(optionLetter);
+                                  onUpdate('answer', currentAnswers);
+                                }
+                              }}>
+                             {optionLetter}
+                         </div>
+                         <Input value={opt} onChange={e => { const n = [...q.options]; n[oIdx] = e.target.value; onUpdate('options', n); }} className="h-8 text-sm" placeholder="Option text..." />
+                         <button onClick={() => { const n = [...q.options]; n.splice(oIdx,1); onUpdate('options', n); }} className="text-slate-300 hover:text-red-500"><X size={14}/></button>
+                      </div>
+                    );
+                  })}
                   <Button variant="outline" size="sm" onClick={() => onUpdate('options', [...q.options, ""])} className="text-xs border-dashed text-slate-400 h-8">+ Add Option</Button>
                </div>
             )}
