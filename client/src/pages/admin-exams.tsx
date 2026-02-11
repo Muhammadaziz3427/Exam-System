@@ -660,9 +660,9 @@ export default function AdminExams() {
                                  <Button variant="ghost" onClick={() => { if(confirm('Delete Passage?')) { const n = [...passages]; n.splice(pIdx, 1); setPassages(n); } }} className="text-slate-500 hover:text-red-400"><Trash2 size={20}/></Button>
                              </div>
 
-                             <div className="grid grid-cols-1 lg:grid-cols-2 h-[800px]">
+                             <div className="grid grid-cols-1 lg:grid-cols-2 h-[calc(100vh-250px)] min-h-[600px]">
                                  {/* Content Editor */}
-                                 <div id={`passage-content-${pIdx}`} className="p-8 border-r border-slate-100 bg-slate-50/30 flex flex-col scroll-mt-20">
+                                 <div id={`passage-content-${pIdx}`} className="h-full p-8 border-r border-slate-100 bg-slate-50/30 flex flex-col scroll-mt-20 overflow-y-auto">
                                      <div className="flex justify-between items-center mb-4">
                                          <Label className="text-xs font-black uppercase text-slate-400 flex items-center gap-2"><AlignLeft size={14}/> Passage Text</Label>
                                          <Button variant="ghost" size="sm" onClick={() => {
@@ -673,7 +673,7 @@ export default function AdminExams() {
                                          </Button>
                                      </div>
                                      <Textarea 
-                                        className="flex-1 bg-white border-slate-200 focus:border-blue-400 rounded-2xl p-6 text-lg font-serif leading-8 resize-none shadow-inner"
+                                        className="flex-1 min-h-[500px] bg-white border-slate-200 focus:border-blue-400 rounded-2xl p-6 text-lg font-serif leading-8 resize-none shadow-inner"
                                         placeholder="Paste the reading passage content here..."
                                         value={psg.content}
                                         onChange={e => { const n = [...passages]; n[pIdx].content = e.target.value; setPassages(n); }}
@@ -681,7 +681,7 @@ export default function AdminExams() {
                                  </div>
 
                                  {/* Questions Editor */}
-                                 <div id={`passage-questions-${pIdx}`} className="flex flex-col bg-white scroll-mt-20">
+                                 <div id={`passage-questions-${pIdx}`} className="h-full flex flex-col bg-white scroll-mt-20 overflow-hidden">
                                      <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white z-10">
                                          <div className="flex items-center gap-4">
                                              <h4 className="font-bold text-slate-700 text-sm uppercase flex items-center gap-2"><List size={16} className="text-blue-500"/> Questions</h4>
