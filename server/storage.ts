@@ -115,7 +115,10 @@ export class DatabaseStorage implements IStorage {
 
   async updateSessionStatus(id: number, status: string): Promise<ExamSession> {
     const [updated] = await db.update(examSessions)
-      .set({ status: status as any })
+      .set({ 
+        status: status as any,
+        endTime: status === 'completed' || status === 'pending_grading' ? new Date() : null
+      })
       .where(drizzleOrm.eq(examSessions.id, id))
       .returning();
     return updated;

@@ -318,40 +318,51 @@ export async function registerRoutes(
     const { answers, isFinal } = req.body;
     let autoGrading: any = {};
 
-    if (isFinal) {
-      const session = await storage.getSession(sessionId);
-      const exam = session ? await storage.getExam(session.examId) : null;
-      if (exam) {
-        const content = exam.content as any;
-        ['listening', 'reading'].forEach(skill => {
-          if (content[skill]?.questions) {
-            let score = 0;
-            content[skill].questions.forEach((q: any) => {
-              const studentAns = answers[skill]?.[q.id]?.toString().trim().toLowerCase();
-              const correctAns = q.answer?.toString().trim().toLowerCase();
-              if (studentAns && studentAns === correctAns) score++;
-            });
-            autoGrading[skill] = { score, total: content[skill].questions.length };
-          }
-        });
+    try {
+      if (isFinal) {
+        const session = await storage.getSession(sessionId);
+        if (!session) return res.status(404).json({ message: "Sessiya topilmadi" });
+        
+        const exam = await storage.getExam(session.examId);
+        if (exam) {
+          const content = exam.content as any;
+          ['listening', 'reading'].forEach(skill => {
+            if (content[skill]?.questions) {
+              let score = 0;
+              content[skill].questions.forEach((q: any) => {
+                const studentAns = answers[skill]?.[q.id]?.toString().trim().toLowerCase();
+                const correctAns = q.answer?.toString().trim().toLowerCase();
+                if (studentAns && studentAns === correctAns) score++;
+              });
+              autoGrading[skill] = { score, total: content[skill].questions.length };
+            }
+          });
+        }
       }
-    }
 
-    await storage.upsertSubmission({ sessionId, answers });
+      await storage.upsertSubmission({ sessionId, answers });
 
-    if (isFinal) {
-      const submission = await storage.getSubmission(sessionId);
-      if (submission) {
-        const currentGrading = (submission.grading as any) || {};
-        await storage.updateGrading(sessionId, { ...currentGrading, autoGraded: autoGrading });
+      if (isFinal) {
+        const submission = await storage.getSubmission(sessionId);
+        if (submission) {
+          const currentGrading = (submission.grading as any) || {};
+          await storage.updateGrading(sessionId, { ...currentGrading, autoGraded: autoGrading });
+        }
+        
+        const session = await storage.getSession(sessionId);
+        const exam = session ? await storage.getExam(session.examId) : null;
+        const content = exam?.content as any;
+        const hasWriting = content?.writing?.tasks?.length > 0;
+        
+        // Agar writing bo'lsa pending_grading, bo'lmasa completed
+        await storage.updateSessionStatus(sessionId, hasWriting ? 'pending_grading' : 'completed');
+        await storage.updateSessionResultStatus(sessionId, 'marking');
       }
-      const session = await storage.getSession(sessionId);
-      const exam = session ? await storage.getExam(session.examId) : null;
-      const hasWriting = (exam?.content as any)?.writing?.tasks?.length > 0;
-      await storage.updateSessionStatus(sessionId, hasWriting ? 'pending_grading' : 'completed');
-      await storage.updateSessionResultStatus(sessionId, 'marking');
+      res.json({ message: "Muvaffaqiyatli yakunlandi" });
+    } catch (error) {
+      console.error("Submit error:", error);
+      res.status(500).json({ message: "Xatolik yuz berdi" });
     }
-    res.json({ message: "Muvaffaqiyatli yakunlandi" });
   });
 
   // ==========================================

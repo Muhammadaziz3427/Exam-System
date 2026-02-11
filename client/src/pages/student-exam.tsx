@@ -108,13 +108,12 @@ export default function StudentExam() {
       if (autoSubmit) {
         toast({ title: "Time is up", description: "System is automatically submitting your work..." });
       }
-      await submitAnswers.mutateAsync({ 
-        id: sessionId, 
+      
+      const session = await apiRequest("POST", `/api/sessions/${sessionId}/submit`, { 
         answers, 
-        email, 
-        isFinal: true, 
-        status: "submitted" 
+        isFinal: true 
       });
+
       if (document.fullscreenElement) {
         document.exitFullscreen().catch(() => {});
       }
