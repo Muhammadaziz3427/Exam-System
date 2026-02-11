@@ -662,8 +662,16 @@ export default function AdminExams() {
 
                              <div className="grid grid-cols-1 lg:grid-cols-2 h-[800px]">
                                  {/* Content Editor */}
-                                 <div className="p-8 border-r border-slate-100 bg-slate-50/30 flex flex-col">
-                                     <Label className="mb-4 text-xs font-black uppercase text-slate-400 flex items-center gap-2"><AlignLeft size={14}/> Passage Text</Label>
+                                 <div id={`passage-content-${pIdx}`} className="p-8 border-r border-slate-100 bg-slate-50/30 flex flex-col scroll-mt-20">
+                                     <div className="flex justify-between items-center mb-4">
+                                         <Label className="text-xs font-black uppercase text-slate-400 flex items-center gap-2"><AlignLeft size={14}/> Passage Text</Label>
+                                         <Button variant="ghost" size="sm" onClick={() => {
+                                             const element = document.getElementById(`passage-questions-${pIdx}`);
+                                             element?.scrollIntoView({ behavior: 'smooth' });
+                                         }} className="text-[10px] font-bold uppercase tracking-wider text-blue-500 hover:bg-blue-50">
+                                            Scroll to Questions
+                                         </Button>
+                                     </div>
                                      <Textarea 
                                         className="flex-1 bg-white border-slate-200 focus:border-blue-400 rounded-2xl p-6 text-lg font-serif leading-8 resize-none shadow-inner"
                                         placeholder="Paste the reading passage content here..."
@@ -673,9 +681,17 @@ export default function AdminExams() {
                                  </div>
 
                                  {/* Questions Editor */}
-                                 <div className="flex flex-col bg-white">
+                                 <div id={`passage-questions-${pIdx}`} className="flex flex-col bg-white scroll-mt-20">
                                      <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white z-10">
-                                         <h4 className="font-bold text-slate-700 text-sm uppercase flex items-center gap-2"><List size={16} className="text-blue-500"/> Questions</h4>
+                                         <div className="flex items-center gap-4">
+                                             <h4 className="font-bold text-slate-700 text-sm uppercase flex items-center gap-2"><List size={16} className="text-blue-500"/> Questions</h4>
+                                             <Button variant="ghost" size="sm" onClick={() => {
+                                                 const element = document.getElementById(`passage-content-${pIdx}`);
+                                                 element?.scrollIntoView({ behavior: 'smooth' });
+                                             }} className="text-[10px] font-bold uppercase tracking-wider text-blue-500 hover:bg-blue-50">
+                                                Back to Text
+                                             </Button>
+                                         </div>
                                          <Button size="sm" onClick={() => addQuestion('reading', pIdx)} className="bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-600 font-bold text-xs rounded-lg transition-colors border border-slate-200 border-none">
                                             + Add Question
                                          </Button>
