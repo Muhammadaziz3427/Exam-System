@@ -51,8 +51,7 @@ export async function registerRoutes(
       if (!req.file) return res.status(400).json({ message: "PDF yuklanmadi" });
 
       const dataBuffer = fs.readFileSync(req.file.path);
-      // pdf-parse ba'zan asinxron emasdek ko'rinishi mumkin, lekin await bilan ishlatish xavfsiz
-      const pdfData = await (pdf as any)(dataBuffer); 
+      const pdfData = await pdf(dataBuffer); 
       const pdfText = pdfData.text;
 
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
@@ -249,7 +248,7 @@ export async function registerRoutes(
         firstName, lastName, email, studentName,
         accessCode, password, examId: Number(examId),
         assignedTeacherId: assignedTeacherId ? Number(assignedTeacherId) : undefined
-      } as any);
+      });
       res.status(201).json(session);
     } catch (e) {
       res.status(400).json({ message: "Sessiya xatosi" });

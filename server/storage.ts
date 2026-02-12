@@ -90,7 +90,8 @@ export class DatabaseStorage implements IStorage {
       status: 'active',
       resultStatus: 'active',
       startTime: null, // Hali boshlanmagan
-      isCameraActive: false
+      isCameraActive: false,
+      resultsReleased: false
     } as any).returning();
     return newSession;
   }
