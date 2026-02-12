@@ -259,7 +259,7 @@ const QuestionEditor = ({ q, idx, onUpdate, onRemove, isUploading, handleFileUpl
             {/* MCQ & SELECTION LIST OPTIONS */}
             {(q.type === 'mcq' || q.type === 'selection_list') && (
                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pl-2">
-                  {q.options.map((opt, oIdx) => {
+                  {newFunction(q).map((opt, oIdx) => {
                     const optionLetter = String.fromCharCode(65 + oIdx);
                     const isSelected = q.type === 'mcq' 
                       ? q.answer === optionLetter 
@@ -319,6 +319,10 @@ const QuestionEditor = ({ q, idx, onUpdate, onRemove, isUploading, handleFileUpl
       </div>
     );
 };
+
+function newFunction(q: Question) {
+    return q.options;
+}
 
 // --- MAIN PAGE COMPONENT ---
 
