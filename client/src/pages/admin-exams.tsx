@@ -149,7 +149,7 @@ const QuestionEditor = ({ q, idx, onUpdate, onRemove, isUploading, handleFileUpl
     // Auto-update instruction based on type change
     const handleTypeChange = (newType: QuestionType) => {
       let defaultInstruction = q.instruction;
-      let defaultOptions = q.options;
+      let defaultOptions: string[] | undefined = undefined;
 
       switch(newType) {
         case 'tfng': defaultInstruction = "Do the following statements agree with the information given in the passage?"; defaultOptions = ["TRUE", "FALSE", "NOT GIVEN"]; break;
@@ -162,7 +162,7 @@ const QuestionEditor = ({ q, idx, onUpdate, onRemove, isUploading, handleFileUpl
       }
       onUpdate('type', newType); 
       onUpdate('instruction', defaultInstruction);
-      if (defaultOptions.length > 0) onUpdate('options', defaultOptions);
+      if (defaultOptions && defaultOptions.length > 0) onUpdate('options', defaultOptions);
     };
 
     return (
