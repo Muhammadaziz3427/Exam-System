@@ -159,19 +159,45 @@ const QuestionEditor = ({ q, idx, onUpdate, onRemove, isUploading, handleFileUpl
     q: Question, idx: number, onUpdate: (field: keyof Question, value: any) => void, onRemove: () => void, isUploading: boolean, handleFileUpload: any 
 }) => {
 
-    // Avtomatik instructsiya va optionsni to'g'irlash
+    // CDI interfeysiga moslash uchun barcha savol turlari
     const handleTypeChange = (newType: QuestionType) => {
       let defaultInstruction = q.instruction;
       let defaultOptions: string[] | undefined = undefined;
 
       switch(newType) {
-        case 'tfng': defaultInstruction = "Do the following statements agree with the information given in the passage?"; defaultOptions = ["TRUE", "FALSE", "NOT GIVEN"]; break;
-        case 'ynng': defaultInstruction = "Do the following statements agree with the claims of the writer?"; defaultOptions = ["YES", "NO", "NOT GIVEN"]; break;
-        case 'mcq_single': defaultInstruction = "Choose the correct letter, A, B, C or D."; defaultOptions = ["", "", "", ""]; break;
-        case 'mcq_multi': defaultInstruction = "Choose TWO letters, A-E."; defaultOptions = ["", "", "", "", ""]; break;
-        case 'matching_headings': defaultInstruction = "Choose the correct heading for each paragraph from the list of headings below."; break;
-        case 'gap_fill': defaultInstruction = "Write NO MORE THAN TWO WORDS for each answer."; break;
-        case 'diagram_labeling': defaultInstruction = "Label the diagram below. Write NO MORE THAN TWO WORDS."; break;
+        case 'tfng': 
+          defaultInstruction = "Do the following statements agree with the information given in the passage?"; 
+          defaultOptions = ["TRUE", "FALSE", "NOT GIVEN"]; 
+          break;
+        case 'ynng': 
+          defaultInstruction = "Do the following statements agree with the claims of the writer?"; 
+          defaultOptions = ["YES", "NO", "NOT GIVEN"]; 
+          break;
+        case 'mcq_single': 
+          defaultInstruction = "Choose the correct letter, A, B, C or D."; 
+          defaultOptions = ["", "", "", ""]; 
+          break;
+        case 'mcq_multi': 
+          defaultInstruction = "Choose TWO letters, A-E."; 
+          defaultOptions = ["", "", "", "", ""]; 
+          break;
+        case 'matching_headings': 
+          defaultInstruction = "Choose the correct heading for each paragraph from the list of headings below."; 
+          defaultOptions = ["", "", ""];
+          break;
+        case 'matching_features':
+          defaultInstruction = "Match each statement with the correct person/category.";
+          defaultOptions = ["", "", ""];
+          break;
+        case 'gap_fill': 
+          defaultInstruction = "Complete the sentences/notes below. Write NO MORE THAN TWO WORDS for each answer."; 
+          break;
+        case 'diagram_labeling': 
+          defaultInstruction = "Label the diagram below. Write NO MORE THAN TWO WORDS for each answer."; 
+          break;
+        case 'short_answer':
+          defaultInstruction = "Answer the questions below. Write NO MORE THAN TWO WORDS for each answer.";
+          break;
       }
       onUpdate('type', newType); 
       onUpdate('instruction', defaultInstruction);
@@ -472,17 +498,32 @@ export default function AdminExams() {
             audioUrl, 
             duration: +listeningTime, 
             reviewTime: +listeningReviewTime, 
-            parts: listeningParts 
+            parts: listeningParts.map((part, pIdx) => ({
+                ...part,
+                id: pIdx + 1,
+                questions: part.questions.map((q, qIdx) => ({
+                    ...q,
+                    globalIdx: calculateGlobalIdx('listening', pIdx, qIdx)
+                }))
+            }))
         },
         reading: { 
             timeLimit: +readingTime, 
-            passages 
+            passages: passages.map((psg, psgIdx) => ({
+                ...psg,
+                id: psgIdx + 1,
+                questions: psg.questions.map((q, qIdx) => ({
+                    ...q,
+                    globalIdx: calculateGlobalIdx('reading', psgIdx, qIdx)
+                }))
+            }))
         },
         writing: { 
             timeLimit: +writingTime, 
             tasks: writingTasks 
         }
       },
+      timeLimit: (+listeningTime) + (+readingTime) + (+writingTime),
       isPublished: true
     };
 
@@ -495,6 +536,23 @@ export default function AdminExams() {
       console.error(err);
       alert("Error saving exam");
     }
+  };
+
+  const calculateGlobalIdx = (section: 'listening' | 'reading', groupIdx: number, qIdx: number) => {
+    let count = 0;
+    if (section === 'listening') {
+      for (let i = 0; i < groupIdx; i++) {
+        count += listeningParts[i].questions.length;
+      }
+    } else {
+      // Reading savollari listening dan keyin boshlanadi (agar IELTS bo'lsa)
+      // Lekin bu erda faqat section ichida hisoblaymiz yoki real IELTS kabi 1-40 gacha qilamiz
+      // Listening: 1-40, Reading: 1-40
+      for (let i = 0; i < groupIdx; i++) {
+        count += passages[i].questions.length;
+      }
+    }
+    return count + qIdx + 1;
   };
 
   const addQuestion = (section: 'listening' | 'reading', index: number) => {
@@ -706,7 +764,7 @@ export default function AdminExams() {
                                         </div>
                                     ) : part.questions.map((q, qIdx) => (
                                         <QuestionEditor 
-                                            key={q.id} q={q} idx={qIdx} isUploading={isUploading} handleFileUpload={handleFileUpload}
+                                            key={q.id} q={q} idx={calculateGlobalIdx('listening', pIdx, qIdx) - 1} isUploading={isUploading} handleFileUpload={handleFileUpload}
                                             onUpdate={(k, v) => updateQuestion('listening', pIdx, qIdx, k, v)}
                                             onRemove={() => removeQuestion('listening', pIdx, qIdx)}
                                         />
@@ -758,7 +816,7 @@ export default function AdminExams() {
                                      <div className="flex-1 overflow-y-auto p-6 bg-[#F8FAFC]">
                                          {psg.questions.map((q, qIdx) => (
                                              <QuestionEditor 
-                                                 key={q.id} q={q} idx={qIdx} isUploading={isUploading} handleFileUpload={handleFileUpload}
+                                                 key={q.id} q={q} idx={calculateGlobalIdx('reading', pIdx, qIdx) - 1} isUploading={isUploading} handleFileUpload={handleFileUpload}
                                                  onUpdate={(k, v) => updateQuestion('reading', pIdx, qIdx, k, v)}
                                                  onRemove={() => removeQuestion('reading', pIdx, qIdx)}
                                              />
