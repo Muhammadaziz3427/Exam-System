@@ -377,36 +377,41 @@ export default function StudentExam() {
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden select-none font-sans" translate="no">
       {/* HEADER */}
-      <header className="h-14 bg-[#2c3e50] text-white flex items-center justify-between px-6 z-50 shadow-md shrink-0">
+      <header className="h-14 bg-[#e4e9f0] text-[#2c3e50] flex items-center justify-between px-6 z-50 shadow-sm shrink-0 border-b border-slate-300">
         <div className="flex items-center gap-4">
-          <Badge className="bg-blue-600 px-3 py-1 text-sm font-black uppercase tracking-tighter border-none">IELTS Test Room</Badge>
-          <div className="h-4 w-[1px] bg-slate-600" />
-          <div className="flex items-center gap-2 text-slate-300 font-bold text-xs uppercase tracking-widest">
-            {currentSection === 'listening' && <Headphones size={14}/>}
-            {currentSection === 'reading' && <BookOpen size={14}/>}
-            {currentSection === 'writing' && <PenTool size={14}/>}
-            {currentSection.toUpperCase()}
+          <div className="flex items-center gap-2 text-[#2c3e50] font-bold text-sm uppercase tracking-tight">
+            {currentSection === 'listening' && <Headphones size={18} className="text-blue-700"/>}
+            {currentSection === 'reading' && <BookOpen size={18} className="text-blue-700"/>}
+            {currentSection === 'writing' && <PenTool size={18} className="text-blue-700"/>}
+            <span className="font-black">IELTS {currentSection}</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1 bg-black/20 p-1 rounded-md border border-white/10">
-            <button onClick={() => setZoom(Math.max(80, zoom - 10))} className="p-1 hover:bg-white/10 rounded transition-colors"><Minus size={14}/></button>
-            <span className="text-[10px] font-mono w-10 text-center font-bold">{zoom}%</span>
-            <button onClick={() => setZoom(Math.min(150, zoom + 10))} className="p-1 hover:bg-white/10 rounded transition-colors"><Plus size={14}/></button>
+        <div className="flex items-center gap-8">
+          <div className="flex items-center gap-1 bg-white/50 p-1 rounded-md border border-slate-300">
+            <button onClick={() => setZoom(Math.max(80, zoom - 10))} className="p-1 hover:bg-white rounded transition-colors text-slate-600"><Minus size={14}/></button>
+            <span className="text-xs font-bold w-12 text-center text-slate-700">{zoom}%</span>
+            <button onClick={() => setZoom(Math.min(150, zoom + 10))} className="p-1 hover:bg-white rounded transition-colors text-slate-600"><Plus size={14}/></button>
           </div>
 
-          <div className={`flex items-center gap-3 px-6 py-1.5 rounded-md border transition-all duration-300 ${timeLeft < 300 ? 'bg-red-500/20 border-red-500 text-red-400 animate-pulse' : 'bg-black/20 border-white/10 text-blue-400'}`}>
-            <Clock size={20} />
-            <span className="font-mono text-2xl font-bold tabular-nums">
+          <div className={`flex items-center gap-3 px-8 py-1 rounded-md border-2 transition-all duration-300 ${timeLeft < 300 ? 'bg-red-50 border-red-500 text-red-600 animate-pulse' : 'bg-white border-blue-600 text-blue-700'}`}>
+            <Clock size={20} strokeWidth={3} />
+            <span className="font-mono text-2xl font-black tabular-nums">
               {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
             </span>
           </div>
+          
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700">
+              <ShieldCheck size={18} />
+            </div>
+            <span className="text-[10px] font-bold uppercase text-slate-500 tracking-tighter leading-tight">Secure<br/>Session</span>
+          </div>
         </div>
 
-        <Button variant="destructive" size="sm" className="font-bold px-6 bg-red-600 hover:bg-red-700" 
+        <Button variant="outline" size="sm" className="font-bold px-6 border-slate-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200" 
             onClick={() => { if(confirm("Tugatmoqchimisiz?")) handleFinalSubmit(); }}>
-          Finish
+          Finish Test
         </Button>
       </header>
 
@@ -638,6 +643,35 @@ export default function StudentExam() {
                   Submit Exam
               </Button>
           )}
+        </div>
+      </footer>
+      {/* FOOTER NAVIGATION (CDI STYLE) */}
+      <footer className="h-14 bg-[#e4e9f0] border-t border-slate-300 flex items-center justify-between px-6 shrink-0 z-50">
+        <div className="flex gap-1 overflow-x-auto no-scrollbar py-2">
+          {Array.from({ length: 40 }).map((_, i) => {
+            const qNum = i + 1;
+            const qId = `q-${qNum}`;
+            const isAnswered = answers.listening[qId] || answers.reading[qId];
+            const isReview = reviewFlags[qId];
+            
+            return (
+              <button
+                key={qNum}
+                onClick={() => scrollToQuestion(qNum)}
+                className={`w-8 h-8 rounded-sm text-[10px] font-bold flex items-center justify-center transition-all border-b-2
+                  ${isReview ? 'bg-orange-500 text-white border-orange-700 shadow-inner' : 
+                    isAnswered ? 'bg-blue-700 text-white border-blue-900' : 
+                    'bg-white text-slate-600 border-slate-300 hover:border-slate-400'}`}
+              >
+                {qNum}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">
+          <div className="flex items-center gap-1"><div className="w-3 h-3 bg-blue-700 rounded-sm"/> Answered</div>
+          <div className="flex items-center gap-1"><div className="w-3 h-3 bg-white border border-slate-300 rounded-sm"/> Unanswered</div>
+          <div className="flex items-center gap-1"><div className="w-3 h-3 bg-orange-500 rounded-sm"/> Review</div>
         </div>
       </footer>
     </div>
