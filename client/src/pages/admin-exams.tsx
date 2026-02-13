@@ -220,13 +220,20 @@ const QuestionEditor = ({ q, idx, onUpdate, onRemove, isUploading, handleFileUpl
              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
                  <div className="space-y-1">
                     <Label className="text-[10px] font-bold uppercase text-slate-400">Question Type</Label>
-                    <select 
-                      className="w-full text-xs font-bold uppercase bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all" 
-                      value={q.type} 
-                      onChange={(e) => handleTypeChange(e.target.value as QuestionType)}
-                    >
-                      {QUESTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                    </select>
+                    <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
+                      {QUESTION_TYPES.map(t => (
+                        <button
+                          key={t.value}
+                          type="button"
+                          onClick={() => handleTypeChange(t.value)}
+                          className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all gap-1 ${q.type === t.value ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : 'bg-slate-50 border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-500'}`}
+                          title={t.label}
+                        >
+                          <t.icon size={16} />
+                          <span className="text-[8px] font-bold uppercase truncate w-full text-center">{t.label.split('(')[0]}</span>
+                        </button>
+                      ))}
+                    </div>
                  </div>
                  <div className="space-y-1">
                     <Label className="text-[10px] font-bold uppercase text-slate-400">Instruction (Visible to Student)</Label>
