@@ -13,7 +13,7 @@ export function useAuth() {
         const storedUser = localStorage.getItem("user");
         if (storedUser) {
           const parsed = JSON.parse(storedUser);
-          // Supabase-dan kelayotgan user obyekti ichma-ich bo'lishi mumkinligini hisobga olamiz
+          // Supabase-dan kelayotgan user obyekti ichma-ich bo'lishi mumkin
           return parsed?.user || parsed;
         }
       } catch (e) {
@@ -53,12 +53,8 @@ export function useAdminLogin() {
       localStorage.setItem("user", JSON.stringify(userData));
       queryClient.setQueryData(["/api/user"], userData);
 
-      // ROLGA QARAB YO'NALTIRISH
-      if (userData.role === "teacher") {
-        window.location.replace("/teacher");
-      } else {
-        window.location.replace("/admin");
-      }
+      // Navigate funksiyasi AuthPage-ning o'zida location orqali boshqariladi, 
+      // lekin bu yerda ham qo'shimcha xavfsizlik uchun qoldirildi.
     },
   });
 }
@@ -85,9 +81,6 @@ export function useStudentLogin() {
       // Sessiya ma'lumotlarini saqlash
       const sessionData = data.session || data;
       localStorage.setItem("student_session", JSON.stringify(sessionData));
-
-      // Imtihon sahifasiga yo'naltirish
-      window.location.href = `/exam/${sessionData.id}`;
     },
   });
 }
@@ -100,7 +93,7 @@ export function useLogout() {
 
   return useMutation({
     mutationFn: async () => {
-      // Serverdagi sessiyani yakunlash (ixtiyoriy, lekin xavfsizlik uchun yaxshi)
+      // Serverdagi sessiyani yakunlash
       await fetch(api.auth.logout.path, { method: "POST" }).catch(() => {});
     },
     onSuccess: () => {

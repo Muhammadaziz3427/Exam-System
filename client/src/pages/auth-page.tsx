@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { useAdminLogin, useStudentLogin } from "@/hooks/use-auth";
-// Importlarni tekshiring: Agar alohida bo'lsa, har birini alohida qatorda yozing
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { GraduationCap, ShieldCheck, Loader2, Trophy, FileText, Search } from "lucide-react";
+import { GraduationCap, ShieldCheck, Loader2, Trophy, FileText } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 
 export default function AuthPage() {
   const [activeTab, setActiveTab] = useState<"student" | "admin" | "teacher">("student");
@@ -139,19 +139,25 @@ function AdminLoginForm() {
   const login = useAdminLogin();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    login.mutate({ username, password }, {
+    login.mutate({ username: username.trim(), password: password.trim() }, {
       onSuccess: (userData: any) => {
-        // Ma'lumotni keshga yozish
         queryClient.setQueryData(["/api/user"], userData);
-        // Yo'naltirish
         if (userData.role === "admin") {
           setLocation("/admin");
         } else {
           setLocation("/teacher");
         }
+      },
+      onError: (error: any) => {
+        toast({
+          title: "Admin Login Failed",
+          description: error.message || "Invalid credentials",
+          variant: "destructive"
+        });
       }
     });
   };
@@ -188,14 +194,24 @@ function StudentLoginForm() {
   const [password, setPassword] = useState("");
   const login = useStudentLogin();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    login.mutate({ accessCode: code, password }, {
+    // Trim va UpperCase kiritish xatolarini (bo'sh joy, kichik harf) oldini oladi
+    login.mutate({ accessCode: code.trim().toUpperCase(), password: password.trim() }, {
       onSuccess: (data: any) => {
         const session = data.session || data;
         localStorage.setItem("student_session", JSON.stringify(session));
+        toast({ title: "Muvaffaqiyatli", description: "Imtihon xonasiga kirilmoqda..." });
         setLocation(`/exam/${session.id}`);
+      },
+      onError: (error: any) => {
+        toast({
+          title: "Kirishda xatolik",
+          description: error.message || "Access Code yoki Parol noto'g'ri. Iltimos, qayta tekshiring.",
+          variant: "destructive"
+        });
       }
     });
   };
@@ -212,11 +228,25 @@ function StudentLoginForm() {
         <form onSubmit={handleLoginSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="st-code">Access Code</Label>
-            <Input id="st-code" placeholder="TEST-0000" className="uppercase font-mono" value={code} onChange={(e) => setCode(e.target.value)} required />
+            <Input 
+              id="st-code" 
+              placeholder="TEST-0000" 
+              className="uppercase font-mono" 
+              value={code} 
+              onChange={(e) => setCode(e.target.value)} 
+              required 
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="st-pass">Exam Password</Label>
-            <Input id="st-pass" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <Input 
+              id="st-pass" 
+              type="password" 
+              placeholder="••••••••" 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
+              required 
+            />
           </div>
           <Button className="w-full bg-blue-600 hover:bg-blue-700" disabled={login.isPending}>
             {login.isPending ? <Loader2 className="animate-spin mr-2" /> : "Enter Exam Room"}
