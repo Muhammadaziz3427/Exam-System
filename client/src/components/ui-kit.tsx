@@ -319,3 +319,46 @@ export const ScrollArea = React.forwardRef<HTMLDivElement, React.HTMLAttributes<
   )
 );
 ScrollArea.displayName = "ScrollArea";
+// --- SELECT (ui-kit.tsx ichiga qo'shing) ---
+export function Select({ children,  onValueChange }: any) {
+  return (
+    <div className="relative w-full" onChange={(e: any) => onValueChange?.(e.target.value)}>
+      {children}
+    </div>
+  );
+}
+
+export function SelectTrigger({ children, className }: any) {
+  return (
+    <div className={cn("flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm", className)}>
+      {children}
+    </div>
+  );
+}
+
+export function SelectValue({ placeholder }: any) {
+  return <span className="text-muted-foreground">{placeholder}</span>;
+}
+
+export function SelectContent({ children }: any) {
+  return <div className="absolute z-50 mt-1 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md">{children}</div>;
+}
+
+export function SelectItem({  children }: any): React.JSX.Element {
+  return <div className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-accent">{children}</div>;
+}
+
+// --- SWITCH (ui-kit.tsx ichiga qo'shing) ---
+export const Switch = React.forwardRef<HTMLInputElement, any>(({ className, ...props }, ref) => (
+  <input
+    type="checkbox"
+    role="switch"
+    className={cn(
+      "peer h-6 w-11 shrink-0 cursor-pointer appearance-none items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 bg-slate-200 checked:bg-blue-600",
+      className
+    )}
+    ref={ref}
+    {...props}
+  />
+));
+Switch.displayName = "Switch";
