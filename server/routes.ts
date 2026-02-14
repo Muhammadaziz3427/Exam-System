@@ -111,7 +111,7 @@ export async function registerRoutes(
   });
 
   // ==========================================
-  // --- AUTH ROUTES (BIR MARTALIK STUDENT LOGIN) ---
+  // --- AUTH ROUTES ---
   // ==========================================
   app.post(api.auth.adminLogin.path, async (req, res) => {
     const { username, password } = req.body;
@@ -124,30 +124,47 @@ export async function registerRoutes(
   });
 
   app.post(api.auth.studentLogin.path, async (req, res) => {
-    const { accessCode, password } = req.body;
+    try {
+      const { accessCode, password } = req.body;
 
-    // 1. Sessiyani barcha shartlar bilan qidiramiz
-    const { data: session, error } = await supabase
-      .from('exam_sessions')
-      .select('*')
-      .eq('access_code', accessCode.trim().toUpperCase())
-      .single();
+      if (!accessCode || !password) {
+        return res.status(400).json({ message: "Kod va parol kiritilishi shart" });
+      }
 
-    if (error || !session) return res.status(401).json({ message: "Kirish kodi topilmadi" });
-    if (session.password !== password.trim()) return res.status(401).json({ message: "Parol noto'g'ri" });
+      // PostgreSQL CamelCase ustunlarni "Quotes" ichida qidirishini hisobga olgan holda
+      const { data: session, error } = await supabase
+        .from('exam_sessions')
+        .select('*')
+        .or(`access_code.eq.${accessCode.trim().toUpperCase()},accessCode.eq.${accessCode.trim().toUpperCase()}`)
+        .single();
 
-    // 2. Bir martalik kirish tekshiruvi (is_used ustuni bazada bo'lishi kerak)
-    if (session.status === 'completed' || session.is_used === true) {
-      return res.status(403).json({ message: "Bu koddan foydalanib bo'lingan yoki imtihon yakunlangan." });
+      if (error || !session) {
+        console.error("Auth error:", error);
+        return res.status(401).json({ message: "Kirish kodi topilmadi" });
+      }
+
+      if (session.password !== password.trim()) {
+        return res.status(401).json({ message: "Parol noto'g'ri" });
+      }
+
+      // BIR MARTALIK KIRISH TEKSHIRUVI
+      if (session.is_used === true || session.status === 'completed') {
+        return res.status(403).json({ message: "Bu koddan foydalanib bo'lingan yoki imtihon yakunlangan." });
+      }
+
+      // MUHIM: Kirish qilganda is_used ni TRUE qilish
+      const { error: updateError } = await supabase
+        .from('exam_sessions')
+        .update({ is_used: true, status: 'active', start_time: new Date() })
+        .eq('id', session.id);
+
+      if (updateError) throw updateError;
+
+      res.json({ session });
+    } catch (err) {
+      console.error("Login catch error:", err);
+      res.status(500).json({ message: "Serverda ichki xatolik" });
     }
-
-    // 3. Kirish muvaffaqiyatli bo'lsa, sessiyani "ishlatilgan" deb belgilaymiz
-    await supabase
-      .from('exam_sessions')
-      .update({ is_used: true, status: 'active', start_time: new Date() })
-      .eq('id', session.id);
-
-    res.json({ session });
   });
 
   // ==========================================
@@ -183,7 +200,7 @@ export async function registerRoutes(
   });
 
   // ==========================================
-  // --- SESSION MANAGEMENT (ADMIN TOMONIDAN) ---
+  // --- SESSION MANAGEMENT (ADMIN) ---
   // ==========================================
   app.post(api.sessions.create.path, async (req, res) => {
     try {
@@ -195,7 +212,7 @@ export async function registerRoutes(
           exam_id: Number(examId), 
           assigned_teacher_id: assignedTeacherId ? Number(assignedTeacherId) : null,
           status: 'created',
-          is_used: false // Yangi sessiya ishlatilmagan holatda yaratiladi
+          is_used: false 
         }])
         .select().single();
 
