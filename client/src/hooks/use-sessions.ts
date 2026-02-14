@@ -1,18 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import { type InsertSession } from "@shared/schema";
-import { supabase } from "@/lib/supabase"; // Supabase klientini import qilamiz
+import { supabase } from "@/lib/supabase";
 
 // --- QUERY KEYS ---
 export const sessionKeys = {
   all: ["sessions"] as const,
   lists: () => [...sessionKeys.all, "list"] as const,
-  detail: (id: number) => [...sessionKeys.all, "detail", id] as const,
+  detail: (id: number | string) => [...sessionKeys.all, "detail", id] as const,
 };
 
 // --- TYPES ---
 interface SubmitPayload {
-  id: number;
+  id: number | string;
   answers: Record<string, any>;
   isFinal?: boolean;
   status?: "pending" | "submitted" | "blocked" | "active" | "completed";
@@ -23,11 +23,11 @@ interface SubmitPayload {
 }
 
 interface ViolationPayload {
-  id: number;
+  id: number | string;
   type: 'tab_switch' | 'fullscreen_exit' | 'window_blur' | 'multiple_faces' | 'no_face';
 }
 
-// 1. Barcha sessiyalarni olish (Admin/Monitor uchun)
+// 1. Barcha sessiyalarni olish
 export function useSessions() {
   return useQuery({
     queryKey: sessionKeys.lists(),
@@ -46,40 +46,54 @@ export function useSessions() {
 }
 
 // 2. Yagona sessiyani olish
-export function useSession(id: number) {
+export function useSession(id: number | string) {
   return useQuery({
     queryKey: sessionKeys.detail(id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('exam_sessions')
-        .select('*, exams(*)') // Imtihon ma'lumotlari bilan birga olish
+        .select('*, exams(*)')
         .eq('id', id)
         .single();
 
       if (error) throw error;
 
-      //startsWith xatosini oldini olish uchun ma'lumotni tekshiramiz
       return {
         ...data,
-        audioUrl: data.audioUrl || "", // Agar null bo'lsa, bo'sh string beramiz
+        audioUrl: data?.audioUrl || "",
       };
     },
     enabled: !!id,
   });
 }
 
-// 3. Yangi sessiya yaratish
+// 3. Yangi sessiya yaratish (TOZALANGAN VARIANT)
 export function useCreateSession() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: InsertSession) => {
+      // 400 xatosini oldini olish uchun faqat bazada aniq bor ustunlarni yuboramiz
+      const payload = {
+        examId: data.examId,
+        studentName: data.studentName,
+        accessCode: data.accessCode,
+        status: 'pending',
+        // Agar firstName/lastName bazada bo'lsa buni qoldiring, bo'lmasa o'chiring
+        firstName: (data as any).firstName || null,
+        lastName: (data as any).lastName || null,
+        email: (data as any).email || null,
+      };
+
       const { data: newSession, error } = await supabase
         .from('exam_sessions')
-        .insert([data])
+        .insert([payload])
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Sessiya yaratishda xato:", error.message);
+        throw error;
+      }
       return newSession;
     },
     onSuccess: () => {
@@ -92,7 +106,7 @@ export function useCreateSession() {
 export function useStartSession() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: number) => {
+    mutationFn: async (id: number | string) => {
       const { data, error } = await supabase
         .from('exam_sessions')
         .update({ 
@@ -113,12 +127,11 @@ export function useStartSession() {
   });
 }
 
-// 5. Javoblarni yuborish (Autosave yoki Final Submit)
+// 5. Javoblarni yuborish
 export function useSubmitAnswers() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...payload }: SubmitPayload) => {
-      // Supabase-da update qilish
       const { data, error } = await supabase
         .from('exam_sessions')
         .update({
@@ -133,13 +146,16 @@ export function useSubmitAnswers() {
 
       if (error) throw error;
 
-      // Agar final submit bo'lsa, backend-ga natijani hisoblash uchun xabar berish (ixtiyoriy)
       if (payload.isFinal) {
-        await fetch(buildUrl(api.sessions.submit.path, { id }), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...payload, isFinal: true }),
-        });
+        try {
+          await fetch(buildUrl(api.sessions.submit.path, { id: String(id) }), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...payload, isFinal: true }),
+          });
+        } catch (e) {
+          console.error("Backend hisoblashda xato (ixtiyoriy):", e);
+        }
       }
 
       return data;
@@ -157,7 +173,11 @@ export function useLogViolation() {
     mutationFn: async ({ id, type }: ViolationPayload) => {
       const { data, error } = await supabase
         .from('violations')
-        .insert([{ session_id: id, type, created_at: new Date().toISOString() }]);
+        .insert([{ 
+          session_id: id, 
+          type: type, 
+          created_at: new Date().toISOString() 
+        }]);
 
       if (error) throw error;
       return data;
