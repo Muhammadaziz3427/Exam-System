@@ -131,15 +131,14 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Kod va parol kiritilishi shart" });
       }
 
-      // PostgreSQL CamelCase ustunlarni "Quotes" ichida qidirishini hisobga olgan holda
+      // SKRINSHOTDA KO'RINGANIDEK: accessCode ustunidan qidiramiz
       const { data: session, error } = await supabase
         .from('exam_sessions')
         .select('*')
-        .or(`access_code.eq.${accessCode.trim().toUpperCase()},accessCode.eq.${accessCode.trim().toUpperCase()}`)
+        .eq('accessCode', accessCode.trim().toUpperCase())
         .single();
 
       if (error || !session) {
-        console.error("Auth error:", error);
         return res.status(401).json({ message: "Kirish kodi topilmadi" });
       }
 
@@ -147,12 +146,12 @@ export async function registerRoutes(
         return res.status(401).json({ message: "Parol noto'g'ri" });
       }
 
-      // BIR MARTALIK KIRISH TEKSHIRUVI
+      // BIR MARTALIK KIRISH VA STATUS TEKSHIRUVI
       if (session.is_used === true || session.status === 'completed') {
         return res.status(403).json({ message: "Bu koddan foydalanib bo'lingan yoki imtihon yakunlangan." });
       }
 
-      // MUHIM: Kirish qilganda is_used ni TRUE qilish
+      // Muvaffaqiyatli kirsa, is_used ni TRUE qilamiz
       const { error: updateError } = await supabase
         .from('exam_sessions')
         .update({ is_used: true, status: 'active', start_time: new Date() })
@@ -162,7 +161,6 @@ export async function registerRoutes(
 
       res.json({ session });
     } catch (err) {
-      console.error("Login catch error:", err);
       res.status(500).json({ message: "Serverda ichki xatolik" });
     }
   });
