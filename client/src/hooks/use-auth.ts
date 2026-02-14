@@ -52,9 +52,37 @@ export function useAdminLogin() {
 
       localStorage.setItem("user", JSON.stringify(userData));
       queryClient.setQueryData(["/api/user"], userData);
+    },
+  });
+}
 
-      // Navigate funksiyasi AuthPage-ning o'zida location orqali boshqariladi, 
-      // lekin bu yerda ham qo'shimcha xavfsizlik uchun qoldirildi.
+/**
+ * ADMIN UCHUN: Yangi bir martalik student sessiyasini yaratish
+ */
+export function useCreateStudentSession() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (studentData: { studentName: string; accessCode: string; password: string }) => {
+      const res = await fetch("/api/admin/sessions", { // Backend-dagi sessiya yaratish yo'li
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...studentData,
+          isUsed: false, // Bir martalik ekanligini belgilash
+          createdAt: new Date().toISOString()
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Sessiya yaratish muvaffaqiyatsiz tugadi");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      // Sessiyalar ro'yxatini yangilash
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/sessions"] });
     },
   });
 }
