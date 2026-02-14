@@ -6,8 +6,8 @@ import * as lucideReact from "lucide-react";
 import { createClient } from '@supabase/supabase-js';
 
 // Supabase client (client-side for queries, uploads server-side via API)
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL!;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 type QuestionType = 
