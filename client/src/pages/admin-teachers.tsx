@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { User } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Loader2, UserPlus, Trash2, Copy, Search, 
-  Users, ShieldCheck, Eye, EyeOff, CheckCircle2 
+  Users, Eye, EyeOff, CheckCircle2 
 } from "lucide-react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 
@@ -22,7 +22,7 @@ const PasswordCell = ({ password }: { password: string }) => {
 
   const copy = () => {
     navigator.clipboard.writeText(password);
-    toast({ title: "Copied!", description: "Password copied to clipboard." });
+    toast({ title: "Nusxalandi!", description: "Parol buferga saqlandi." });
   };
 
   return (
@@ -44,6 +44,7 @@ export default function AdminTeachers() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
 
+  // O'qituvchilarni olish
   const { data: teachers, isLoading } = useQuery<User[]>({
     queryKey: ["/api/admin/teachers"],
   });
@@ -56,6 +57,7 @@ export default function AdminTeachers() {
     );
   }, [teachers, searchQuery]);
 
+  // Yangi akkaunt yaratish
   const generateMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/admin/teachers/generate");
@@ -64,23 +66,30 @@ export default function AdminTeachers() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/teachers"] });
       toast({ 
-        title: "Account Ready!", 
-        description: "New teacher has been successfully onboarded." 
+        title: "Akkaunt Tayyor!", 
+        description: "Yangi o'qituvchi muvaffaqiyatli qo'shildi." 
       });
     },
+    onError: () => {
+      toast({ 
+        title: "Xatolik", 
+        description: "Akkaunt yaratishda xatolik yuz berdi.",
+        variant: "destructive"
+      });
+    }
   });
 
+  // Akkauntni o'chirish
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       await apiRequest("DELETE", `/api/admin/teachers/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/teachers"] });
-      toast({ title: "Account Removed", variant: "destructive" });
+      toast({ title: "O'chirildi", variant: "destructive", description: "O'qituvchi akkaunti o'chirildi." });
     },
   });
 
-  // Yuklanish holati (Skeleton)
   const renderSkeletons = () => (
     <div className="space-y-4">
       {Array.from({ length: 5 }).map((_, i) => (
@@ -96,8 +105,8 @@ export default function AdminTeachers() {
         {/* HEADER SECTION */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight">Manage Instructors</h1>
-            <p className="text-slate-500 font-medium">Create and monitor teacher access accounts.</p>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tight">O'qituvchilar Boshqaruvi</h1>
+            <p className="text-slate-500 font-medium">O'qituvchi akkauntlarini yaratish va nazorat qilish.</p>
           </div>
           <Button 
             size="lg"
@@ -110,7 +119,7 @@ export default function AdminTeachers() {
             ) : (
               <UserPlus className="mr-2 h-5 w-5" />
             )}
-            Generate Account
+            Akkaunt Yaratish
           </Button>
         </div>
 
@@ -122,23 +131,22 @@ export default function AdminTeachers() {
                 <Users size={24} />
               </div>
               <div>
-                <p className="text-sm font-bold text-blue-900/50 uppercase">Total Teachers</p>
+                <p className="text-sm font-bold text-blue-900/50 uppercase">Jami O'qituvchilar</p>
                 <p className="text-2xl font-black text-blue-900">{teachers?.length || 0}</p>
               </div>
             </CardContent>
           </Card>
-          {/* Qo'shimcha stat-kartalar qo'shish mumkin */}
         </div>
 
         {/* MAIN CONTENT */}
         <Card className="border-none shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
           <CardHeader className="bg-white border-b border-slate-50 space-y-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-xl font-bold">Teacher Directory</CardTitle>
+              <CardTitle className="text-xl font-bold">O'qituvchilar Ro'yxati</CardTitle>
               <div className="relative w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input 
-                  placeholder="Search by username..." 
+                  placeholder="Username bo'yicha qidirish..." 
                   className="pl-10 bg-slate-50 border-none focus-visible:ring-blue-500 rounded-lg"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -153,10 +161,10 @@ export default function AdminTeachers() {
               <Table>
                 <TableHeader className="bg-slate-50/50">
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[250px] font-bold text-slate-700">Instructor</TableHead>
-                    <TableHead className="font-bold text-slate-700">Access Credentials</TableHead>
-                    <TableHead className="font-bold text-slate-700 text-center">Date Joined</TableHead>
-                    <TableHead className="text-right font-bold text-slate-700">Control</TableHead>
+                    <TableHead className="w-[250px] font-bold text-slate-700">O'qituvchi</TableHead>
+                    <TableHead className="font-bold text-slate-700">Kirish Ma'lumotlari</TableHead>
+                    <TableHead className="font-bold text-slate-700 text-center">Qo'shilgan Sana</TableHead>
+                    <TableHead className="text-right font-bold text-slate-700">Boshqaruv</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -170,17 +178,17 @@ export default function AdminTeachers() {
                           <div className="flex flex-col">
                             <span className="font-bold text-slate-900">{teacher.username}</span>
                             <Badge variant="secondary" className="w-fit text-[9px] h-4 bg-emerald-50 text-emerald-700 border-emerald-100">
-                              ACTIVE
+                              FAOL
                             </Badge>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <PasswordCell password={teacher.password} />
+                        <PasswordCell password={teacher.password || 'N/A'} />
                       </TableCell>
                       <TableCell className="text-center">
                         <span className="text-sm font-medium text-slate-500">
-                          {teacher.createdAt ? new Date(teacher.createdAt).toLocaleDateString('en-GB', {
+                          {teacher.createdAt ? new Date(teacher.createdAt).toLocaleDateString('uz-UZ', {
                             day: 'numeric', month: 'short', year: 'numeric'
                           }) : '—'}
                         </span>
@@ -212,8 +220,8 @@ export default function AdminTeachers() {
                   <Users size={32} />
                 </div>
                 <div>
-                  <p className="text-slate-900 font-bold">No teachers found</p>
-                  <p className="text-slate-500 text-sm">Try adjusting your search or generate a new account.</p>
+                  <p className="text-slate-900 font-bold">O'qituvchilar topilmadi</p>
+                  <p className="text-slate-500 text-sm">Qidiruvni o'zgartiring yoki yangi akkaunt yarating.</p>
                 </div>
               </div>
             )}
@@ -224,7 +232,7 @@ export default function AdminTeachers() {
         <footer className="py-8 flex flex-col items-center justify-center space-y-2 border-t border-slate-100">
           <div className="flex items-center gap-2 text-blue-600 font-black text-[10px] tracking-[0.2em] uppercase">
             <CheckCircle2 size={12} />
-            Secure Admin Infrastructure
+            Xavfsiz Admin Infratuzilmasi
           </div>
           <p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">
             Developed by <span className="text-slate-900">Yursinaliyev Muhammadaziz</span> | yursinaliyevm@gmail.com

@@ -9,7 +9,9 @@ export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
-  role: text("role", { enum: ["admin", "teacher"] }).notNull().default("teacher"),
+  name: text("name"), // Foydalanuvchi ismi uchun qo'shildi
+  email: text("email"),
+  role: text("role").notNull().default("teacher"), // Supabase uchun enum string sifatida
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -17,33 +19,24 @@ export const users = pgTable("users", {
 export const exams = pgTable("exams", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
-  // JSON structure for sections: 
-  // { 
-  //   listening: { audioUrl: string, questions: Question[] }, 
-  //   reading: { passages: [{id, title, content, questions: Question[] }] }, 
-  //   writing: { 
-  //     tasks: [{ type: 'task1' | 'task2', content: string, image?: string, prompts?: string[] }]
-  //   } 
-  // }
-  // Question type: { id, type: 'mcq'|'gap_fill'|'map_labeling', text: string, options?: string[], answer: string, coordinates?: {x, y}[] }
   content: jsonb("content").notNull(), 
-  timeLimit: integer("time_limit").notNull(), // in minutes
+  timeLimit: integer("time_limit").notNull(), 
   isPublished: boolean("is_published").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Student Sessions (One-time credentials)
+// Student Sessions
 export const examSessions = pgTable("exam_sessions", {
   id: serial("id").primaryKey(),
   studentName: text("student_name").notNull(),
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   email: text("email").notNull(),
-  accessCode: text("access_code").notNull().unique(), // The "Test ID"
-  password: text("password").notNull(), // One-time password
-  examId: integer("exam_id").notNull(), // Linked exam
-  status: text("status", { enum: ["active", "created", "in_progress", "completed", "pending_grading", "graded"] }).notNull().default("active"),
-  resultStatus: text("result_status", { enum: ["active", "marking", "completed", "released"] }).notNull().default("active"),
+  accessCode: text("access_code").notNull().unique(),
+  password: text("password").notNull(),
+  examId: integer("exam_id").notNull(), 
+  status: text("status").notNull().default("active"),
+  resultStatus: text("result_status").notNull().default("active"),
   writingScore: numeric("writing_score"),
   speakingScore: numeric("speaking_score"),
   readingScore: numeric("reading_score"),
@@ -52,9 +45,9 @@ export const examSessions = pgTable("exam_sessions", {
   startTime: timestamp("start_time"),
   endTime: timestamp("end_time"),
   currentSection: text("current_section").default("listening"),
-  remainingTime: integer("remaining_time"), // In seconds
+  remainingTime: integer("remaining_time"), 
   resultsReleased: boolean("results_released").default(false),
-  assignedTeacherId: integer("assigned_teacher_id"), // Teacher assigned for marking
+  assignedTeacherId: integer("assigned_teacher_id"),
   isCameraActive: boolean("is_camera_active").default(false),
   lastCameraPulse: timestamp("last_camera_pulse"),
 });
@@ -62,64 +55,27 @@ export const examSessions = pgTable("exam_sessions", {
 // Student Answers
 export const submissions = pgTable("submissions", {
   id: serial("id").primaryKey(),
-  sessionId: integer("session_id").notNull(),
-  // JSON structure: { listening: { q1: "a", ... }, reading: { ... }, writing: { task1: "text...", task2: "text..." } }
+  sessionId: integer("session_id").notNull().unique(), // Har bir sessiya uchun bitta javob
   answers: jsonb("answers").default({}),
-  // Grading details
   grading: jsonb("grading").default({
-    writing: {
-      task1: { feedback: "", score: 0 },
-      task2: { feedback: "", score: 0 },
-      overall: 0,
-      feedback: ""
-    },
-    speaking: {
-      score: 0,
-      feedback: ""
-    },
-    autoGraded: {
-      listening: { score: 0, total: 0 },
-      reading: { score: 0, total: 0 }
-    },
+    writing: { task1: { feedback: "", score: 0 }, task2: { feedback: "", score: 0 }, overall: 0, feedback: "" },
+    speaking: { score: 0, feedback: "" },
+    autoGraded: { listening: { score: 0, total: 0 }, reading: { score: 0, total: 0 } },
     advancedAssessment: {
-      writing: {
-        task1: {
-          taskResponse: 0,
-          coherenceCohesion: 0,
-          lexicalResource: 0,
-          grammaticalRange: 0
-        },
-        task2: {
-          taskResponse: 0,
-          coherenceCohesion: 0,
-          lexicalResource: 0,
-          grammaticalRange: 0
-        }
-      },
-      speaking: {
-        fluency: 0,
-        lexicalResource: 0,
-        grammaticalRange: 0,
-        pronunciation: 0
-      },
+      writing: { task1: { taskResponse: 0, coherenceCohesion: 0, lexicalResource: 0, grammaticalRange: 0 }, task2: { taskResponse: 0, coherenceCohesion: 0, lexicalResource: 0, grammaticalRange: 0 } },
+      speaking: { fluency: 0, lexicalResource: 0, grammaticalRange: 0, pronunciation: 0 },
       diagnosticFeedback: ""
     },
-    advanced_analysis: {
-      writing: {
-        task1: {},
-        task2: {}
-      },
-      speaking: {}
-    }
+    advanced_analysis: { writing: { task1: {}, task2: {} }, speaking: {} }
   }),
   lastSavedAt: timestamp("last_saved_at").defaultNow(),
 });
 
-// Violation Logs (Lockdown)
+// Violation Logs
 export const violations = pgTable("violations", {
   id: serial("id").primaryKey(),
   sessionId: integer("session_id").notNull(),
-  type: text("type").notNull(), // 'tab_switch', 'fullscreen_exit'
+  type: text("type").notNull(),
   timestamp: timestamp("timestamp").defaultNow(),
 });
 
@@ -152,15 +108,15 @@ export type InsertSession = z.infer<typeof insertSessionSchema>;
 export type InsertSubmission = z.infer<typeof insertSubmissionSchema>;
 export type InsertViolation = z.infer<typeof insertViolationSchema>;
 
-// Auth Login Types
+// Auth Types
 export const loginSchema = z.object({
-  username: z.string(),
-  password: z.string(),
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
 });
 export type LoginRequest = z.infer<typeof loginSchema>;
 
 export const studentLoginSchema = z.object({
-  accessCode: z.string(),
-  password: z.string(),
+  accessCode: z.string().min(1, "Access code is required"),
+  password: z.string().min(1, "Password is required"),
 });
 export type StudentLoginRequest = z.infer<typeof studentLoginSchema>;

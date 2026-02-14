@@ -1,17 +1,15 @@
 import type { Express } from "express";
 import { type Server } from "http";
-import { storage } from "./storage";
 import { api } from "@shared/routes";
-import { db } from "./db";
-import { exams, examSessions } from "@shared/schema";
-import { eq } from "drizzle-orm";
 import { sendExamResultsEmail } from "./email";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import * as pdf from "pdf-parse"; // Tuzatildi: import * as pdf
+// createRequire o'rniga namespace import ishlatamiz
+import * as pdfLib from "pdf-parse"; 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { uploadToSupabase } from "./supabase-service";
+import { supabase } from "./db";
 
 // AI sozlamalari
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
@@ -32,7 +30,7 @@ const multerStorage = multer.diskStorage({
   },
 });
 
-const upload = multer({ 
+const upload = multer({
   storage: multerStorage,
   limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
 });
@@ -45,41 +43,59 @@ export async function registerRoutes(
   // ==========================================
   // --- AI EXAM GENERATION ROUTES ---
   // ==========================================
-
   app.post("/api/exams/analyze-pdf", upload.single("pdf"), async (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "PDF yuklanmadi" });
-
       const dataBuffer = fs.readFileSync(req.file.path);
-      const pdfData = await pdf(dataBuffer); 
+
+      // MUHIM: CommonJS kutubxonasini ESM muhitda to'g'ri chaqirish
+      // pdfLib.default - agar mavjud bo'lsa (yangi Node versiyalarda), aks holda pdfLib o'zi
+      const pdfParser = (pdfLib as any).default || pdfLib;
+
+      const pdfData = await pdfParser(dataBuffer);
       const pdfText = pdfData.text;
 
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      const prompt = `
-        I am building an IELTS exam system. Extract questions from this PDF text.
-        Text: ${pdfText.substring(0, 10000)}
 
-        Return ONLY a JSON object with this exact structure:
+      // Promptni optimallashtirdik
+      const prompt = `
+        You are an expert IELTS exam creator. Extract questions from the following PDF text.
+
+        TEXT CONTENT: 
+        ${pdfText.substring(0, 15000)}
+
+        INSTRUCTIONS:
+        Create a valid JSON object containing a list of questions found in the text.
+
+        REQUIRED JSON STRUCTURE:
         {
           "questions": [
             {
               "id": 1,
-              "questionText": "Question text here",
-              "options": ["A", "B", "C", "D"],
-              "answer": "Correct answer text",
+              "questionText": "The actual question?",
+              "options": ["Option A", "Option B", "Option C", "Option D"],
+              "answer": "Option A",
               "type": "multiple-choice"
             }
           ]
         }
-        Strictly return ONLY JSON.
+
+        IMPORTANT: Return ONLY raw JSON. No markdown formatting (like \`\`\`json).
       `;
 
       const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const responseText = response.text().replace(/```json|```/g, "").trim();
+      // JSON formatini tozalash (ba'zan AI ```json deb qaytaradi)
+      const responseText = result.response.text().replace(/```json|```/gi, "").trim();
 
-      const parsedData = JSON.parse(responseText);
+      let parsedData;
+      try {
+        parsedData = JSON.parse(responseText);
+      } catch (e) {
+        console.error("JSON Parse Error:", responseText);
+        throw new Error("AI javobini o'qib bo'lmadi");
+      }
 
+      // Faylni o'chiramiz
       if (fs.existsSync(req.file.path)) {
         fs.unlinkSync(req.file.path);
       }
@@ -101,29 +117,33 @@ export async function registerRoutes(
 
       let audioUrl = "";
       if (files?.audio?.[0]) {
-        // uploadToSupabase Promise qaytarishiga ishonch hosil qiling
         audioUrl = await uploadToSupabase(files.audio[0].path, files.audio[0].originalname);
-        fs.unlinkSync(files.audio[0].path);
+        if (fs.existsSync(files.audio[0].path)) fs.unlinkSync(files.audio[0].path);
       }
+
+      // Fayl yuklash (Images for Writing Task)
+      // Agar writing task uchun rasmlar bo'lsa, ularni ham Supabasega yuklash logikasini shu yerga qo'shishingiz mumkin
 
       const parsedQuestions = JSON.parse(questions);
       const examContent: any = {};
 
       if (type === 'reading') {
-        examContent.reading = { 
-          passages: [{ id: Date.now(), title, content: "Generated Passage", questions: parsedQuestions }] 
+        examContent.reading = {
+          passages: [{ id: Date.now(), title, content: "Generated Passage", questions: parsedQuestions }]
         };
+      } else if (type === 'writing') {
+         examContent.writing = parsedQuestions.writing; // Frontenddan kelgan writing strukturasi
       } else {
         examContent.listening = { audioUrl, questions: parsedQuestions };
       }
 
-      const exam = await storage.createExam({
-        title,
-        content: examContent,
-        timeLimit: 60,
-        isPublished: false
-      });
+      const { data: exam, error: insertError } = await supabase
+        .from('exams')
+        .insert([{ title, content: examContent, time_limit: 60, is_published: false }])
+        .select()
+        .single();
 
+      if (insertError) throw insertError;
       res.status(201).json(exam);
     } catch (error) {
       console.error("Save Exam error:", error);
@@ -132,30 +152,18 @@ export async function registerRoutes(
   });
 
   // ==========================================
-  // --- MAVJUD FAYL YUKLASH ROUTE ---
-  // ==========================================
-  app.post("/api/upload", upload.single("file"), async (req, res) => {
-    try {
-      if (!req.file) return res.status(400).json({ message: "Fayl yuklanmadi" });
-      const publicUrl = await uploadToSupabase(req.file.path, req.file.originalname);
-      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-      res.json({ url: publicUrl });
-    } catch (error) {
-      res.status(500).json({ message: "Yuklash xatosi" });
-    }
-  });
-
-  // ==========================================
   // --- AUTH ROUTES ---
   // ==========================================
   app.post(api.auth.adminLogin.path, async (req, res) => {
     const { username, password } = req.body;
-    if (username === "admin" && password === "password123") {
-      const user = await storage.getUserByUsername("admin");
-      return res.json({ user });
-    }
-    const user = await storage.getUserByUsername(username);
-    if (!user || user.password !== password) {
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('username', username)
+      .single();
+
+    if (error || !user || user.password !== password) {
       return res.status(401).json({ message: "Xato foydalanuvchi nomi yoki parol" });
     }
     res.json({ user });
@@ -163,10 +171,17 @@ export async function registerRoutes(
 
   app.post(api.auth.studentLogin.path, async (req, res) => {
     const { accessCode, password } = req.body;
-    const session = await storage.getSessionByCode(accessCode);
-    if (!session) return res.status(401).json({ message: "Kirish kodi noto'g'ri" });
+
+    const { data: session, error } = await supabase
+      .from('exam_sessions')
+      .select('*')
+      .eq('access_code', accessCode)
+      .single();
+
+    if (error || !session) return res.status(401).json({ message: "Kirish kodi noto'g'ri" });
     if (session.password !== password) return res.status(401).json({ message: "Parol noto'g'ri" });
     if (session.status === 'completed') return res.status(403).json({ message: "Imtihon yakunlangan." });
+
     res.json({ session });
   });
 
@@ -174,25 +189,32 @@ export async function registerRoutes(
   // --- TEACHER MANAGEMENT ---
   // ==========================================
   app.get("/api/admin/teachers", async (_req, res) => {
-    const teachers = await storage.getTeachers();
+    const { data: teachers, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('role', 'teacher');
+
+    if (error) return res.status(500).json({ message: "Xatolik" });
     res.json(teachers);
   });
 
   app.post("/api/admin/teachers/generate", async (_req, res) => {
-    const adjectives = ["Smart", "Quick", "Wise", "Kind"];
-    const nouns = ["Mentor", "Coach", "Tutor"];
-    const randomName = `${adjectives[Math.floor(Math.random() * adjectives.length)]}${nouns[Math.floor(Math.random() * nouns.length)]}${Math.floor(Math.random() * 1000)}`;
+    const randomName = `Teacher${Math.floor(Math.random() * 1000)}`;
     const randomPassword = Math.random().toString(36).slice(-8);
-    const teacher = await storage.createUser({
-      username: randomName,
-      password: randomPassword,
-      role: "teacher"
-    });
+
+    const { data: teacher, error } = await supabase
+      .from('users')
+      .insert([{ username: randomName, password: randomPassword, role: "teacher" }])
+      .select()
+      .single();
+
+    if (error) return res.status(500).json({ message: "O'qituvchi yaratilmadi" });
     res.status(201).json(teacher);
   });
 
   app.delete("/api/admin/teachers/:id", async (req, res) => {
-    await storage.deleteUser(Number(req.params.id));
+    const { error } = await supabase.from('users').delete().eq('id', Number(req.params.id));
+    if (error) return res.status(500).json({ message: "Xatolik" });
     res.sendStatus(204);
   });
 
@@ -200,41 +222,13 @@ export async function registerRoutes(
   // --- EXAM MANAGEMENT ---
   // ==========================================
   app.get(api.exams.list.path, async (_req, res) => {
-    const examsList = await storage.getExams();
-    res.json(examsList);
-  });
-
-  app.post(api.exams.create.path, async (req, res) => {
-    try {
-      const input = api.exams.create.input.parse(req.body);
-      const exam = await storage.createExam(input);
-      res.status(201).json(exam);
-    } catch (e) {
-      res.status(400).json({ message: "Ma'lumotlar xato" });
-    }
-  });
-
-  app.put("/api/exams/:id", async (req, res) => {
-    try {
-      const id = Number(req.params.id);
-      const input = api.exams.create.input.parse(req.body);
-      const [updated] = await db.update(exams)
-        .set({ 
-          title: input.title, 
-          content: input.content, 
-          timeLimit: input.timeLimit,
-          isPublished: input.isPublished 
-        })
-        .where(eq(exams.id, id))
-        .returning();
-      res.json(updated);
-    } catch (e) {
-      res.status(400).json({ message: "Xato" });
-    }
+    const { data: exams } = await supabase.from('exams').select('*').order('created_at', { ascending: false });
+    res.json(exams || []);
   });
 
   app.get(api.exams.get.path, async (req, res) => {
-    const exam = await storage.getExam(Number(req.params.id));
+    const { data: exam, error } = await supabase.from('exams').select('*').eq('id', Number(req.params.id)).single();
+    if (error) return res.status(404).json({ message: "Topilmadi" });
     res.json(exam);
   });
 
@@ -243,12 +237,19 @@ export async function registerRoutes(
   // ==========================================
   app.post(api.sessions.create.path, async (req, res) => {
     try {
-      const { firstName, lastName, email, studentName, accessCode, password, examId, assignedTeacherId } = req.body;
-      const session = await storage.createSession({
-        firstName, lastName, email, studentName,
-        accessCode, password, examId: Number(examId),
-        assignedTeacherId: assignedTeacherId ? Number(assignedTeacherId) : undefined
-      });
+      const { examId, assignedTeacherId, ...rest } = req.body;
+      const { data: session, error } = await supabase
+        .from('exam_sessions')
+        .insert([{ 
+          ...rest, 
+          exam_id: Number(examId), 
+          assigned_teacher_id: assignedTeacherId ? Number(assignedTeacherId) : null,
+          status: 'created'
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
       res.status(201).json(session);
     } catch (e) {
       res.status(400).json({ message: "Sessiya xatosi" });
@@ -256,57 +257,56 @@ export async function registerRoutes(
   });
 
   app.get(api.sessions.list.path, async (req, res) => {
+    let query = supabase.from('exam_sessions').select('*, exams(title)');
+
     const userStr = req.headers['x-user-context'] as string;
     if (userStr) {
-      const user = JSON.parse(userStr);
-      if (user.role === 'teacher') {
-        const sessions = await storage.getSessionsByTeacher(user.id);
-        return res.json(sessions);
-      }
+      try {
+        const user = JSON.parse(userStr);
+        if (user.role === 'teacher') query = query.eq('assigned_teacher_id', user.id);
+      } catch (e) {}
     }
-    const sessions = await storage.getSessions();
-    res.json(sessions);
+
+    const { data: sessions } = await query.order('created_at', { ascending: false });
+    res.json(sessions || []);
   });
 
   app.post(api.sessions.start.path, async (req, res) => {
-    const session = await storage.startSession(Number(req.params.id));
+    const { data: session } = await supabase
+      .from('exam_sessions')
+      .update({ status: 'active', start_time: new Date() })
+      .eq('id', Number(req.params.id))
+      .select()
+      .single();
+
     res.json(session);
   });
 
-  app.post("/api/sessions/:id/terminate", async (req, res) => {
-    await db.update(examSessions)
-      .set({ status: 'completed', resultStatus: 'marking' })
-      .where(eq(examSessions.id, Number(req.params.id)));
-    res.json({ success: true });
-  });
-
-  app.get("/api/sessions/:id/submission", async (req, res) => {
-    const submission = await storage.getSubmission(Number(req.params.id));
-    res.json(submission);
-  });
-
   app.patch("/api/sessions/:id/progress", async (req, res) => {
-    await storage.upsertSubmission({ sessionId: Number(req.params.id), answers: req.body.answers });
+    const sessionId = Number(req.params.id);
+    const { answers } = req.body;
+    await supabase.from('submissions').upsert({ session_id: sessionId, answers }, { onConflict: 'session_id' });
     res.json({ message: "Saqlandi" });
   });
 
   app.post("/api/sessions/:id/grade", async (req, res) => {
-    await storage.updateGrading(Number(req.params.id), req.body.grading);
-    await storage.updateSessionScores(Number(req.params.id), req.body.scores);
+    const id = Number(req.params.id);
+    await supabase.from('submissions').update({ grading: req.body.grading }).eq('session_id', id);
+    await supabase.from('exam_sessions').update({ ...req.body.scores }).eq('id', id);
     res.json({ message: "Baho saqlandi" });
   });
 
   app.post("/api/sessions/:id/release", async (req, res) => {
     const sessionId = Number(req.params.id);
-    const updatedSession = await storage.releaseResults(sessionId);
-    await storage.updateSessionResultStatus(sessionId, 'released');
-    await sendExamResultsEmail(updatedSession);
-    res.json({ message: "Yuborildi", session: updatedSession });
-  });
+    const { data: session } = await supabase
+      .from('exam_sessions')
+      .update({ result_status: 'released' })
+      .eq('id', sessionId)
+      .select('*, exams(*)')
+      .single();
 
-  app.delete("/api/sessions/:id", async (req, res) => {
-    await storage.deleteSession(Number(req.params.id));
-    res.sendStatus(204);
+    if (session) await sendExamResultsEmail(session);
+    res.json({ message: "Yuborildi", session });
   });
 
   // ==========================================
@@ -319,67 +319,74 @@ export async function registerRoutes(
 
     try {
       if (isFinal) {
-        const session = await storage.getSession(sessionId);
-        if (!session) return res.status(404).json({ message: "Sessiya topilmadi" });
-        
-        const exam = await storage.getExam(session.examId);
+        const { data: session } = await supabase.from('exam_sessions').select('exam_id').eq('id', sessionId).single();
+        const { data: exam } = await supabase.from('exams').select('content').eq('id', session?.exam_id).single();
+
         if (exam) {
           const content = exam.content as any;
+          // Listening va Readingni avtomatik tekshirish
           ['listening', 'reading'].forEach(skill => {
-            if (content[skill]?.questions) {
+            const skillContent = content[skill];
+
+            // Reading strukturasi ichida `questions` to'g'ridan to'g'ri bo'lmasligi mumkin (passages ichida bo'ladi)
+            // Lekin sizning saving logicda `generatedQuestions` to'g'ridan to'g'ri saqlanayotgan bo'lsa, bu yerda ishlaydi.
+            // IELTS Reading odatda `passages` array ichida bo'ladi.
+            // Bu yerni soddalashtirilgan variantda qoldiramiz:
+
+            let questionsList = skillContent?.questions || [];
+
+            // Agar Reading passages ichida bo'lsa:
+            if (skill === 'reading' && skillContent?.passages) {
+               questionsList = skillContent.passages.flatMap((p: any) => p.questions);
+            }
+
+            if (questionsList.length > 0) {
               let score = 0;
-              content[skill].questions.forEach((q: any) => {
+              questionsList.forEach((q: any) => {
                 const studentAns = answers[skill]?.[q.id]?.toString().trim().toLowerCase();
                 const correctAns = q.answer?.toString().trim().toLowerCase();
                 if (studentAns && studentAns === correctAns) score++;
               });
-              autoGrading[skill] = { score, total: content[skill].questions.length };
+              autoGrading[skill] = { score, total: questionsList.length };
             }
           });
         }
       }
 
-      await storage.upsertSubmission({ sessionId, answers });
+      await supabase.from('submissions').upsert({ session_id: sessionId, answers }, { onConflict: 'session_id' });
 
       if (isFinal) {
-        const submission = await storage.getSubmission(sessionId);
-        if (submission) {
-          const currentGrading = (submission.grading as any) || {};
-          await storage.updateGrading(sessionId, { ...currentGrading, autoGraded: autoGrading });
-        }
-        
-        const session = await storage.getSession(sessionId);
-        const exam = session ? await storage.getExam(session.examId) : null;
-        const content = exam?.content as any;
-        const hasWriting = content?.writing?.tasks?.length > 0;
-        
-        // Agar writing bo'lsa pending_grading, bo'lmasa completed
-        await storage.updateSessionStatus(sessionId, hasWriting ? 'pending_grading' : 'completed');
-        await storage.updateSessionResultStatus(sessionId, 'marking');
+        const { data: sub } = await supabase.from('submissions').select('grading').eq('session_id', sessionId).single();
+        const currentGrading = sub?.grading || {};
+        await supabase.from('submissions').update({ grading: { ...currentGrading, autoGraded: autoGrading } }).eq('session_id', sessionId);
+
+        const { data: sessionData } = await supabase.from('exam_sessions').select('exam_id').eq('id', sessionId).single();
+        const { data: examData } = await supabase.from('exams').select('content').eq('id', sessionData?.exam_id).single();
+
+        const hasWriting = (examData?.content as any)?.writing?.tasks?.length > 0;
+
+        await supabase.from('exam_sessions')
+          .update({ 
+            status: hasWriting ? 'pending_grading' : 'completed',
+            result_status: 'marking'
+          })
+          .eq('id', sessionId);
       }
       res.json({ message: "Muvaffaqiyatli yakunlandi" });
     } catch (error) {
-      console.error("Submit error:", error);
-      res.status(500).json({ message: "Xatolik yuz berdi" });
+      console.error("Submission error:", error);
+      res.status(500).json({ message: "Xatolik" });
     }
   });
 
-  // ==========================================
-  // --- VIOLATIONS ---
-  // ==========================================
   app.post(api.sessions.logViolation.path, async (req, res) => {
-    const violation = await storage.logViolation({ sessionId: Number(req.params.id), type: req.body.type });
+    const { data: violation } = await supabase
+      .from('violations')
+      .insert([{ session_id: Number(req.params.id), type: req.body.type }])
+      .select()
+      .single();
     res.status(201).json(violation);
   });
 
-  try { await seedData(); } catch (err) { console.error("Seeding failed:", err); }
-
   return httpServer;
-}
-
-async function seedData() {
-  const admin = await storage.getUserByUsername("admin");
-  if (!admin) {
-    await storage.createUser({ username: "admin", password: "password123", role: "admin" });
-  }
 }

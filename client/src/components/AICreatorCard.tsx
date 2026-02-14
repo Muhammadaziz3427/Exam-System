@@ -1,8 +1,5 @@
-// client/src/components/admin/AICreatorCard.tsx
-
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Card, CardContent, CardHeader, CardTitle, CardDescription 
@@ -18,6 +15,13 @@ import {
   Loader2, CheckCircle2, Trash2, BrainCircuit,
   Type, Save
 } from "lucide-react";
+import { createClient } from '@supabase/supabase-js';
+import { queryClient } from "@/lib/queryClient";
+
+// Supabase client
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL!;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 interface ExtractedQuestion {
   id: number;
@@ -36,7 +40,7 @@ export function AICreatorCard() {
   const [extractedData, setExtractedData] = useState<ExtractedQuestion[]>([]);
   const [examTitle, setExamTitle] = useState("");
 
-  // 1. PDF-ni AI orqali tahlil qilish mutatsiyasi
+  // 1. PDF-ni AI orqali tahlil qilish mutatsiyasi (oldincha saqlangan, chunki AI server-side bo'lishi mumkin)
   const analyzeMutation = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
@@ -66,26 +70,66 @@ export function AICreatorCard() {
     },
   });
 
-  // 2. Tayyor imtihonni bazaga saqlash mutatsiyasi
+  // 2. Tayyor imtihonni bazaga saqlash mutatsiyasi (Supabase ga o'tkazilgan)
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const formData = new FormData();
-      formData.append("title", examTitle);
-      formData.append("type", sectionType);
-      formData.append("questions", JSON.stringify(extractedData));
-      if (audioFile) formData.append("audio", audioFile);
-      if (images) {
-        Array.from(images).forEach((img) => formData.append("images", img));
+      // Fayllarni Supabase Storage ga yuklash
+      let audioUrl = null;
+      let imageUrls = [];
+
+      if (audioFile) {
+        const { data: audioData, error: audioError } = await supabase.storage
+          .from('ielts-assets')
+          .upload(`audio/${Date.now()}_${audioFile.name}`, audioFile);
+        if (audioError) throw audioError;
+        const { data: publicAudioUrl } = supabase.storage.from('ielts-assets').getPublicUrl(audioData.path);
+        audioUrl = publicAudioUrl.publicUrl;
       }
 
-      return await apiRequest("POST", "/api/exams/save", formData);
+      if (images) {
+        for (const img of Array.from(images)) {
+          const { data: imgData, error: imgError } = await supabase.storage
+            .from('ielts-assets')
+            .upload(`images/${Date.now()}_${img.name}`, img);
+          if (imgError) throw imgError;
+          const { data: publicImgUrl } = supabase.storage.from('ielts-assets').getPublicUrl(imgData.path);
+          imageUrls.push(publicImgUrl.publicUrl);
+        }
+      }
+
+      // Exam ma'lumotlarini tayyorlash
+      const examData = {
+        title: examTitle,
+        content: {
+          [sectionType]: {
+            questions: extractedData.map((q, idx) => ({
+              ...q,
+              imageUrl: imageUrls[idx] || null  // Har bir savolga mos rasm (agar bo'lsa)
+            })),
+            audioUrl: audioUrl || null  // Listening uchun audio
+          }
+        },
+        timeLimit: sectionType === 'reading' ? 60 : 30,  // Misol, haqiqiy qiymatni qo'ying
+        isPublished: true,
+        created_at: new Date().toISOString()
+      };
+
+      const { data, error } = await supabase.from('exams').insert([examData]).select();
+      if (error) throw error;
+      return data[0];
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/exams"] });
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
       toast({ title: "Muvaffaqiyatli", description: "Imtihon bazaga saqlandi!" });
       // Reset state
       setExtractedData([]);
       setPdfFile(null);
+      setAudioFile(null);
+      setImages(null);
+      setExamTitle("");
+    },
+    onError: (error: any) => {
+      toast({ title: "Xatolik", description: error.message || "Saqlashda xato yuz berdi", variant: "destructive" });
     },
   });
 

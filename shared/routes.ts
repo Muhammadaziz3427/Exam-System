@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { insertExamSchema, insertSessionSchema, exams, examSessions, violations, users } from './schema';
+// Faqat ishlatilayotgan schema-larni qoldiramiz
+import { insertExamSchema, insertSessionSchema } from './schema';
 
 export const errorSchemas = {
   validation: z.object({ message: z.string() }),
@@ -15,7 +16,7 @@ export const api = {
       path: '/api/auth/admin/login',
       input: z.object({ username: z.string(), password: z.string() }),
       responses: {
-        200: z.any(), // Validation xatosini oldini olish uchun
+        200: z.any(),
         401: errorSchemas.unauthorized,
       },
     },

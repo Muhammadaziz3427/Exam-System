@@ -1,15 +1,30 @@
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
 
-import { drizzle } from "drizzle-orm/node-postgres";
-import pg from "pg";
-import * as schema from "@shared/schema";
+// .env faylidagi o'zgaruvchilarni yuklash
+dotenv.config();
 
-const { Pool } = pg;
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!process.env.DATABASE_URL) {
+// Xavfsizlik tekshiruvi
+if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
+    "XATO: SUPABASE_URL yoki SUPABASE_SERVICE_ROLE_KEY topilmadi. .env faylini tekshiring!"
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle(pool, { schema });
+/**
+ * Supabase Service Role Client
+ * Backend (server) uchun maxsus client. 
+ * Bu orqali biz bazadagi barcha jadvallarga (RLS cheklovlarisiz) ruxsat olamiz.
+ */
+export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+});
+
+// Drizzle eksportlarini (masalan, 'export const db = ...') o'chirib tashlang, 
+// chunki endi hamma joyda faqat 'supabase' ishlatiladi.

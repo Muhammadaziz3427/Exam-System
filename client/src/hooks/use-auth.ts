@@ -1,12 +1,24 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
 
+/**
+ * Foydalanuvchi holatini tekshirish uchun hook
+ * localStorage-dagi ma'lumotni React Query keshiga ulaydi
+ */
 export function useAuth() {
   const { data: user, isLoading, error } = useQuery({
     queryKey: ["/api/user"],
     queryFn: async () => {
-      const storedUser = localStorage.getItem("user");
-      if (storedUser) return JSON.parse(storedUser);
+      try {
+        const storedUser = localStorage.getItem("user");
+        if (storedUser) {
+          const parsed = JSON.parse(storedUser);
+          // Supabase-dan kelayotgan user obyekti ichma-ich bo'lishi mumkinligini hisobga olamiz
+          return parsed?.user || parsed;
+        }
+      } catch (e) {
+        console.error("Auth parsing error:", e);
+      }
       return null;
     },
     staleTime: Infinity,
@@ -14,6 +26,9 @@ export function useAuth() {
   return { user, isLoading, error };
 }
 
+/**
+ * Admin va O'qituvchilar uchun kirish hook-i
+ */
 export function useAdminLogin() {
   const queryClient = useQueryClient();
 
@@ -24,14 +39,17 @@ export function useAdminLogin() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(credentials),
       });
+
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Kirishda xatolik yuz berdi");
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Kirishda xatolik yuz berdi");
       }
       return res.json();
     },
     onSuccess: (data: any) => {
+      // Supabase formatida data.user ichida bo'lishi mumkin
       const userData = data.user || data;
+
       localStorage.setItem("user", JSON.stringify(userData));
       queryClient.setQueryData(["/api/user"], userData);
 
@@ -45,6 +63,9 @@ export function useAdminLogin() {
   });
 }
 
+/**
+ * Talabalar uchun Test ID (accessCode) orqali kirish hook-i
+ */
 export function useStudentLogin() {
   return useMutation({
     mutationFn: async (credentials: any) => {
@@ -53,30 +74,42 @@ export function useStudentLogin() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(credentials),
       });
+
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Kod yoki parol xato");
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Kod yoki parol xato");
       }
       return res.json();
     },
     onSuccess: (data: any) => {
+      // Sessiya ma'lumotlarini saqlash
       const sessionData = data.session || data;
       localStorage.setItem("student_session", JSON.stringify(sessionData));
+
+      // Imtihon sahifasiga yo'naltirish
       window.location.href = `/exam/${sessionData.id}`;
     },
   });
 }
 
+/**
+ * Tizimdan chiqish hook-i
+ */
 export function useLogout() {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async () => {
+      // Serverdagi sessiyani yakunlash (ixtiyoriy, lekin xavfsizlik uchun yaxshi)
       await fetch(api.auth.logout.path, { method: "POST" }).catch(() => {});
     },
     onSuccess: () => {
+      // Barcha mahalliy ma'lumotlarni tozalash
       localStorage.removeItem("user");
       localStorage.removeItem("student_session");
       queryClient.setQueryData(["/api/user"], null);
+
+      // Bosh sahifaga qaytarish
       window.location.replace("/");
     },
   });

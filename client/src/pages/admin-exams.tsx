@@ -348,7 +348,7 @@ const QuestionEditor = ({ q, idx, onUpdate, onRemove, isUploading, handleFileUpl
                         placeholder={q.type === 'mcq_single' ? "Select option above" : "Enter correct answer text..."} 
                         value={Array.isArray(q.answer) ? q.answer.join(', ') : q.answer} 
                         onChange={e => onUpdate('answer', e.target.value)} 
-                        disabled={q.type.startsWith('mcq')}
+                        disabled={q.type?.startsWith('mcq') ?? false}
                     />
                 )}
             </div>

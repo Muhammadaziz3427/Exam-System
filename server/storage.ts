@@ -1,10 +1,8 @@
-import { db } from "./db";
+import { supabase } from "./db";
 import {
-  users, exams, examSessions, submissions, violations,
   type User, type Exam, type ExamSession, type Submission, type Violation,
   type InsertUser, type InsertExam, type InsertSession, type InsertSubmission, type InsertViolation
 } from "@shared/schema";
-import * as drizzleOrm from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -50,184 +48,153 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   // --- USERS ---
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(drizzleOrm.eq(users.username, username));
-    return user;
+    const { data } = await supabase.from('users').select('*').eq('username', username).single();
+    return data || undefined;
   }
 
   async createUser(user: InsertUser): Promise<User> {
-    const [newUser] = await db.insert(users).values(user).returning();
-    return newUser;
+    const { data, error } = await supabase.from('users').insert([user]).select().single();
+    if (error) throw error;
+    return data;
   }
 
   async getTeachers(): Promise<User[]> {
-    return await db.select().from(users).where(drizzleOrm.eq(users.role, 'teacher')).orderBy(drizzleOrm.desc(users.id));
+    const { data } = await supabase.from('users').select('*').eq('role', 'teacher').order('id', { ascending: false });
+    return data || [];
   }
 
   async deleteUser(id: number): Promise<void> {
-    await db.delete(users).where(drizzleOrm.eq(users.id, id));
+    await supabase.from('users').delete().eq('id', id);
   }
 
   // --- EXAMS ---
   async getExams(): Promise<Exam[]> {
-    return await db.select().from(exams).orderBy(drizzleOrm.desc(exams.id));
+    const { data } = await supabase.from('exams').select('*').order('id', { ascending: false });
+    return data || [];
   }
 
   async getExam(id: number): Promise<Exam | undefined> {
-    const [exam] = await db.select().from(exams).where(drizzleOrm.eq(exams.id, id));
-    return exam;
+    const { data } = await supabase.from('exams').select('*').eq('id', id).single();
+    return data || undefined;
   }
 
   async createExam(exam: InsertExam): Promise<Exam> {
-    // Content JSON formatda ekanligiga ishonch hosil qilamiz
-    const [newExam] = await db.insert(exams).values(exam).returning();
-    return newExam;
+    const { data, error } = await supabase.from('exams').insert([exam]).select().single();
+    if (error) throw error;
+    return data;
   }
 
   // --- SESSIONS ---
   async createSession(session: InsertSession): Promise<ExamSession> {
-    const [newSession] = await db.insert(examSessions).values({
+    const { data, error } = await supabase.from('exam_sessions').insert([{
       ...session,
       status: 'active',
       resultStatus: 'active',
-      startTime: null, // Hali boshlanmagan
+      startTime: null,
       isCameraActive: false,
       resultsReleased: false
-    } as any).returning();
-    return newSession;
+    }]).select().single();
+    if (error) throw error;
+    return data;
   }
 
   async getSessionByCode(code: string): Promise<ExamSession | undefined> {
-    const [session] = await db.select().from(examSessions).where(drizzleOrm.eq(examSessions.accessCode, code));
-    return session;
+    const { data } = await supabase.from('exam_sessions').select('*').eq('accessCode', code).single();
+    return data || undefined;
   }
 
   async getSession(id: number): Promise<ExamSession | undefined> {
-    const [session] = await db.select().from(examSessions).where(drizzleOrm.eq(examSessions.id, id));
-    return session;
+    const { data } = await supabase.from('exam_sessions').select('*').eq('id', id).single();
+    return data || undefined;
   }
 
   async getSessions(): Promise<ExamSession[]> {
-    return await db.select().from(examSessions).orderBy(drizzleOrm.desc(examSessions.id));
+    const { data } = await supabase.from('exam_sessions').select('*').order('id', { ascending: false });
+    return data || [];
   }
 
   async getSessionsByTeacher(teacherId: number): Promise<ExamSession[]> {
-    return await db.select().from(examSessions).where(drizzleOrm.eq(examSessions.assignedTeacherId, teacherId)).orderBy(drizzleOrm.desc(examSessions.id));
+    const { data } = await supabase.from('exam_sessions').select('*').eq('assignedTeacherId', teacherId).order('id', { ascending: false });
+    return data || [];
   }
 
   async updateSessionStatus(id: number, status: string): Promise<ExamSession> {
-    const [updated] = await db.update(examSessions)
-      .set({ 
-        status: status as any,
-        endTime: status === 'completed' || status === 'pending_grading' ? new Date() : null
-      })
-      .where(drizzleOrm.eq(examSessions.id, id))
-      .returning();
-    return updated;
+    const payload: any = { status };
+    if (status === 'completed' || status === 'pending_grading') {
+      payload.endTime = new Date().toISOString();
+    }
+    const { data, error } = await supabase.from('exam_sessions').update(payload).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
   }
 
   async updateSessionState(id: number, state: { currentSection?: string, remainingTime?: number }): Promise<ExamSession> {
-    const [updated] = await db.update(examSessions)
-      .set({
-        currentSection: state.currentSection,
-        remainingTime: state.remainingTime
-      })
-      .where(drizzleOrm.eq(examSessions.id, id))
-      .returning();
-    return updated;
+    const { data, error } = await supabase.from('exam_sessions').update(state).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
   }
 
   async updateSessionResultStatus(id: number, resultStatus: string): Promise<ExamSession> {
-    const [updated] = await db.update(examSessions)
-      .set({ resultStatus: resultStatus as any })
-      .where(drizzleOrm.eq(examSessions.id, id))
-      .returning();
-    return updated;
+    const { data, error } = await supabase.from('exam_sessions').update({ resultStatus }).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
   }
 
-  async updateSessionScores(id: number, scores: { writingScore?: string, speakingScore?: string, readingScore?: string, listeningScore?: string, overallBand?: string }): Promise<ExamSession> {
-    const [updated] = await db.update(examSessions)
-      .set({
-        writingScore: scores.writingScore,
-        speakingScore: scores.speakingScore,
-        readingScore: scores.readingScore,
-        listeningScore: scores.listeningScore,
-        overallBand: scores.overallBand,
-      })
-      .where(drizzleOrm.eq(examSessions.id, id))
-      .returning();
-    return updated;
+  async updateSessionScores(id: number, scores: any): Promise<ExamSession> {
+    const { data, error } = await supabase.from('exam_sessions').update(scores).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
   }
 
-  async updateSessionInfo(id: number, info: { firstName?: string, lastName?: string, email?: string }): Promise<ExamSession> {
-    const [updated] = await db.update(examSessions)
-      .set(info)
-      .where(drizzleOrm.eq(examSessions.id, id))
-      .returning();
-    return updated;
+  async updateSessionInfo(id: number, info: any): Promise<ExamSession> {
+    const { data, error } = await supabase.from('exam_sessions').update(info).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
   }
 
   async updateCameraStatus(id: number, isActive: boolean): Promise<void> {
-    await db.update(examSessions)
-      .set({ 
-        isCameraActive: isActive,
-        lastCameraPulse: new Date()
-      })
-      .where(drizzleOrm.eq(examSessions.id, id));
+    await supabase.from('exam_sessions').update({ 
+      isCameraActive: isActive, 
+      lastCameraPulse: new Date().toISOString() 
+    }).eq('id', id);
   }
 
   async startSession(id: number): Promise<ExamSession> {
-    const [updated] = await db.update(examSessions)
-      .set({ 
-        status: 'in_progress', 
-        startTime: new Date() 
-      })
-      .where(drizzleOrm.eq(examSessions.id, id))
-      .returning();
-    return updated;
+    const { data, error } = await supabase.from('exam_sessions').update({
+      status: 'in_progress',
+      startTime: new Date().toISOString()
+    }).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
   }
 
   async releaseResults(id: number): Promise<ExamSession> {
-    const [updated] = await db.update(examSessions)
-      .set({ resultsReleased: true })
-      .where(drizzleOrm.eq(examSessions.id, id))
-      .returning();
-    return updated;
+    const { data, error } = await supabase.from('exam_sessions').update({ resultsReleased: true }).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
   }
 
   async deleteSession(id: number): Promise<void> {
-    await db.delete(violations).where(drizzleOrm.eq(violations.sessionId, id));
-    await db.delete(submissions).where(drizzleOrm.eq(submissions.sessionId, id));
-    await db.delete(examSessions).where(drizzleOrm.eq(examSessions.id, id));
+    await supabase.from('violations').delete().eq('sessionId', id);
+    await supabase.from('submissions').delete().eq('sessionId', id);
+    await supabase.from('exam_sessions').delete().eq('id', id);
   }
 
   // --- SUBMISSIONS ---
   async upsertSubmission(submission: InsertSubmission): Promise<Submission> {
-    const [existing] = await db
-      .select()
-      .from(submissions)
-      .where(drizzleOrm.eq(submissions.sessionId, submission.sessionId));
+    // Supabase .upsert() funksiyasi onConflict bilan ishlaydi
+    const { data, error } = await supabase.from('submissions').upsert({
+      ...submission,
+      lastSavedAt: new Date().toISOString()
+    }, { onConflict: 'sessionId' }).select().single();
 
-    if (existing) {
-      const [updated] = await db.update(submissions)
-        .set({ 
-          answers: submission.answers, 
-          lastSavedAt: new Date() 
-        })
-        .where(drizzleOrm.eq(submissions.id, existing.id))
-        .returning();
-      return updated;
-    } else {
-      const [newSub] = await db.insert(submissions).values({
-        ...submission,
-        lastSavedAt: new Date()
-      }).returning();
-      return newSub;
-    }
+    if (error) throw error;
+    return data;
   }
 
   async getSubmission(sessionId: number): Promise<Submission | undefined> {
-    const [sub] = await db.select().from(submissions).where(drizzleOrm.eq(submissions.sessionId, sessionId));
-    return sub;
+    const { data } = await supabase.from('submissions').select('*').eq('sessionId', sessionId).single();
+    return data || undefined;
   }
 
   async updateGrading(sessionId: number, grading: any): Promise<Submission> {
@@ -235,21 +202,19 @@ export class DatabaseStorage implements IStorage {
     if (!submission) throw new Error("Submission not found");
     const currentGrading = (submission.grading as any) || {};
 
-    const updatedGrading = {
-      ...currentGrading,
-      ...grading
-    };
+    const updatedGrading = { ...currentGrading, ...grading };
 
-    const [updated] = await db.update(submissions)
-      .set({ grading: updatedGrading })
-      .where(drizzleOrm.eq(submissions.sessionId, sessionId))
-      .returning();
+    const { data, error } = await supabase.from('submissions')
+      .update({ grading: updatedGrading })
+      .eq('sessionId', sessionId)
+      .select().single();
 
-    // Only update status if explicitly marking as graded or if results are being finalized
+    if (error) throw error;
+
     if (grading.status === 'graded') {
       await this.updateSessionStatus(sessionId, 'graded');
     }
-    return updated;
+    return data;
   }
 
   async updateAdvancedAssessment(sessionId: number, assessment: any): Promise<Submission> {
@@ -259,18 +224,12 @@ export class DatabaseStorage implements IStorage {
     const currentGrading = (submission.grading as any) || {};
     const updatedGrading = {
       ...currentGrading,
-      advancedAssessment: {
-        ...(currentGrading.advancedAssessment || {}),
-        ...assessment
-      }
+      advancedAssessment: { ...(currentGrading.advancedAssessment || {}), ...assessment }
     };
 
-    const [updated] = await db.update(submissions)
-      .set({ grading: updatedGrading })
-      .where(drizzleOrm.eq(submissions.sessionId, sessionId))
-      .returning();
-
-    return updated;
+    const { data, error } = await supabase.from('submissions').update({ grading: updatedGrading }).eq('sessionId', sessionId).select().single();
+    if (error) throw error;
+    return data;
   }
 
   async updateAdvancedAnalysis(sessionId: number, analysis: any): Promise<Submission> {
@@ -280,40 +239,35 @@ export class DatabaseStorage implements IStorage {
     const currentGrading = (submission.grading as any) || {};
     const updatedGrading = {
       ...currentGrading,
-      advanced_analysis: {
-        ...(currentGrading.advanced_analysis || {}),
-        ...analysis
-      }
+      advanced_analysis: { ...(currentGrading.advanced_analysis || {}), ...analysis }
     };
 
-    const [updated] = await db.update(submissions)
-      .set({ grading: updatedGrading })
-      .where(drizzleOrm.eq(submissions.sessionId, sessionId))
-      .returning();
-
-    return updated;
+    const { data, error } = await supabase.from('submissions').update({ grading: updatedGrading }).eq('sessionId', sessionId).select().single();
+    if (error) throw error;
+    return data;
   }
 
   async getPendingGradingSubmissions(): Promise<(Submission & { session: ExamSession })[]> {
-    const results = await db.select({
-      submission: submissions,
-      session: examSessions
-    })
-    .from(submissions)
-    .innerJoin(examSessions, drizzleOrm.eq(submissions.sessionId, examSessions.id))
-    .where(drizzleOrm.eq(examSessions.status, 'pending_grading'));
+    // Supabase-da Join qilish usuli (exam_sessions jadvali foreign key orqali bog'langan bo'lishi kerak)
+    const { data, error } = await supabase
+      .from('submissions')
+      .select('*, session:exam_sessions!inner(*)')
+      .eq('session.status', 'pending_grading');
 
-    return results.map(r => ({ ...r.submission, session: r.session }));
+    if (error) throw error;
+    return data.map((item: any) => ({ ...item, session: item.session }));
   }
 
   // --- VIOLATIONS ---
   async logViolation(violation: InsertViolation): Promise<Violation> {
-    const [v] = await db.insert(violations).values(violation).returning();
-    return v;
+    const { data, error } = await supabase.from('violations').insert([violation]).select().single();
+    if (error) throw error;
+    return data;
   }
 
   async getViolations(): Promise<Violation[]> {
-    return await db.select().from(violations).orderBy(drizzleOrm.desc(violations.timestamp));
+    const { data } = await supabase.from('violations').select('*').order('created_at', { ascending: false });
+    return data || [];
   }
 }
 

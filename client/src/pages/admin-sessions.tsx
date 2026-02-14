@@ -1,8 +1,8 @@
-import react from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import * as uiKit from "@/components/ui-kit"; 
 import { useSessions, useCreateSession } from "@/hooks/use-sessions";
-import { useExams } from "@/hooks/use-exams";
+// useExams ni olib tashladik, chunki endi to'g'ridan-to'g'ri so'rov yuboramiz
 import * as lucideReact from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -10,6 +10,7 @@ import * as tabs from "@/components/ui/tabs";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import { supabase } from "@/lib/supabase"; // Supabase klientini import qilish kerak
 
 // --- TYPES (Kod barqarorligi uchun) ---
 interface Session {
@@ -30,6 +31,10 @@ interface Session {
   writingScore?: string;
   speakingScore?: string;
   createdAt: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  examId: number;
 }
 
 interface Violation {
@@ -37,6 +42,14 @@ interface Violation {
   sessionId: number;
   type: string;
   timestamp: string;
+}
+
+// Supabase dan keladigan Exam tipi
+interface Exam {
+  id: number;
+  title: string;
+  time_limit: number; // Supabase da odatda snake_case bo'ladi
+  timeLimit?: number; // Ehtimoliy camelCase uchun
 }
 
 // --- HELPER FUNCTIONS ---
@@ -62,20 +75,37 @@ export default function AdminSessions() {
   const createSession = useCreateSession();
 
   // State Management
-  const [selectedSubmission, setSelectedSubmission] = react.useState<Session | null>(null);
-  const [isReleasing, setIsReleasing] = react.useState(false);
-  const [activeTab, setActiveTab] = react.useState("waiting");
-  const [isTvMode, setIsTvMode] = react.useState(false);
-  const [studentName, setStudentName] = react.useState("");
-  const [selectedExamId, setSelectedExamId] = react.useState("");
-  const [searchQuery, setSearchQuery] = react.useState("");
-  const [autoRefresh, setAutoRefresh] = react.useState(true);
-  const [newSessionInfo, setNewSessionInfo] = react.useState<{code: string, pass: string, name: string} | null>(null);
+  const [selectedSubmission, setSelectedSubmission] = useState<Session | null>(null);
+  const [isReleasing, setIsReleasing] = useState(false);
+  const [activeTab, setActiveTab] = useState("waiting");
+  const [isTvMode, setIsTvMode] = useState(false);
+  const [studentName, setStudentName] = useState("");
+  const [selectedExamId, setSelectedExamId] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [newSessionInfo, setNewSessionInfo] = useState<{code: string, pass: string, name: string} | null>(null);
 
   // Data Fetching
   const { data: rawSessions, isLoading, refetch } = useSessions();
   const sessions = (rawSessions as Session[]) || [];
-  const { data: exams } = useExams();
+
+  // --- O'ZGARISH: Supabase dan Exam larni olish ---
+  const { data: exams } = useQuery({
+    queryKey: ['supabase_exams'],
+    queryFn: async () => {
+      // 'exams' jadvalidan ma'lumotlarni olish
+      const { data, error } = await supabase
+        .from('exams')
+        .select('*')
+        .order('created_at', { ascending: false }); // Eng yangilari tepad
+
+      if (error) {
+        console.error("Supabase exams error:", error);
+        throw error;
+      }
+      return data as Exam[];
+    }
+  });
 
   const { data: allViolations } = useQuery({
     queryKey: ['/api/violations'],
@@ -88,11 +118,11 @@ export default function AdminSessions() {
   });
 
   // Derived State (Memoized)
-  const activeSessions = react.useMemo(() => {
+  const activeSessions = useMemo(() => {
     return sessions.filter(s => s.status === "in_progress" || s.status === "active");
   }, [sessions]);
 
-  const filteredSessions = react.useMemo(() => {
+  const filteredSessions = useMemo(() => {
     let result = sessions;
 
     // Tab Filter
@@ -114,7 +144,7 @@ export default function AdminSessions() {
   }, [sessions, activeTab, searchQuery]);
 
   // Effects
-  react.useEffect(() => {
+  useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isTvMode) setIsTvMode(false);
     };
@@ -237,9 +267,9 @@ export default function AdminSessions() {
                       <lucideReact.VideoOff size={48} className="text-red-500/20" />
                     )}
                     <div className="absolute top-3 left-3 flex gap-2">
-                       <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase text-white backdrop-blur-md ${session.isCameraActive ? 'bg-emerald-600/80' : 'bg-red-600/80'}`}>
+                        <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase text-white backdrop-blur-md ${session.isCameraActive ? 'bg-emerald-600/80' : 'bg-red-600/80'}`}>
                            {session.isCameraActive ? 'LIVE' : 'OFFLINE'}
-                       </span>
+                        </span>
                     </div>
                  </div>
 
@@ -323,7 +353,11 @@ export default function AdminSessions() {
                       required
                     >
                       <option value="">Select Exam Paper...</option>
-                      {exams?.map((e: any) => <option key={e.id} value={e.id}>{e.title} ({e.timeLimit}m)</option>)}
+                      {exams?.map((e) => (
+                        <option key={e.id} value={e.id}>
+                            {e.title} ({e.time_limit || e.timeLimit || 0}m)
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <uiKit.Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl h-12 px-8 shadow-lg shadow-blue-200" disabled={createSession.isPending}>

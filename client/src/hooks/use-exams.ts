@@ -18,7 +18,7 @@ export const examKeys = {
 
 /**
  * Barcha imtihonlarni olish hooki
- * O'zgarish: signal (bekor qilish) va staleTime qo'shildi.
+ * signal (bekor qilish) va staleTime qo'shildi.
  */
 export function useExams() {
   return useQuery<Exam[]>({
@@ -28,13 +28,12 @@ export function useExams() {
       if (!res.ok) throw new Error("Imtihonlarni yuklashda xatolik yuz berdi");
       return await res.json();
     },
-    staleTime: 1000 * 60, // 1 daqiqa davomida keshdan o'qiydi (qayta so'rov yubormaydi)
+    staleTime: 1000 * 60, // 1 daqiqa davomida keshdan o'qiydi
   });
 }
 
 /**
  * ID bo'yicha bitta imtihonni olish hooki
- * O'zgarish: signal qo'shildi va ID yo'qligida aniqroq tekshiruv.
  */
 export function useExam(id: number | undefined) {
   return useQuery<Exam>({
@@ -58,7 +57,7 @@ export function useCreateExam() {
   return useMutation({
     mutationFn: async (data: InsertExam) => {
       const res = await fetch(api.exams.create.path, {
-        method: "POST", // Method aniq ko'rsatildi
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
@@ -66,7 +65,6 @@ export function useCreateExam() {
       return await res.json();
     },
     onSuccess: () => {
-      // Faqat ro'yxatni yangilaymiz
       queryClient.invalidateQueries({ queryKey: examKeys.lists() });
     },
   });
@@ -74,25 +72,22 @@ export function useCreateExam() {
 
 /**
  * Imtihonni tahrirlash hooki
- * O'zgarish: Optimistik yangilanishga tayyorlandi va list + detail yangilanadi.
  */
 export function useUpdateExam() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: InsertExam & { id: number }) => {
+    mutationFn: async ({ id, ...data }: Partial<InsertExam> & { id: number }) => {
       const url = buildUrl(api.exams.update.path, { id });
       const res = await fetch(url, {
-        method: "PATCH", // Odatda update uchun PATCH yoki PUT ishlatiladi
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error("Imtihonni yangilashda xatolik");
-      return await res.json();
+      return await res.json() as Exam;
     },
     onSuccess: (updatedExam) => {
-      // 1. Ro'yxatni yangilaymiz
       queryClient.invalidateQueries({ queryKey: examKeys.lists() });
-      // 2. Agar ochiq turgan detail bo'lsa, uni ham yangilaymiz
       queryClient.setQueryData(examKeys.detail(updatedExam.id), updatedExam);
     },
   });
@@ -110,12 +105,10 @@ export function useDeleteExam() {
         method: "DELETE" 
       });
       if (!res.ok) throw new Error("Imtihonni o'chirib bo'lmadi");
-      return id; // O'chirilgan ID ni qaytarish foydali bo'lishi mumkin
+      return id;
     },
     onSuccess: (deletedId) => {
-      // Ro'yxatni yangilaymiz
       queryClient.invalidateQueries({ queryKey: examKeys.lists() });
-      // Keshdan o'sha imtihon ma'lumotlarini butunlay olib tashlaymiz
       queryClient.removeQueries({ queryKey: examKeys.detail(deletedId) });
     },
   });
@@ -123,6 +116,7 @@ export function useDeleteExam() {
 
 /**
  * Sessiyalarni (Talabalar faolligini) olish hooki
+ * Monitoring uchun har 10 sekundda yangilanadi
  */
 export function useSessions() {
   return useQuery<ExamSession[]>({
@@ -132,6 +126,6 @@ export function useSessions() {
       if (!res.ok) throw new Error("Sessiyalarni yuklashda xatolik");
       return await res.json();
     },
-    refetchInterval: 10000, // Har 10 sekundda avtomatik yangilanadi (Monitoring uchun)
+    refetchInterval: 10000, // 10 sekundda auto-refresh
   });
 }
