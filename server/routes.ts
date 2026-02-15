@@ -147,14 +147,14 @@ export async function registerRoutes(
       }
 
       // BIR MARTALIK KIRISH VA STATUS TEKSHIRUVI
-      if (session.is_used === true || session.status === 'completed') {
+      if (session.isUsed === true || session.status === 'completed') {
         return res.status(403).json({ message: "Bu koddan foydalanib bo'lingan yoki imtihon yakunlangan." });
       }
 
-      // Muvaffaqiyatli kirsa, is_used ni TRUE qilamiz
+      // Muvaffaqiyatli kirsa, isUsed ni TRUE qilamiz
       const { error: updateError } = await supabase
         .from('exam_sessions')
-        .update({ is_used: true, status: 'active', start_time: new Date() })
+        .update({ isUsed: true, status: 'active', startTime: new Date() })
         .eq('id', session.id);
 
       if (updateError) throw updateError;
@@ -210,7 +210,7 @@ export async function registerRoutes(
           exam_id: Number(examId), 
           assigned_teacher_id: assignedTeacherId ? Number(assignedTeacherId) : null,
           status: 'created',
-          is_used: false 
+          isUsed: false 
         }])
         .select().single();
 
