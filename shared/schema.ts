@@ -50,6 +50,7 @@ export const examSessions = pgTable("exam_sessions", {
   assignedTeacherId: integer("assigned_teacher_id"),
   isCameraActive: boolean("is_camera_active").default(false),
   lastCameraPulse: timestamp("last_camera_pulse"),
+  isUsed: boolean("is_used").default(false),
 });
 
 // Student Answers
