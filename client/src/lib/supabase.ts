@@ -1,13 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Replit yoki Vite loyihalari uchun muhit o'zgaruvchilari (Environment Variables)
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Server-side muhitda process.env ishlatiladi
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
-// Agar o'zgaruvchilar aniqlanmagan bo'lsa, xatolikni oldini olish uchun tekshiruv
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("Supabase URL yoki API Key topilmadi! .env faylingizni tekshiring.");
+if (!supabaseUrl || !supabaseKey) {
+  console.error("Backend Supabase xatosi: URL yoki Key topilmadi!");
 }
 
-// Supabase klientini yaratish va eksport qilish
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
+// Backend uchun klient
+export const supabase = createClient(supabaseUrl || '', supabaseKey || '');
