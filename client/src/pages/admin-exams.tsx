@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import * as uiKit from "@/components/ui-kit"; // UI kutubxonangizdan
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -13,7 +13,8 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 type QuestionType = 
   | 'mcq_single' // A, B, C, D (Radio)
   | 'mcq_multi'  // A, B, C, D, E (Checkbox)
-  | 'gap_fill'   // Input text
+  | 'sentence_completion'   // Sentence completion with input text
+  | 'table_completion'      // Table completion with input text
   | 'tfng'       // True/False/Not Given
   | 'ynng'       // Yes/No/Not Given
   | 'matching_headings' // Drag & Drop Roman Numerals
@@ -29,8 +30,10 @@ interface Question {
   answer: string | string[]; // To'g'ri javob
   instruction: string; // Masalan: "Write NO MORE THAN TWO WORDS"
   imageUrl?: string; // Diagramma yoki Map uchun rasm
-  coordinates?: { x: number, y: number }; // Diagramma ustidagi input joylashuvi (Advanced)
+  coordinates?: { x: number, y: number }[]; // Diagramma ustidagi input joylashuvi (bir nechta labels uchun)
   headingList?: string[]; // Matching Headings uchun maxsus
+  tableHeaders?: string[]; // Table completion uchun sarlavhalar
+  tableRows?: string[][]; // Table completion uchun satrlar (tez tuzish uchun)
 }
 
 interface ListeningPart {
@@ -56,7 +59,8 @@ interface WritingTask {
 const QUESTION_TYPES: { value: QuestionType; label: string; icon: any }[] = [
   { value: 'mcq_single', label: 'Multiple Choice (Single)', icon: lucideReact.CheckCircle2 },
   { value: 'mcq_multi', label: 'Multiple Choice (Multi)', icon: lucideReact.CheckSquare },
-  { value: 'gap_fill', label: 'Sentence / Table Completion', icon: lucideReact.Type },
+  { value: 'sentence_completion', label: 'Sentence Completion', icon: lucideReact.Type },
+  { value: 'table_completion', label: 'Table Completion', icon: lucideReact.Table },
   { value: 'tfng', label: 'True / False / Not Given', icon: lucideReact.AlertCircle },
   { value: 'ynng', label: 'Yes / No / Not Given', icon: lucideReact.AlertCircle },
   { value: 'matching_headings', label: 'Matching Headings', icon: lucideReact.List },
@@ -163,8 +167,11 @@ const QuestionEditor = ({ q, idx, onUpdate, onRemove, isUploading, handleFileUpl
           defaultInstruction = "Match each statement with the correct person/category.";
           defaultOptions = ["", "", ""];
           break;
-        case 'gap_fill': 
-          defaultInstruction = "Complete the sentences/notes below. Write NO MORE THAN TWO WORDS for each answer."; 
+        case 'sentence_completion': 
+          defaultInstruction = "Complete the sentences below. Write NO MORE THAN TWO WORDS for each answer."; 
+          break;
+        case 'table_completion': 
+          defaultInstruction = "Complete the table below. Write NO MORE THAN TWO WORDS for each answer."; 
           break;
         case 'diagram_labeling': 
           defaultInstruction = "Label the diagram below. Write NO MORE THAN TWO WORDS for each answer."; 
@@ -176,6 +183,13 @@ const QuestionEditor = ({ q, idx, onUpdate, onRemove, isUploading, handleFileUpl
       onUpdate('type', newType); 
       onUpdate('instruction', defaultInstruction);
       if (defaultOptions && defaultOptions.length > 0) onUpdate('options', defaultOptions);
+      if (newType === 'table_completion') {
+        onUpdate('tableHeaders', []);
+        onUpdate('tableRows', [[]]);
+      }
+      if (newType === 'diagram_labeling') {
+        onUpdate('coordinates', []);
+      }
     };
     return (
       <div className="relative pl-0 md:pl-4 bg-white border border-slate-200 hover:border-blue-400 hover:shadow-lg transition-all duration-300 p-6 rounded-2xl mb-6 group">
@@ -275,9 +289,22 @@ const QuestionEditor = ({ q, idx, onUpdate, onRemove, isUploading, handleFileUpl
                         <uiKit.Label className="text-[10px] uppercase font-bold text-slate-400">Diagram Context / Title</uiKit.Label>
                         <uiKit.Input placeholder="e.g. Structure of a leaf" value={q.text} onChange={e => onUpdate('text', e.target.value)} className="bg-white font-bold text-slate-700" />
                       </div>
+                      <div className="space-y-2">
+                        <uiKit.Label className="text-[10px] uppercase font-bold text-slate-400">Label Coordinates (x,y for each label)</uiKit.Label>
+                        <uiKit.Textarea 
+                          placeholder="e.g. [{x:10, y:20}, {x:30, y:40}]" 
+                          value={JSON.stringify(q.coordinates || [])} 
+                          onChange={e => {
+                            try {
+                              onUpdate('coordinates', JSON.parse(e.target.value));
+                            } catch {} // Invalid JSON ni e'tiborsiz qoldir
+                          }} 
+                          className="min-h-[80px] resize-none text-sm leading-relaxed bg-white border-slate-200 focus:border-blue-400 transition-colors shadow-sm rounded-xl p-3"
+                        />
+                      </div>
                       <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100 text-xs text-blue-700 leading-relaxed">
                           <strong className="block mb-1">CDI Note:</strong> 
-                          In the student view, input fields will be placed relative to this image. For this builder, just ensure the question number corresponds to the label order.
+                          Coordinates are relative to the image (0-100%). Student inputs will be placed at these positions.
                       </div>
                   </div>
                </div>
@@ -326,6 +353,35 @@ const QuestionEditor = ({ q, idx, onUpdate, onRemove, isUploading, handleFileUpl
                   <uiKit.Button variant="ghost" size="sm" onClick={() => onUpdate('options', [...(q.options||[]), ""])} className="text-xs text-blue-600 hover:bg-blue-50 w-max pl-0 ml-11 font-bold">+ Add Option</uiKit.Button>
                </div>
             )}
+            {(q.type === 'sentence_completion' || q.type === 'table_completion' || q.type === 'gap_fill') && (
+                <div className="space-y-2">
+                   <uiKit.Label className="text-[10px] font-bold uppercase text-slate-400">Completion Text (with gaps like _____)</uiKit.Label>
+                   <uiKit.Textarea 
+                     placeholder="Enter the sentence or table text with blanks like _____ for gaps..." 
+                     value={q.text} 
+                     onChange={e => onUpdate('text', e.target.value)} 
+                     className="min-h-[60px] resize-none text-sm leading-relaxed bg-white border-slate-200 focus:border-blue-400 transition-colors shadow-sm rounded-xl p-3"
+                   />
+                   {q.type === 'table_completion' && (
+                     <div className="space-y-2">
+                       <uiKit.Label className="text-[10px] font-bold uppercase text-slate-400">Table Headers (comma separated)</uiKit.Label>
+                       <uiKit.Input 
+                         placeholder="Header1, Header2, Header3" 
+                         value={(q.tableHeaders || []).join(', ')} 
+                         onChange={e => onUpdate('tableHeaders', e.target.value.split(', ').filter(Boolean))} 
+                         className="h-[38px] text-xs font-medium text-slate-600 bg-slate-50 border-slate-200 focus:bg-white"
+                       />
+                       <uiKit.Label className="text-[10px] font-bold uppercase text-slate-400">Table Rows (use | for cells, ; for new row)</uiKit.Label>
+                       <uiKit.Textarea 
+                         placeholder="Row1Cell1 | Row1Cell2; Row2Cell1 | Row2Cell2" 
+                         value={(q.tableRows || []).map((row: string[]) => row.join(' | ')).join('; ')} 
+                         onChange={e => onUpdate('tableRows', e.target.value.split('; ').map(row => row.split(' | ').filter(Boolean)))} 
+                         className="min-h-[100px] resize-none text-sm leading-relaxed bg-white border-slate-200 focus:border-blue-400 transition-colors shadow-sm rounded-xl p-3"
+                       />
+                     </div>
+                   )}
+                </div>
+            )}
             <div className={`flex items-center gap-4 px-5 py-3 rounded-xl border ${q.answer ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-200'} mt-4`}>
                 <div className="flex items-center gap-2">
                     <div className={`p-1 rounded-full ${q.answer ? 'bg-emerald-500 text-white' : 'bg-slate-300 text-white'}`}><lucideReact.CheckCircle2 size={14}/></div>
@@ -364,6 +420,9 @@ export default function AdminExams() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExamId, setEditingExamId] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [totalTime, setTotalTime] = useState(0);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   // Exam Meta
   const [title, setTitle] = useState("");
@@ -375,10 +434,15 @@ export default function AdminExams() {
   // Content States
   const [audioUrl, setAudioUrl] = useState("");
   const [listeningParts, setListeningParts] = useState<ListeningPart[]>([
-    { id: 1, questions: [] }, { id: 2, questions: [] }, { id: 3, questions: [] }, { id: 4, questions: [] },
+    { id: 1, title: "Part 1", questions: [] },
+    { id: 2, title: "Part 2", questions: [] },
+    { id: 3, title: "Part 3", questions: [] },
+    { id: 4, title: "Part 4", questions: [] },
   ]);
   const [passages, setPassages] = useState<Passage[]>([
-    { id: 1, title: "Passage 1 Title", content: "", questions: [] }
+    { id: 1, title: "Passage 1", content: "", questions: [] },
+    { id: 2, title: "Passage 2", content: "", questions: [] },
+    { id: 3, title: "Passage 3", content: "", questions: [] },
   ]);
   const [writingTasks, setWritingTasks] = useState<WritingTask[]>([
     { type: "task1", content: "", image: "", wordLimit: "150" }, 
@@ -401,7 +465,10 @@ export default function AdminExams() {
       if (error) throw error;
       return data[0];
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['exams'] })
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+    },
+    onError: (err: any) => alert(err.message || "Error creating exam"),
   });
 
   const updateExam = useMutation({
@@ -410,7 +477,10 @@ export default function AdminExams() {
       if (error) throw error;
       return data[0];
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['exams'] })
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+    },
+    onError: (err: any) => alert(err.message || "Error updating exam"),
   });
 
   const deleteExam = useMutation({
@@ -418,10 +488,13 @@ export default function AdminExams() {
       const { error } = await supabase.from('exams').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['exams'] })
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+    },
+    onError: (err: any) => alert(err.message || "Error deleting exam"),
   });
 
-  // --- HANDLE FILE UPLOAD (Client-side calls server API) ---
+  // --- HANDLE FILE UPLOAD ---
   const handleFileUpload = async (file: File, type: 'image' | 'audio'): Promise<string> => {
     const isAudio = type === 'audio';
     const limitMB = isAudio ? 100 : 10;
@@ -431,34 +504,58 @@ export default function AdminExams() {
     }
     setIsUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('type', type);
-
-      const response = await fetch('/api/upload', { // Assume /api/upload is your server endpoint
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error('Upload failed');
-      const { url } = await response.json();
-      return url;
+      const { data, error } = await supabase.storage.from('ielts-assets').upload(`uploads/${Date.now()}_${file.name}`, file);
+      if (error) throw error;
+      const { data: publicUrl } = supabase.storage.from('ielts-assets').getPublicUrl(data.path);
+      return publicUrl.publicUrl;
     } catch (e) {
       console.error(e);
+      alert("Upload failed. Please try again.");
       return "";
     } finally {
       setIsUploading(false);
     }
   };
 
+  // --- Auto Calculate Total Time ---
+  useEffect(() => {
+    setTotalTime(+listeningTime + +readingTime + +writingTime);
+  }, [listeningTime, readingTime, writingTime]);
+
+  // --- Validation before Submit ---
+  const validateExam = () => {
+    const errors = [];
+    if (!title) errors.push("Exam title is required.");
+    if (listeningParts.flatMap(p => p.questions).length === 0) errors.push("Listening section must have questions.");
+    if (passages.flatMap(p => p.questions).length === 0) errors.push("Reading section must have questions.");
+    if (writingTasks.some(t => !t.content)) errors.push("Writing tasks must have prompts.");
+    if (audioUrl === "" && listeningTime !== "0") errors.push("Audio file required for Listening.");
+    setValidationErrors(errors);
+    return errors.length === 0;
+  };
+
   const resetForm = () => {
     setEditingExamId(null);
     setTitle("");
-    setListeningTime("30"); setReadingTime("60"); setWritingTime("60"); setListeningReviewTime("2");
+    setListeningTime("30"); setListeningReviewTime("2"); setReadingTime("60"); setWritingTime("60");
     setAudioUrl("");
-    setListeningParts([{ id: 1, questions: [] }, { id: 2, questions: [] }, { id: 3, questions: [] }, { id: 4, questions: [] }]);
-    setPassages([{ id: 1, title: "", content: "", questions: [] }]);
-    setWritingTasks([{ type: "task1", content: "", image: "", wordLimit: "150" }, { type: "task2", content: "", wordLimit: "250" }]);
+    setListeningParts([
+      { id: 1, title: "Part 1", questions: [] },
+      { id: 2, title: "Part 2", questions: [] },
+      { id: 3, title: "Part 3", questions: [] },
+      { id: 4, title: "Part 4", questions: [] },
+    ]);
+    setPassages([
+      { id: 1, title: "Passage 1", content: "", questions: [] },
+      { id: 2, title: "Passage 2", content: "", questions: [] },
+      { id: 3, title: "Passage 3", content: "", questions: [] },
+    ]);
+    setWritingTasks([
+      { type: "task1", content: "", image: "", wordLimit: "150" }, 
+      { type: "task2", content: "", wordLimit: "250" }
+    ]);
+    setValidationErrors([]);
+    setIsPreviewMode(false);
   };
 
   const handleEdit = (exam: any) => {
@@ -488,7 +585,8 @@ export default function AdminExams() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title) return alert("Title is required");
+    if (!validateExam()) return;
+
     const examData = {
       title,
       content: {
@@ -521,7 +619,7 @@ export default function AdminExams() {
             tasks: writingTasks 
         }
       },
-      timeLimit: (+listeningTime) + (+readingTime) + (+writingTime),
+      timeLimit: totalTime,
       isPublished: true
     };
     try {
@@ -552,11 +650,11 @@ export default function AdminExams() {
   const addQuestion = (section: 'listening' | 'reading', index: number) => {
     const newQ: Question = { 
       id: Date.now() + Math.random(), 
-      type: 'gap_fill', 
+      type: 'sentence_completion', 
       text: "", 
       options: [], 
       answer: "", 
-      instruction: "Write NO MORE THAN TWO WORDS for each answer." 
+      instruction: "Complete the sentences below. Write NO MORE THAN TWO WORDS for each answer." 
     };
     if (section === 'listening') {
         const n = [...listeningParts];
@@ -592,6 +690,92 @@ export default function AdminExams() {
           setPassages(n);
       }
   };
+
+  const addPart = (section: 'listening' | 'reading') => {
+    if (section === 'listening') {
+      setListeningParts([...listeningParts, { id: listeningParts.length + 1, title: `Part ${listeningParts.length + 1}`, questions: [] }]);
+    } else {
+      setPassages([...passages, { id: passages.length + 1, title: `Passage ${passages.length + 1}`, content: "", questions: [] }]);
+    }
+  };
+
+  const removePart = (section: 'listening' | 'reading', index: number) => {
+    if (section === 'listening') {
+      const n = [...listeningParts];
+      n.splice(index, 1);
+      setListeningParts(n);
+    } else {
+      const n = [...passages];
+      n.splice(index, 1);
+      setPassages(n);
+    }
+  };
+
+  const updatePartTitle = (section: 'listening' | 'reading', index: number, value: string) => {
+    if (section === 'listening') {
+      const n = [...listeningParts];
+      n[index].title = value;
+      setListeningParts(n);
+    } else {
+      const n = [...passages];
+      n[index].title = value;
+      setPassages(n);
+    }
+  };
+
+  const handlePreview = () => {
+    if (validateExam()) setIsPreviewMode(true);
+  };
+
+  const ExamPreview = () => (
+    <div className="p-8 space-y-8">
+      <h2 className="text-3xl font-black text-slate-900">{title}</h2>
+      <p className="text-slate-500">Total Time: {totalTime} minutes</p>
+      {/* Listening Preview */}
+      <section className="space-y-4">
+        <h3 className="text-2xl font-bold">Listening ({listeningTime} min + {listeningReviewTime} min review)</h3>
+        {audioUrl && <AudioPreview url={audioUrl} />}
+        {listeningParts.map((part, pIdx) => (
+          <div key={pIdx} className="p-4 bg-slate-50 rounded-xl">
+            <h4 className="font-bold">{part.title}</h4>
+            {part.questions.map((q, qIdx) => (
+              <div key={qIdx} className="mt-2">
+                <p>{q.text}</p>
+                {/* Simple preview of question */}
+              </div>
+            ))}
+          </div>
+        ))}
+      </section>
+      {/* Reading Preview */}
+      <section className="space-y-4">
+        <h3 className="text-2xl font-bold">Reading ({readingTime} min)</h3>
+        {passages.map((psg, pIdx) => (
+          <div key={pIdx} className="p-4 bg-slate-50 rounded-xl">
+            <h4 className="font-bold">{psg.title}</h4>
+            <p className="text-slate-600">{psg.content.substring(0, 200)}...</p>
+            {psg.questions.map((q, qIdx) => (
+              <div key={qIdx} className="mt-2">
+                <p>{q.text}</p>
+              </div>
+            ))}
+          </div>
+        ))}
+      </section>
+      {/* Writing Preview */}
+      <section className="space-y-4">
+        <h3 className="text-2xl font-bold">Writing ({writingTime} min)</h3>
+        {writingTasks.map((task, idx) => (
+          <div key={idx} className="p-4 bg-slate-50 rounded-xl">
+            <h4 className="font-bold">Task {idx + 1} ({task.wordLimit} words min)</h4>
+            <p>{task.content}</p>
+            {task.image && <img src={task.image} alt="Task Image" className="mt-2 max-w-full" />}
+          </div>
+        ))}
+      </section>
+      <uiKit.Button onClick={() => setIsPreviewMode(false)} className="w-full">Close Preview</uiKit.Button>
+    </div>
+  );
 
   return (
     <AdminLayout>
@@ -629,18 +813,18 @@ export default function AdminExams() {
                   <tr key={exam.id} className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors group">
                     <td className="p-6 pl-8">
                         <span className="font-bold text-slate-800 text-lg block">{exam.title}</span>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">ID: {exam.id} • Created: {new Date().toLocaleDateString()}</span>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">ID: {exam.id} • Created: {new Date(exam.created_at).toLocaleDateString()}</span>
                     </td>
                     <td className="p-6">
                         <div className="flex gap-2">
-                            <uiKit.Badge variant="secondary" className="bg-white border border-slate-200 text-slate-600 font-bold">{((exam.content?.listening?.duration||30) + (exam.content?.reading?.timeLimit||60) + (exam.content?.writing?.timeLimit||60))} min Total</uiKit.Badge>
+                            <uiKit.Badge variant="secondary" className="bg-white border border-slate-200 text-slate-600 font-bold">{exam.timeLimit} min Total</uiKit.Badge>
                             {exam.content?.listening?.audioUrl ? <uiKit.Badge variant="secondary" className="bg-blue-50 text-blue-600 border border-blue-100"><lucideReact.Headset size={10} className="mr-1"/> Audio Ready</uiKit.Badge> : <uiKit.Badge variant="outline" className="text-red-400 border-red-100 bg-red-50">No Audio</uiKit.Badge>}
                         </div>
                     </td>
                     <td className="p-6">
                         <div className="flex items-center gap-2">
                             <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"/>
-                            <span className="text-xs font-bold text-emerald-700 uppercase">Active</span>
+                            <span className="text-xs font-bold text-emerald-700 uppercase">{exam.isPublished ? "Published" : "Draft"}</span>
                         </div>
                     </td>
                     <td className="p-6 text-right">
@@ -659,6 +843,13 @@ export default function AdminExams() {
       </uiKit.Card>
       <Modal open={isModalOpen} onOpenChange={setIsModalOpen}>
         <form onSubmit={handleSubmit} className="px-8 pb-24 pt-8 max-w-7xl mx-auto min-h-full">
+            {validationErrors.length > 0 && (
+              <div className="p-4 bg-red-50 rounded-xl mb-6">
+                <ul className="list-disc pl-5 text-red-600">
+                  {validationErrors.map((err, i) => <li key={i}>{err}</li>)}
+                </ul>
+              </div>
+            )}
             <div className="grid grid-cols-12 gap-6 items-start mb-8">
                <div className="col-span-12 lg:col-span-7 space-y-4">
                   <uiKit.Label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1">Assessment Name</uiKit.Label>
@@ -676,25 +867,28 @@ export default function AdminExams() {
                   <div className="grid grid-cols-4 gap-3">
                       <div className="bg-white/10 rounded-xl p-3 flex flex-col items-center">
                           <span className="text-[9px] font-bold uppercase text-blue-300 mb-1">Audio</span>
-                          <input type="number" className="bg-transparent border-none text-center text-lg font-black p-0 w-full focus:ring-0 text-white" value={listeningTime} onChange={(e) => setListeningTime(e.target.value)} />
+                          <input type="number" min="0" className="bg-transparent border-none text-center text-lg font-black p-0 w-full focus:ring-0 text-white" value={listeningTime} onChange={(e) => setListeningTime(e.target.value)} />
                       </div>
                       <div className="bg-white/10 rounded-xl p-3 flex flex-col items-center border border-dashed border-white/20">
                           <span className="text-[9px] font-bold uppercase text-amber-300 mb-1">Review</span>
-                          <input type="number" className="bg-transparent border-none text-center text-lg font-black p-0 w-full focus:ring-0 text-white" value={listeningReviewTime} onChange={(e) => setListeningReviewTime(e.target.value)} />
+                          <input type="number" min="0" className="bg-transparent border-none text-center text-lg font-black p-0 w-full focus:ring-0 text-white" value={listeningReviewTime} onChange={(e) => setListeningReviewTime(e.target.value)} />
                       </div>
                       <div className="bg-white/10 rounded-xl p-3 flex flex-col items-center">
                           <span className="text-[9px] font-bold uppercase text-emerald-300 mb-1">Reading</span>
-                          <input type="number" className="bg-transparent border-none text-center text-lg font-black p-0 w-full focus:ring-0 text-white" value={readingTime} onChange={(e) => setReadingTime(e.target.value)} />
+                          <input type="number" min="0" className="bg-transparent border-none text-center text-lg font-black p-0 w-full focus:ring-0 text-white" value={readingTime} onChange={(e) => setReadingTime(e.target.value)} />
                       </div>
                       <div className="bg-white/10 rounded-xl p-3 flex flex-col items-center">
                           <span className="text-[9px] font-bold uppercase text-purple-300 mb-1">Writing</span>
-                          <input type="number" className="bg-transparent border-none text-center text-lg font-black p-0 w-full focus:ring-0 text-white" value={writingTime} onChange={(e) => setWritingTime(e.target.value)} />
+                          <input type="number" min="0" className="bg-transparent border-none text-center text-lg font-black p-0 w-full focus:ring-0 text-white" value={writingTime} onChange={(e) => setWritingTime(e.target.value)} />
                       </div>
                   </div>
                </div>
             </div>
 
-            <uiKit.Tabs defaultValue="listening" className="w-full">
+            {isPreviewMode ? (
+              <ExamPreview />
+            ) : (
+              <uiKit.Tabs defaultValue="listening" className="w-full">
                 <uiKit.TabsList className="w-full justify-start gap-4 bg-transparent p-0 mb-8 border-b border-slate-200">
                     {[
                         {val:'listening', icon: lucideReact.Headset, label: 'Listening'},
@@ -711,7 +905,7 @@ export default function AdminExams() {
                         <div className="flex flex-col xl:flex-row gap-8 items-start">
                             <div className="flex-1 w-full space-y-3">
                                 <uiKit.Label className="text-xs font-black text-blue-600 uppercase tracking-widest flex items-center gap-2"><lucideReact.Headset size={14}/> Master Audio File</uiKit.Label>
-                                <p className="text-xs text-slate-500 mb-2">Upload the single MP3 file containing audio for all 4 parts.</p>
+                                <p className="text-xs text-slate-500 mb-2">Upload the single MP3 file containing audio for all 4 parts (approx 30-40 min).</p>
                                 <div className="flex gap-3 h-14">
                                     <div className="flex-1 relative">
                                         <uiKit.Input value={audioUrl} onChange={e => setAudioUrl(e.target.value)} placeholder="https://..." className="pl-4 bg-white border-blue-200 h-full rounded-xl text-blue-600 font-medium" />
@@ -731,13 +925,21 @@ export default function AdminExams() {
                         {listeningParts.map((part, pIdx) => (
                             <div key={part.id} className="flex flex-col bg-slate-50/50 border border-slate-200 rounded-[2rem] overflow-hidden h-[800px]">
                                 <div className="bg-white p-5 border-b border-slate-100 flex justify-between items-center sticky top-0 z-10 shadow-sm">
+                                    <uiKit.Input 
+                                      value={part.title || ""} 
+                                      onChange={e => updatePartTitle('listening', pIdx, e.target.value)} 
+                                      placeholder="Part Title" 
+                                      className="font-bold text-lg bg-transparent border-none focus:ring-0"
+                                    />
                                     <div className="flex items-center gap-3">
-                                        <uiKit.Badge className="bg-slate-900 h-8 px-4 rounded-lg text-xs tracking-widest">PART {pIdx + 1}</uiKit.Badge>
                                         <span className="text-xs font-bold text-slate-400">{part.questions.length} Questions</span>
+                                        <uiKit.Button size="sm" onClick={() => addQuestion('listening', pIdx)} className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs px-4 h-9 shadow-blue-200 shadow-lg">
+                                            <lucideReact.Plus size={16} className="mr-1"/> Add Question
+                                        </uiKit.Button>
+                                        {listeningParts.length > 1 && (
+                                          <uiKit.Button variant="ghost" onClick={() => removePart('listening', pIdx)} className="text-red-500"><lucideReact.Trash2 size={16}/></uiKit.Button>
+                                        )}
                                     </div>
-                                    <uiKit.Button size="sm" onClick={() => addQuestion('listening', pIdx)} className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs px-4 h-9 shadow-blue-200 shadow-lg">
-                                        <lucideReact.Plus size={16} className="mr-1"/> Add Question
-                                    </uiKit.Button>
                                 </div>
                                 <div className="p-5 space-y-4 overflow-y-auto flex-1">
                                     {part.questions.length === 0 ? (
@@ -755,6 +957,9 @@ export default function AdminExams() {
                                 </div>
                             </div>
                         ))}
+                        <uiKit.Button onClick={() => addPart('listening')} variant="outline" className="w-full h-16 border-dashed border-2 border-slate-300 text-slate-500 hover:text-blue-600 hover:border-blue-400">
+                          <lucideReact.Plus size={20} /> Add Listening Part
+                        </uiKit.Button>
                     </div>
                 </uiKit.TabsContent>
                 <uiKit.TabsContent value="reading" className="space-y-12 animate-in slide-in-from-bottom-2 duration-300">
@@ -765,12 +970,14 @@ export default function AdminExams() {
                                      <span className="font-black text-3xl tracking-tighter text-slate-700 select-none">0{pIdx + 1}</span>
                                      <div className="h-8 w-[1px] bg-white/10"/>
                                      <uiKit.Input 
-                                        value={psg.title} onChange={e => { const n = [...passages]; n[pIdx].title = e.target.value; setPassages(n); }}
+                                        value={psg.title} onChange={e => updatePartTitle('reading', pIdx, e.target.value)}
                                         className="bg-transparent border-none text-white font-bold text-lg placeholder:text-slate-600 focus:ring-0 w-[400px] p-0"
                                         placeholder="Enter Passage Title..."
                                      />
                                  </div>
-                                 <uiKit.Button variant="ghost" onClick={() => { if(confirm('Delete Passage?')) { const n = [...passages]; n.splice(pIdx, 1); setPassages(n); } }} className="text-slate-500 hover:text-red-400 hover:bg-white/5"><lucideReact.Trash2 size={20}/></uiKit.Button>
+                                 {passages.length > 1 && (
+                                   <uiKit.Button variant="ghost" onClick={() => removePart('reading', pIdx)} className="text-slate-500 hover:text-red-400 hover:bg-white/5"><lucideReact.Trash2 size={20}/></uiKit.Button>
+                                 )}
                              </div>
 
                              <div className="grid grid-cols-1 lg:grid-cols-2 h-[850px]">
@@ -806,71 +1013,11 @@ Add Question
                              </div>
                         </div>
                     ))}
-                    <uiKit.Button onClick={() => setPassages([...passages, { id: Date.now(), title: "", content: "", questions: [] }])} variant="outline" className="w-full h-20 rounded-[2rem] border-2 border-dashed border-slate-200 text-slate-400 font-black text-lg hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all gap-3">
+                    <uiKit.Button onClick={() => addPart('reading')} variant="outline" className="w-full h-20 rounded-[2rem] border-2 border-dashed border-slate-200 text-slate-400 font-black text-lg hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all gap-3">
                         <lucideReact.Plus size={24} strokeWidth={3} /> ADD NEW READING PASSAGE
                     </uiKit.Button>
                 </uiKit.TabsContent>
                 <uiKit.TabsContent value="writing" className="grid grid-cols-1 xl:grid-cols-2 gap-10 animate-in slide-in-from-bottom-2 duration-300">
                     {writingTasks.map((task, idx) => (
                         <div key={idx} className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 p-8 border border-slate-100 flex flex-col relative overflow-hidden group hover:border-blue-200 transition-colors">
-                            <div className={`absolute top-0 left-0 w-full h-2 ${idx === 0 ? 'bg-amber-400' : 'bg-purple-400'}`}/>
-                            <div className="flex justify-between items-center mb-6">
-                                <div>
-                                    <h3 className="font-black text-2xl text-slate-800">Task {idx + 1}</h3>
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{idx === 0 ? 'Report / Letter' : 'Essay'}</p>
-                                </div>
-                                <div className="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Min Words</span>
-                                    <uiKit.Input 
-                                        className="w-12 h-6 text-center font-bold bg-white border-none text-slate-700 text-xs p-0" 
-                                        value={task.wordLimit} 
-                                        onChange={e => { const n = [...writingTasks]; n[idx].wordLimit = e.target.value; setWritingTasks(n); }}
-                                    />
-                                </div>
-                            </div>
-
-                            {idx === 0 && (
-                                <div className="mb-6 p-4 bg-amber-50/50 rounded-2xl border border-amber-100 flex gap-4 items-center">
-                                    <div className="w-20 h-20 bg-white rounded-xl border border-amber-200 flex items-center justify-center relative overflow-hidden group/img shrink-0">
-                                         {task.image ? <img src={task.image} className="w-full h-full object-cover" alt="Task 1" /> : <lucideReact.Image className="text-amber-200"/>}
-                                         <div className="absolute inset-0 bg-black/10 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
-                                             <FileUploader iconOnly accept="image/*" onUpload={async (f: any) => { const url = await handleFileUpload(f, 'image'); const n = [...writingTasks]; n[0].image = url; setWritingTasks(n); }} isLoading={isUploading} />
-                                         </div>
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className="text-xs font-bold text-amber-700 uppercase mb-1">Chart / Graph Image</p>
-                                        <p className="text-[10px] text-amber-600/70 leading-relaxed">Upload the visual data for Task 1.</p>
-                                    </div>
-                                </div>
-                            )}
-
-                            <uiKit.Label className="text-[10px] font-bold uppercase text-slate-400 mb-2 block">Task Prompt</uiKit.Label>
-                            <uiKit.Textarea 
-                                className="flex-1 min-h-[400px] bg-slate-50/50 border-slate-200 rounded-2xl p-6 text-base font-medium resize-none focus:bg-white transition-colors"
-                                placeholder={`Enter the instructions for Writing Task ${idx+1}...`}
-                                value={task.content}
-                                onChange={e => { const n = [...writingTasks]; n[idx].content = e.target.value; setWritingTasks(n); }}
-                            />
-                        </div>
-                    ))}
-                </uiKit.TabsContent>
-            </uiKit.Tabs>
-            <div className="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-xl border-t border-slate-200 p-4 z-50 flex justify-center shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-                <div className="w-full max-w-7xl flex justify-between items-center px-4">
-                    <uiKit.Button type="button" variant="ghost" className="text-slate-400 hover:text-red-500 font-bold" onClick={() => setIsModalOpen(false)}>Close & Discard</uiKit.Button>
-                    <div className="flex items-center gap-6">
-                        <div className="text-right hidden sm:block">
-                            <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Total Duration</p>
-                            <p className="font-bold text-slate-800 text-lg">{(+listeningTime) + (+readingTime) + (+writingTime)} Minutes</p>
-                        </div>
-                        <uiKit.Button type="submit" disabled={createExam.isPending || updateExam.isPending} className="bg-slate-900 hover:bg-blue-600 text-white h-14 px-10 rounded-2xl font-black text-lg shadow-xl shadow-slate-300 hover:shadow-blue-300 hover:scale-[1.02] active:scale-[0.98] transition-all">
-                            {createExam.isPending || updateExam.isPending ? <lucideReact.Loader2 className="animate-spin" /> : <><lucideReact.Save className="mr-2" size={20}/> {editingExamId ? 'Update Exam' : 'Publish to Students'}</>}
-                        </uiKit.Button>
-                    </div>
-                </div>
-            </div>
-        </form>
-      </Modal>
-    </AdminLayout>
-  );
-}
+                            <div className={`absolute top-0 left-0 w-full h-2 ${idx === 0 ? 'bg-amber-400' : 'bg-purple-400'}`
