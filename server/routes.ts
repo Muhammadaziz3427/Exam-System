@@ -131,11 +131,11 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Kod va parol kiritilishi shart" });
       }
 
-      // SKRINSHOTDA KO'RINGANIDEK: accessCode ustunidan qidiramiz
+      // SKRINSHOTDA KO'RINGANIDEK: access_code ustunidan qidiramiz
       const { data: session, error } = await supabase
         .from('exam_sessions')
         .select('*')
-        .eq('accessCode', accessCode.trim().toUpperCase())
+        .eq('access_code', accessCode.trim().toUpperCase())
         .single();
 
       if (error || !session) {
@@ -147,14 +147,14 @@ export async function registerRoutes(
       }
 
       // BIR MARTALIK KIRISH VA STATUS TEKSHIRUVI
-      if (session.isUsed === true || session.status === 'completed') {
+      if (session.is_used === true || session.status === 'completed') {
         return res.status(403).json({ message: "Bu koddan foydalanib bo'lingan yoki imtihon yakunlangan." });
       }
 
-      // Muvaffaqiyatli kirsa, isUsed ni TRUE qilamiz
+      // Muvaffaqiyatli kirsa, is_used ni TRUE qilamiz
       const { error: updateError } = await supabase
         .from('exam_sessions')
-        .update({ isUsed: true, status: 'active', startTime: new Date() })
+        .update({ is_used: true, status: 'active', start_time: new Date() })
         .eq('id', session.id);
 
       if (updateError) throw updateError;
@@ -210,7 +210,7 @@ export async function registerRoutes(
           exam_id: Number(examId), 
           assigned_teacher_id: assignedTeacherId ? Number(assignedTeacherId) : null,
           status: 'created',
-          isUsed: false 
+          is_used: false 
         }])
         .select().single();
 

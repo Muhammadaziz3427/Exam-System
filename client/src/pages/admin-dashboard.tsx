@@ -158,6 +158,13 @@ export default function AdminDashboard() {
                   <Badge className="ml-auto text-[10px] bg-purple-100 text-purple-600">NEW</Badge>
                 </DropdownMenuItem>
                 <DropdownMenuItem 
+                  onClick={() => setLocation("/admin/exams/code-builder")}
+                  className="cursor-pointer flex items-center gap-2 p-3 rounded-lg focus:bg-blue-50 focus:text-blue-700 font-medium"
+                >
+                  <Database size={16} className="text-blue-500" />
+                  <span>Code Bilan Yaratish</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem 
                   onClick={() => setLocation("/admin/exams/new")}
                   className="cursor-pointer flex items-center gap-2 p-3 rounded-lg focus:bg-slate-50 font-medium"
                 >
