@@ -88,11 +88,12 @@ export class DatabaseStorage implements IStorage {
   async createSession(session: InsertSession): Promise<ExamSession> {
     const { data, error } = await supabase.from('exam_sessions').insert([{
       ...session,
-      status: 'active',
+      status: 'created',
       resultStatus: 'active',
       startTime: null,
       isCameraActive: false,
-      resultsReleased: false
+      resultsReleased: false,
+      isUsed: false
     }]).select().single();
     if (error) throw error;
     return data;
