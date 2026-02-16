@@ -38,10 +38,8 @@ export async function registerRoutes(
 ): Promise<Server> {
 
   // ==========================================
-  // --- AI & MANUAL EXAM GENERATION ROUTES ---
+  // --- AI EXAM GENERATION ROUTES ---
   // ==========================================
-
-  // 1. PDF tahlil qilish (AI)
   app.post("/api/exams/analyze-pdf", upload.single("pdf"), async (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "PDF yuklanmadi" });
@@ -78,7 +76,6 @@ export async function registerRoutes(
     }
   });
 
-  // 2. Oddiy saqlash (AI yoki Manual orqali kelgan ma'lumotlar)
   app.post("/api/exams/save", upload.fields([{ name: 'audio', maxCount: 1 }]), async (req, res) => {
     try {
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
@@ -103,7 +100,7 @@ export async function registerRoutes(
 
       const { data: exam, error: insertError } = await supabase
         .from('exams')
-        .insert([{ title, content: examContent, time_limit: 60, is_published: true }])
+        .insert([{ title, content: examContent, time_limit: 60, is_published: false }])
         .select().single();
 
       if (insertError) throw insertError;
@@ -113,37 +110,9 @@ export async function registerRoutes(
     }
   });
 
-  // 3. YANGI: Kod orqali imtihon yaratish (Admin JSON tashlaganda)
-  app.post("/api/exams/save-from-json", async (req, res) => {
-    try {
-      const { title, content, timeLimit } = req.body;
-
-      if (!content || typeof content !== 'object') {
-        return res.status(400).json({ message: "Noto'g'ri JSON formati" });
-      }
-
-      const { data: exam, error } = await supabase
-        .from('exams')
-        .insert([{ 
-          title, 
-          content, 
-          time_limit: timeLimit || 60, 
-          is_published: true 
-        }])
-        .select().single();
-
-      if (error) throw error;
-      res.status(201).json(exam);
-    } catch (error) {
-      console.error("JSON Save Error:", error);
-      res.status(500).json({ message: "Kodni saqlashda xatolik yuz berdi" });
-    }
-  });
-
   // ==========================================
   // --- AUTH ROUTES ---
   // ==========================================
-
   app.post(api.auth.adminLogin.path, async (req, res) => {
     const { username, password } = req.body;
     const { data: user, error } = await supabase.from('users').select('*').eq('username', username).single();
@@ -154,7 +123,6 @@ export async function registerRoutes(
     res.json({ user });
   });
 
-  // TUZATILGAN Student Login: is_used va access_code mantiqi bilan
   app.post(api.auth.studentLogin.path, async (req, res) => {
     try {
       const { accessCode, password } = req.body;
@@ -163,42 +131,36 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Kod va parol kiritilishi shart" });
       }
 
-      // 1. Bazadan qidirish (access_code ustuni orqali)
+      // SKRINSHOTDA KO'RINGANIDEK: access_code ustunidan qidiramiz
       const { data: session, error } = await supabase
         .from('exam_sessions')
         .select('*')
         .eq('access_code', accessCode.trim().toUpperCase())
-        .maybeSingle();
+        .single();
 
       if (error || !session) {
         return res.status(401).json({ message: "Kirish kodi topilmadi" });
       }
 
-      // 2. Parol tekshiruvi
       if (session.password !== password.trim()) {
         return res.status(401).json({ message: "Parol noto'g'ri" });
       }
 
-      // 3. Bir martalik kirish va status tekshiruvi
+      // BIR MARTALIK KIRISH VA STATUS TEKSHIRUVI
       if (session.is_used === true || session.status === 'completed') {
         return res.status(403).json({ message: "Bu koddan foydalanib bo'lingan yoki imtihon yakunlangan." });
       }
 
-      // 4. Muvaffaqiyatli kirsa, is_used ni TRUE qilamiz
+      // Muvaffaqiyatli kirsa, is_used ni TRUE qilamiz
       const { error: updateError } = await supabase
         .from('exam_sessions')
-        .update({ 
-          is_used: true, 
-          status: 'active', 
-          start_time: new Date() 
-        })
+        .update({ is_used: true, status: 'active', start_time: new Date() })
         .eq('id', session.id);
 
       if (updateError) throw updateError;
 
       res.json({ session });
     } catch (err) {
-      console.error("Login Error:", err);
       res.status(500).json({ message: "Serverda ichki xatolik" });
     }
   });
@@ -206,7 +168,6 @@ export async function registerRoutes(
   // ==========================================
   // --- TEACHER & EXAM MANAGEMENT ---
   // ==========================================
-
   app.get("/api/admin/teachers", async (_req, res) => {
     const { data: teachers } = await supabase.from('users').select('*').eq('role', 'teacher');
     res.json(teachers || []);
@@ -239,7 +200,6 @@ export async function registerRoutes(
   // ==========================================
   // --- SESSION MANAGEMENT (ADMIN) ---
   // ==========================================
-
   app.post(api.sessions.create.path, async (req, res) => {
     try {
       const { examId, assignedTeacherId, ...rest } = req.body;
@@ -301,7 +261,6 @@ export async function registerRoutes(
   // ==========================================
   // --- SUBMISSION & AUTO-GRADING ---
   // ==========================================
-
   app.post(api.sessions.submit.path, async (req, res) => {
     const sessionId = Number(req.params.id);
     const { answers, isFinal } = req.body;
