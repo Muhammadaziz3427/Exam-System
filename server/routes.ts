@@ -131,11 +131,12 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Kod va parol kiritilishi shart" });
       }
 
-      // SKRINSHOTDA KO'RINGANIDEK: access_code ustunidan qidiramiz
+      const normalizedCode = accessCode.trim().toUpperCase();
+
       const { data: session, error } = await supabase
         .from('exam_sessions')
         .select('*')
-        .eq('access_code', accessCode.trim().toUpperCase())
+        .eq('access_code', normalizedCode)
         .single();
 
       if (error || !session) {
@@ -146,9 +147,13 @@ export async function registerRoutes(
         return res.status(401).json({ message: "Parol noto'g'ri" });
       }
 
-      // BIR MARTALIK KIRISH VA STATUS TEKSHIRUVI
-      if (session.is_used === true || session.status === 'completed') {
-        return res.status(403).json({ message: "Bu koddan foydalanib bo'lingan yoki imtihon yakunlangan." });
+      // 403 Errors for used or completed sessions
+      if (session.is_used === true) {
+        return res.status(403).json({ message: "Kod ishlatilgan" });
+      }
+      
+      if (session.status === 'completed') {
+        return res.status(403).json({ message: "Imtihon yakunlangan" });
       }
 
       // Muvaffaqiyatli kirsa, is_used ni TRUE qilamiz
@@ -162,6 +167,38 @@ export async function registerRoutes(
       res.json({ session });
     } catch (err) {
       res.status(500).json({ message: "Serverda ichki xatolik" });
+    }
+  });
+
+  app.post("/api/exams/save-from-json", async (req, res) => {
+    try {
+      const { title, jsonContent } = req.body;
+      
+      let parsed;
+      try {
+        parsed = typeof jsonContent === 'string' ? JSON.parse(jsonContent) : jsonContent;
+      } catch (e) {
+        return res.status(400).json({ message: "JSON formati noto'g'ri" });
+      }
+
+      if (!parsed.listening && !parsed.reading && !parsed.writing) {
+        return res.status(400).json({ message: "JSON ichida listening, reading yoki writing kalitlari bo'lishi shart" });
+      }
+
+      const { data: exam, error } = await supabase
+        .from('exams')
+        .insert([{ 
+          title, 
+          content: parsed, 
+          time_limit: 60, 
+          is_published: true 
+        }])
+        .select().single();
+
+      if (error) throw error;
+      res.status(201).json(exam);
+    } catch (error) {
+      res.status(500).json({ message: "JSON orqali saqlashda xatolik" });
     }
   });
 

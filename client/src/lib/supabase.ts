@@ -9,5 +9,14 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error("Supabase URL yoki API Key topilmadi! .env faylingizni tekshiring.");
 }
 
-// Supabase klientini yaratish va eksport qilish
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
+// Supabase klientini yaratish va eksport qilish (Singleton)
+let supabaseInstance: any = null;
+
+export const getSupabase = () => {
+  if (!supabaseInstance) {
+    supabaseInstance = createClient(supabaseUrl || '', supabaseAnonKey || '');
+  }
+  return supabaseInstance;
+};
+
+export const supabase = getSupabase();
