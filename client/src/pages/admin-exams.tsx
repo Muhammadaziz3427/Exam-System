@@ -469,7 +469,7 @@ export default function AdminExams() {
   ]);
 
   // --- QUERIES & MUTATIONS ---
-  const { data: exams, isLoading: examsLoading } = useQuery({
+  const { data: exams, isLoading: examsLoading, error: examsError } = useQuery({
     queryKey: ['exams'],
     queryFn: async () => {
       const { data, error } = await supabase.from('exams').select('*').order('created_at', { ascending: false });
@@ -487,6 +487,9 @@ export default function AdminExams() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['exams'] });
     },
+    onError: (error) => {
+      alert('Failed to create exam: ' + error.message);
+    },
   });
 
   const updateExam = useMutation({
@@ -498,6 +501,9 @@ export default function AdminExams() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['exams'] });
     },
+    onError: (error) => {
+      alert('Failed to update exam: ' + error.message);
+    },
   });
 
   const deleteExam = useMutation({
@@ -507,6 +513,9 @@ export default function AdminExams() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['exams'] });
+    },
+    onError: (error) => {
+      alert('Failed to delete exam: ' + error.message);
     },
   });
 
@@ -533,6 +542,9 @@ export default function AdminExams() {
       queryClient.invalidateQueries({ queryKey: ['exams'] });
       setIsModalOpen(false);
       setImportJson("");
+    },
+    onError: (error) => {
+      alert('Failed to save from JSON: ' + error.message);
     },
   });
 
@@ -714,6 +726,61 @@ export default function AdminExams() {
     if (validateExam()) setIsPreviewMode(true);
   };
 
+  // Submit handler
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!validateExam()) return;
+
+    const examData = {
+      title,
+      content: {
+        listening: {
+          audioUrl,
+          duration: +listeningTime,
+          reviewTime: +listeningReviewTime,
+          parts: listeningParts.map((part, pIdx) => ({
+            ...part,
+            id: pIdx + 1,
+            questions: part.questions.map((q, qIdx) => ({
+              ...q,
+              globalIdx: calculateGlobalIdx('listening', pIdx, qIdx)
+            }))
+          }))
+        },
+        reading: {
+          timeLimit: +readingTime,
+          passages: passages.map((psg, psgIdx) => ({
+            ...psg,
+            id: psgIdx + 1,
+            questions: psg.questions.map((q, qIdx) => ({
+              ...q,
+              globalIdx: calculateGlobalIdx('reading', psgIdx, qIdx)
+            }))
+          }))
+        },
+        writing: {
+          timeLimit: +writingTime,
+          tasks: writingTasks
+        }
+      },
+      timeLimit: totalTime,
+      isPublished: true
+    };
+
+    try {
+      if (editingExamId) {
+        await updateExam.mutateAsync({ id: editingExamId, ...examData });
+      } else {
+        await createExam.mutateAsync(examData);
+      }
+      setIsModalOpen(false);
+      resetForm();
+    } catch (err) {
+      console.error(err);
+      // Error is already handled by mutation onError
+    }
+  };
+
   // Preview component
   const ExamPreview = () => (
     <div className="p-8 space-y-8">
@@ -760,10 +827,6 @@ export default function AdminExams() {
     </div>
   );
 
-    function handleSubmit(event: FormEvent<HTMLFormElement>): void {
-        throw new Error("Function not implemented.");
-    }
-
   // --- RENDER ---
   return (
     <AdminLayout>
@@ -786,6 +849,17 @@ export default function AdminExams() {
         {examsLoading ? (
           <div className="flex justify-center py-12">
             <lucideReact.Loader2 className="animate-spin h-8 w-8 text-blue-600" />
+          </div>
+        ) : examsError ? (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
+            <p className="text-red-600 font-bold">Failed to load exams</p>
+            <p className="text-sm text-red-500 mt-1">{examsError.message}</p>
+          </div>
+        ) : exams && exams.length === 0 ? (
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-12 text-center">
+            <lucideReact.FileText size={48} className="mx-auto text-slate-300 mb-4" />
+            <h3 className="text-lg font-bold text-slate-700">No exams yet</h3>
+            <p className="text-slate-500 mt-1">Click "CREATE NEW EXAM" to add your first exam.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
