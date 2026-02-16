@@ -15,13 +15,8 @@ import {
   Loader2, CheckCircle2, Trash2, BrainCircuit,
   Type, Save
 } from "lucide-react";
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
-
-// Supabase client
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL!;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 interface ExtractedQuestion {
   id: number;

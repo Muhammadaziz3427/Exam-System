@@ -3,12 +3,14 @@ import { AdminLayout } from "@/components/layout/AdminLayout";
 import * as uiKit from "@/components/ui-kit"; // UI kutubxonangizdan
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as lucideReact from "lucide-react";
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from "@/lib/supabase";
+import { AICreatorCard } from "@/components/AICreatorCard";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 
 // Supabase client (client-side for queries, uploads server-side via API)
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL!;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabaseClient = supabase; // Using shared singleton
 
 type QuestionType = 
   | 'mcq_single' // A, B, C, D (Radio)
@@ -210,14 +212,51 @@ export default function AdminExams() {
                     </uiKit.Button>
                   </div>
                 ) : activeTab === 'ai' ? (
-                  <div className="p-12 border-2 border-dashed border-slate-200 rounded-[2rem] text-center bg-white/50">
-                    <lucideReact.FileText size={48} className="mx-auto text-slate-300 mb-4" />
-                    <h3 className="text-xl font-bold text-slate-900 mb-2">AI PDF Analyzer</h3>
-                    <p className="text-slate-400 text-sm mb-6">Upload a PDF exam to extract questions automatically.</p>
-                  </div>
+                  <AICreatorCard />
                 ) : (
-                  <div className="space-y-8">
-                    <p className="text-center text-slate-400">Manual editor content placeholder</p>
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4 p-6 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                        <div className="flex items-center gap-2 mb-2">
+                          <lucideReact.Type size={18} className="text-blue-500" />
+                          <h3 className="font-bold text-slate-800">Exam Content</h3>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Time Limit (minutes)</Label>
+                          <Input type="number" placeholder="e.g. 150" className="rounded-xl" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Passing Score</Label>
+                          <Input type="number" placeholder="e.g. 70" className="rounded-xl" />
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-4 p-6 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                        <div className="flex items-center gap-2 mb-2">
+                          <lucideReact.Settings size={18} className="text-amber-500" />
+                          <h3 className="font-bold text-slate-800">Settings</h3>
+                        </div>
+                        <div className="flex items-center justify-between p-2">
+                          <span className="text-sm font-medium text-slate-600">Shuffle Questions</span>
+                          <input type="checkbox" className="w-5 h-5 rounded-md border-slate-200" />
+                        </div>
+                        <div className="flex items-center justify-between p-2">
+                          <span className="text-sm font-medium text-slate-600">Show Results Immediately</span>
+                          <input type="checkbox" className="w-5 h-5 rounded-md border-slate-200" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-12 border-2 border-dashed border-slate-100 rounded-[2rem] text-center bg-white/50">
+                      <lucideReact.PlusCircle size={48} className="mx-auto text-slate-200 mb-4" />
+                      <h4 className="font-bold text-slate-800">Question Editor</h4>
+                      <p className="text-sm text-slate-400 mb-6">Start adding questions to your exam manually.</p>
+                      <Button className="rounded-xl bg-slate-900">ADD QUESTION</Button>
+                    </div>
+
+                    <Button className="w-full h-14 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg">
+                      SAVE EXAM MANUALLY
+                    </Button>
                   </div>
                 )}
              </div>
