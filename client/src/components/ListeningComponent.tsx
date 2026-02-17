@@ -3,43 +3,48 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Headphones, AlertCircle, Flag } from "lucide-react";
-import { Input } from "@/components/ui-kit"; 
+import { Input } from "@/components/ui-kit";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ListeningComponentProps {
   audioUrl: string;
   onSectionComplete: () => void;
-  examContent?: any; 
-  content?: any; 
-  answers: any; // { [qId: string]: string }
+  examContent?: any;
+  content?: any;
+  answers: any;
   setAnswers: (answers: any) => void;
 }
 
-export function ListeningComponent({ 
-  audioUrl, 
-  onSectionComplete, 
-  examContent, 
-  content, 
-  answers, 
-  setAnswers 
+const TFNG_OPTIONS = ["TRUE", "FALSE", "NOT GIVEN"];
+const YNNG_OPTIONS = ["YES", "NO", "NOT GIVEN"];
+
+export function ListeningComponent({
+  audioUrl,
+  onSectionComplete,
+  examContent,
+  content,
+  answers,
+  setAnswers
 }: ListeningComponentProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [progress, setProgress] = useState(0);
   const [isTransferring, setIsTransferring] = useState(false);
-  const [transferTimeLeft, setTransferTimeLeft] = useState(120); 
+  const [transferTimeLeft, setTransferTimeLeft] = useState(120);
   const [error, setError] = useState<string | null>(null);
   const [reviewFlags, setReviewFlags] = useState<Record<string, boolean>>({});
 
-  const activeContent = content || examContent;
+  // MUHIM: content (listening bo'limi) berilgan bo'lishi kerak
+  const listeningData = content || examContent?.listening;
+  console.log("Listening data received:", listeningData);
 
-  const fullAudioPath = audioUrl;
+  const collections = listeningData?.parts || listeningData?.sections || [];
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !audioUrl) return;
 
     const timer = setTimeout(() => {
-        audio.play().catch(() => console.log("Auto-play blocked, waiting for interaction"));
+      audio.play().catch(() => console.log("Auto-play blocked, waiting for interaction"));
     }, 3000);
 
     const handleFirstClick = () => {
@@ -91,12 +96,107 @@ export function ListeningComponent({
     }
   }, [isTransferring, onSectionComplete]);
 
-  // Listening savollari kolleksiyasini aniqlash (parts yoki sections)
-  const collections = activeContent?.parts || activeContent?.sections || [];
-
-  // Yangi javobni saqlash uchun funksiya
-  const handleAnswerChange = (qId: string, value: string) => {
+  const handleAnswerChange = (qId: string, value: string | string[]) => {
     setAnswers({ ...answers, [qId]: value });
+  };
+
+  const handleCheckboxChange = (qId: string, option: string, checked: boolean) => {
+    const current: string[] = answers[qId] || [];
+    const newValue = checked
+      ? [...current, option]
+      : current.filter((v: string) => v !== option);
+    setAnswers({ ...answers, [qId]: newValue });
+  };
+
+  const renderQuestionInput = (q: any, qId: string) => {
+    const type = q.type?.toLowerCase();
+
+    if (type === 'tfng' || type === 'ynng') {
+      const options = type === 'tfng' ? TFNG_OPTIONS : YNNG_OPTIONS;
+      return (
+        <div className="flex gap-4 flex-wrap">
+          {options.map((opt: string) => (
+            <label key={opt} className="flex items-center gap-2">
+              <input
+                type="radio"
+                name={qId}
+                value={opt}
+                checked={answers[qId] === opt}
+                onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                className="w-4 h-4 text-blue-600"
+              />
+              <span className="text-sm font-medium">{opt}</span>
+            </label>
+          ))}
+        </div>
+      );
+    }
+
+    if (type === 'multiple' && !Array.isArray(q.answer)) {
+      const options = q.options || ["A", "B", "C", "D"];
+      return (
+        <div className="flex gap-4 flex-wrap">
+          {options.map((opt: string) => (
+            <label key={opt} className="flex items-center gap-2">
+              <input
+                type="radio"
+                name={qId}
+                value={opt}
+                checked={answers[qId] === opt}
+                onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                className="w-4 h-4 text-blue-600"
+              />
+              <span className="text-sm font-medium">{opt}</span>
+            </label>
+          ))}
+        </div>
+      );
+    }
+
+    if (type === 'multiple' && Array.isArray(q.answer)) {
+      const options = q.options || ["A", "B", "C", "D", "E"];
+      return (
+        <div className="flex gap-4 flex-wrap">
+          {options.map((opt: string) => (
+            <label key={opt} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                value={opt}
+                checked={(answers[qId] || []).includes(opt)}
+                onChange={(e) => handleCheckboxChange(qId, opt, e.target.checked)}
+                className="w-4 h-4 text-blue-600 rounded"
+              />
+              <span className="text-sm font-medium">{opt}</span>
+            </label>
+          ))}
+        </div>
+      );
+    }
+
+    if (type === 'matching') {
+      const options = q.options || ["A", "B", "C", "D", "E", "F", "G", "H"];
+      return (
+        <select
+          value={answers[qId] || ""}
+          onChange={(e) => handleAnswerChange(qId, e.target.value)}
+          className="w-40 h-10 px-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+        >
+          <option value="" disabled>Select...</option>
+          {options.map((opt: string) => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
+      );
+    }
+
+    return (
+      <Input
+        placeholder="Write your answer..."
+        className="h-10 border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50/30"
+        value={answers[qId] || ""}
+        onChange={(e) => handleAnswerChange(qId, e.target.value)}
+      />
+    );
   };
 
   return (
@@ -114,12 +214,11 @@ export function ListeningComponent({
               </div>
             </div>
             {isTransferring && (
-               <Badge className="bg-amber-500 animate-bounce">
+              <Badge className="bg-amber-500 animate-bounce">
                 Transfer Time: {Math.floor(transferTimeLeft / 60)}:{String(transferTimeLeft % 60).padStart(2, '0')}
-               </Badge>
+              </Badge>
             )}
           </div>
-
           <div className="space-y-1">
             <Progress value={progress} className="h-1.5 bg-slate-800" />
             <div className="flex justify-between text-[10px] font-mono opacity-50">
@@ -127,9 +226,8 @@ export function ListeningComponent({
               <span>{Math.round(progress)}%</span>
             </div>
           </div>
-
           <audio ref={audioRef} key={audioUrl} preload="auto">
-            <source src={fullAudioPath} type="audio/mpeg" />
+            <source src={audioUrl} type="audio/mpeg" />
             Your browser does not support audio.
           </audio>
         </Card>
@@ -143,86 +241,87 @@ export function ListeningComponent({
             </div>
           )}
 
-          <div className="space-y-12">
-            {collections.map((section: any, sIdx: number) => {
-              // Oldingi bo'limlardagi jami savollar sonini hisoblash
-              const questionsBefore = collections
-                .slice(0, sIdx)
-                .reduce((acc: number, s: any) => acc + (s.questions?.length || 0), 0);
+          {!listeningData ? (
+            <div className="text-center py-12">
+              <p className="text-slate-500">Listening ma'lumotlari topilmadi.</p>
+            </div>
+          ) : collections.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-slate-500">Ushbu imtihonda listening savollari mavjud emas.</p>
+            </div>
+          ) : (
+            <div className="space-y-12">
+              {collections.map((section: any, sIdx: number) => {
+                const questionsBefore = collections
+                  .slice(0, sIdx)
+                  .reduce((acc: number, s: any) => acc + (s.questions?.length || 0), 0);
 
-              return (
-                <div key={`l-sec-${sIdx}`} className="space-y-6">
-                  <div className="border-l-4 border-blue-500 pl-4 py-1 bg-blue-50/50 rounded-r-lg">
-                    <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">
-                      Part {section.id || sIdx + 1}
-                    </h3>
-                    <p className="text-sm text-slate-500">Answer the questions based on the audio clip.</p>
-                  </div>
-
-                  {section.image && (
-                    <div className="my-4">
-                      <img 
-                        src={section.image} 
-                        alt={`Section ${sIdx + 1} diagram`} 
-                        className="max-w-full h-auto rounded-lg border shadow-sm"
-                      />
+                return (
+                  <div key={`l-sec-${sIdx}`} className="space-y-6">
+                    <div className="border-l-4 border-blue-500 pl-4 py-1 bg-blue-50/50 rounded-r-lg">
+                      <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">
+                        Part {section.id || sIdx + 1}
+                      </h3>
+                      <p className="text-sm text-slate-500">Answer the questions based on the audio clip.</p>
                     </div>
-                  )}
 
-                  <div className="grid gap-4">
-                    {section.questions?.map((q: any, qIdx: number) => {
-                      const qGlobalIdx = questionsBefore + qIdx + 1;
-                      const qId = `q-${qGlobalIdx}`;
+                    {section.image && (
+                      <div className="my-4">
+                        <img
+                          src={section.image}
+                          alt={`Section ${sIdx + 1} diagram`}
+                          className="max-w-full h-auto rounded-lg border shadow-sm"
+                        />
+                      </div>
+                    )}
 
-                      return (
-                        <div 
-                          key={qId} 
-                          id={`q-container-${qGlobalIdx}`}
-                          className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm hover:border-blue-300 transition-all flex gap-4"
-                        >
-                          <span className="w-7 h-7 rounded bg-slate-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                            {qGlobalIdx}
-                          </span>
+                    <div className="grid gap-4">
+                      {section.questions?.map((q: any, qIdx: number) => {
+                        const qGlobalIdx = questionsBefore + qIdx + 1;
+                        const qId = `q-${qGlobalIdx}`;
 
-                          <div className="flex-1 space-y-3">
-                            <p className="text-slate-700 font-medium leading-relaxed">{q.text}</p>
-
-                            {/* Ko'rsatma (Instruction) mavjud bo'lsa */}
-                            {q.instruction && (
-                              <p className="text-xs font-semibold text-blue-600 italic">
-                                {q.instruction}
-                              </p>
-                            )}
-
-                            {(q.imageUrl || q.image) && (
-                              <img src={q.imageUrl || q.image} alt="" className="w-full max-w-md rounded border mb-2" />
-                            )}
-
-                            <Input 
-                              placeholder="Write your answer..."
-                              className="h-10 border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50/30"
-                              value={answers[qId] || ""}
-                              onChange={(e) => handleAnswerChange(qId, e.target.value)}
-                            />
-                          </div>
-
-                          <button 
-                            onClick={() => setReviewFlags({...reviewFlags, [qId]: !reviewFlags[qId]})}
-                            className="pt-1"
+                        return (
+                          <div
+                            key={qId}
+                            id={`q-container-${qGlobalIdx}`}
+                            className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm hover:border-blue-300 transition-all flex gap-4"
                           >
-                            <Flag 
-                              size={16} 
-                              className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200 hover:text-slate-400"} 
-                            />
-                          </button>
-                        </div>
-                      );
-                    })}
+                            <span className="w-7 h-7 rounded bg-slate-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                              {qGlobalIdx}
+                            </span>
+
+                            <div className="flex-1 space-y-3">
+                              <p className="text-slate-700 font-medium leading-relaxed">{q.text}</p>
+
+                              {q.instruction && (
+                                <p className="text-xs font-semibold text-blue-600 italic">{q.instruction}</p>
+                              )}
+
+                              {(q.imageUrl || q.image) && (
+                                <img src={q.imageUrl || q.image} alt="" className="w-full max-w-md rounded border mb-2" />
+                              )}
+
+                              {renderQuestionInput(q, qId)}
+                            </div>
+
+                            <button
+                              onClick={() => setReviewFlags({ ...reviewFlags, [qId]: !reviewFlags[qId] })}
+                              className="pt-1"
+                            >
+                              <Flag
+                                size={16}
+                                className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200 hover:text-slate-400"}
+                              />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
 
           <div className="mt-12 text-center text-slate-400 text-xs italic border-t pt-8">
             End of Listening Questions. The test will automatically transition after transfer time.

@@ -1,18 +1,16 @@
-import { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import { api, buildUrl } from "@shared/routes";
-import { useStartSession, useSubmitAnswers, useLogViolation } from "@/hooks/use-sessions";
+import { useStartSession, useLogViolation } from "@/hooks/use-sessions";
 import { Button, Textarea, Badge, Input } from "@/components/ui-kit";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-import { 
-  Clock, 
-  ShieldCheck, 
-  Headphones, 
-  BookOpen, 
-  PenTool, 
-  Flag, 
-  CheckCircle2, 
-  ChevronRight,
+import {
+  Clock,
+  ShieldCheck,
+  Headphones,
+  BookOpen,
+  PenTool,
+  Flag,
   Minus,
   Plus,
   Loader2,
@@ -20,13 +18,16 @@ import {
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { ListeningComponent } from "@/components/ListeningComponent";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"; 
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 
 type Section = 'listening' | 'reading' | 'writing';
 
-// LocalStorage kaliti
 const STORAGE_KEY = "ielts_exam_backup_v1";
+
+// True/False/Not Given va Yes/No/Not Given uchun variantlar
+const TFNG_OPTIONS = ["TRUE", "FALSE", "NOT GIVEN"];
+const YNNG_OPTIONS = ["YES", "NO", "NOT GIVEN"];
 
 export default function StudentExam() {
   const { id } = useParams();
@@ -45,9 +46,9 @@ export default function StudentExam() {
   const [currentSection, setCurrentSection] = useState<Section>('listening');
   const [timeLeft, setTimeLeft] = useState(0);
   const [email, setEmail] = useState("");
-  const [zoom, setZoom] = useState(100); 
+  const [zoom, setZoom] = useState(100);
   const [activePassageIdx, setActivePassageIdx] = useState(0);
-  const [activeWritingTask, setActiveWritingTask] = useState(0); 
+  const [activeWritingTask, setActiveWritingTask] = useState(0);
 
   const [answers, setAnswers] = useState<any>({
     listening: {},
@@ -62,10 +63,8 @@ export default function StudentExam() {
   const startSession = useStartSession();
   const logViolation = useLogViolation();
 
-  // --- Utility Functions ---
   const getImageUrl = (path: string) => {
     if (!path) return "";
-    // Agar path to'liq URL bo'lsa, o'zini qaytar, aks holda /uploads/ prefiksi bilan
     return path.startsWith('http') ? path : `/uploads/${path}`;
   };
 
@@ -76,12 +75,10 @@ export default function StudentExam() {
     }
   };
 
-  // --- Highlight Logic (Sariq rang) ---
   const handleTextHighlight = () => {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) return;
     if (currentSection !== 'reading') return;
-
     try {
       const range = selection.getRangeAt(0);
       const span = document.createElement("span");
@@ -89,40 +86,27 @@ export default function StudentExam() {
       span.style.color = "#000";
       range.surroundContents(span);
       selection.removeAllRanges();
-    } catch (e) {
-      console.log("Highlight complex range skipped");
-    }
+    } catch (e) {}
   };
 
-  // --- Camera Logic ---
   const checkCamera = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { width: 320, height: 240, frameRate: 15 } 
-      });
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, frameRate: 15 } });
       setStream(mediaStream);
       setCameraReady(true);
     } catch (err) {
-      toast({ 
-        title: "Camera Error", 
-        description: "Imtihonni boshlash uchun kameraga ruxsat bering.", 
-        variant: "destructive" 
-      });
+      toast({ title: "Camera Error", description: "Imtihonni boshlash uchun kameraga ruxsat bering.", variant: "destructive" });
     }
   };
 
   useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
-    }
+    if (videoRef.current && stream) videoRef.current.srcObject = stream;
   }, [stream]);
 
-  // --- Security & Monitoring ---
   useEffect(() => {
     if (!hasStarted || !cameraReady) return;
     const pulseInterval = setInterval(() => {
-      apiRequest("POST", `/api/sessions/${sessionId}/camera-pulse`, { isActive: true })
-        .catch(() => {}); 
+      apiRequest("POST", `/api/sessions/${sessionId}/camera-pulse`, { isActive: true }).catch(() => {});
     }, 10000);
     return () => clearInterval(pulseInterval);
   }, [hasStarted, cameraReady, sessionId]);
@@ -131,37 +115,27 @@ export default function StudentExam() {
     const handleVisibilityChange = () => {
       if (document.hidden && hasStarted) {
         logViolation.mutate({ id: sessionId, type: "tab_switch" });
-        toast({
-          title: "DIQQAT: XAVFSIZLIK OGOHLANTIRISHI",
-          description: "Tabni almashtirish taqiqlanadi.",
-          variant: "destructive",
-          duration: 3000
-        });
+        toast({ title: "DIQQAT: XAVFSIZLIK OGOHLANTIRISHI", description: "Tabni almashtirish taqiqlanadi.", variant: "destructive", duration: 3000 });
       }
     };
-
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (hasStarted) {
         e.preventDefault();
-        e.returnValue = '';
       }
     };
-
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("beforeunload", handleBeforeUnload);
-
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [hasStarted, sessionId, logViolation, toast]);
 
-  // --- Timer Logic ---
   const setupSectionTimer = (section: Section, content: any) => {
-    let minutes = 60; 
-    if (section === 'listening') minutes = content?.listening?.duration || 30;
-    if (section === 'reading') minutes = content?.reading?.timeLimit || 60;
-    if (section === 'writing') minutes = content?.writing?.timeLimit || 60;
+    let minutes = 60;
+    if (section === 'listening') minutes = content?.sections?.listening?.duration || 30;
+    if (section === 'reading') minutes = content?.sections?.reading?.timeLimit || 60;
+    if (section === 'writing') minutes = content?.sections?.writing?.timeLimit || 60;
     setTimeLeft(minutes * 60);
   };
 
@@ -196,124 +170,229 @@ export default function StudentExam() {
     if (examContent) setupSectionTimer(currentSection, examContent);
   }, [currentSection, examContent]);
 
-  // --- Persistence ---
   const lastSavedAnswers = useRef(JSON.stringify(answers));
 
   useEffect(() => {
-    if (hasStarted) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(answers));
-    }
+    if (hasStarted) localStorage.setItem(STORAGE_KEY, JSON.stringify(answers));
   }, [answers, hasStarted]);
 
   useEffect(() => {
     const autoSave = setInterval(() => {
       const currentAnswers = JSON.stringify(answers);
       if (hasStarted && currentAnswers !== lastSavedAnswers.current) {
-        apiRequest("PATCH", `/api/sessions/${sessionId}/progress`, { answers })
-          .catch(console.error);
+        apiRequest("PATCH", `/api/sessions/${sessionId}/progress`, { answers }).catch(console.error);
         lastSavedAnswers.current = currentAnswers;
       }
-    }, 20000); 
+    }, 20000);
     return () => clearInterval(autoSave);
   }, [answers, hasStarted, sessionId]);
 
-  // --- Submission & Finish ---
   const handleFinalSubmit = async (autoSubmit: boolean = false) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
-
     try {
-      if (autoSubmit) {
-        toast({ title: "Vaqt tugadi", description: "Javoblar avtomatik yuborilmoqda..." });
-      }
-
-      await apiRequest("POST", `/api/sessions/${sessionId}/submit`, { 
-        answers, 
-        isFinal: true 
-      });
-
-      if (document.fullscreenElement) {
-        await document.exitFullscreen().catch(() => {});
-      }
-
+      if (autoSubmit) toast({ title: "Vaqt tugadi", description: "Javoblar avtomatik yuborilmoqda..." });
+      await apiRequest("POST", `/api/sessions/${sessionId}/submit`, { answers, isFinal: true });
+      if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
       localStorage.removeItem(STORAGE_KEY);
-
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-
-      toast({ 
-        title: "Imtihon yakunlandi", 
-        description: "Javoblar saqlandi. Bosh sahifaga yo'naltirilmoqda...",
-        className: "bg-green-600 text-white",
-        duration: 3000
-      });
-
-      setTimeout(() => {
-        setHasStarted(false); 
-        setLocation("/"); 
-      }, 2000);
-
+      if (stream) stream.getTracks().forEach(track => track.stop());
+      toast({ title: "Imtihon yakunlandi", description: "Javoblar saqlandi. Bosh sahifaga yo'naltirilmoqda...", className: "bg-green-600 text-white", duration: 3000 });
+      setTimeout(() => { setHasStarted(false); setLocation("/"); }, 2000);
     } catch (err) {
       setIsSubmitting(false);
-      toast({ 
-        title: "Xatolik", 
-        description: "Javoblarni saqlashda muammo bo'ldi.", 
-        variant: "destructive" 
-      });
+      toast({ title: "Xatolik", description: "Javoblarni saqlashda muammo bo'ldi.", variant: "destructive" });
     }
   };
 
-  // --- Init ---
   const startExamFlow = async () => {
     if (!email.includes("@")) {
-        toast({ title: "Email xato", description: "To'g'ri email kiriting", variant: "destructive" });
-        return;
+      toast({ title: "Email xato", description: "To'g'ri email kiriting", variant: "destructive" });
+      return;
     }
     setIsLoadingContent(true);
     try {
       await apiRequest("PATCH", `/api/sessions/${sessionId}`, { email });
-      try {
-        if (document.documentElement.requestFullscreen) {
-          await document.documentElement.requestFullscreen();
-        }
-      } catch (e) { console.warn("Fullscreen error"); }
-
+      try { if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen(); } catch (e) {}
       const session = await startSession.mutateAsync(sessionId);
       const examRes = await fetch(buildUrl(api.exams.get.path, { id: session.examId }));
       if (!examRes.ok) throw new Error("Exam content not found");
       const exam = await examRes.json();
       setExamContent(exam.content);
-
       const backup = localStorage.getItem(STORAGE_KEY);
-      if (backup) {
-         try { setAnswers(JSON.parse(backup)); } catch(e) {}
-      }
-
+      if (backup) { try { setAnswers(JSON.parse(backup)); } catch(e) {} }
       setupSectionTimer('listening', exam.content);
       setHasStarted(true);
     } catch (err) {
       toast({ title: "Xatolik", description: "Materiallarni yuklab bo'lmadi.", variant: "destructive" });
     } finally {
-        setIsLoadingContent(false);
+      setIsLoadingContent(false);
     }
   };
 
   const getWordCount = useMemo(() => {
-     const text = activeWritingTask === 0 ? answers.writingTask1 : answers.writingTask2;
-     if (!text) return 0;
-     return text.trim().split(/\s+/).filter((w: string) => w.length > 0).length;
+    const text = activeWritingTask === 0 ? answers.writingTask1 : answers.writingTask2;
+    if (!text) return 0;
+    return text.trim().split(/\s+/).filter((w: string) => w.length > 0).length;
   }, [answers.writingTask1, answers.writingTask2, activeWritingTask]);
 
-  // --- Helper to get all questions for navigation (listening + reading) ---
   const totalQuestions = useMemo(() => {
     if (!examContent) return 40;
-    const listeningCount = examContent?.listening?.parts?.reduce((acc: number, part: any) => acc + (part.questions?.length || 0), 0) || 0;
-    const readingCount = examContent?.reading?.passages?.reduce((acc: number, passage: any) => acc + (passage.questions?.length || 0), 0) || 0;
+    const listeningCount = examContent?.sections?.listening?.parts?.reduce((acc: number, part: any) => acc + (part.questions?.length || 0), 0) || 0;
+    const readingCount = examContent?.sections?.reading?.passages?.reduce((acc: number, passage: any) => acc + (passage.questions?.length || 0), 0) || 0;
     return listeningCount + readingCount;
   }, [examContent]);
 
-  // --- Render Screens ---
+  // ========== UNIVERSAL QUESTION RENDERER ==========
+  const renderQuestionInput = (q: any, qId: string, currentAnswer: any, setAnswer: (val: any) => void) => {
+    const type = q.type;
+    const answer = currentAnswer || (Array.isArray(q.answer) ? [] : "");
+
+    // --- TRUE / FALSE / NOT GIVEN ---
+    if (type === "tfng") {
+      return (
+        <div className="flex flex-wrap gap-4">
+          {TFNG_OPTIONS.map((opt) => (
+            <label key={opt} className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                className="w-4 h-4 border-slate-300 text-blue-600 focus:ring-blue-500"
+                name={qId}
+                value={opt}
+                checked={answer === opt}
+                onChange={() => setAnswer(opt)}
+              />
+              <span className="text-sm font-medium text-slate-700">{opt}</span>
+            </label>
+          ))}
+        </div>
+      );
+    }
+
+    // --- YES / NO / NOT GIVEN ---
+    if (type === "ynng") {
+      return (
+        <div className="flex flex-wrap gap-4">
+          {YNNG_OPTIONS.map((opt) => (
+            <label key={opt} className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                className="w-4 h-4 border-slate-300 text-blue-600 focus:ring-blue-500"
+                name={qId}
+                value={opt}
+                checked={answer === opt}
+                onChange={() => setAnswer(opt)}
+              />
+              <span className="text-sm font-medium text-slate-700">{opt}</span>
+            </label>
+          ))}
+        </div>
+      );
+    }
+
+    // --- MULTIPLE CHOICE (single or multi) ---
+    if (type === "multiple") {
+      if (Array.isArray(q.answer)) {
+        const options = q.options || ["A", "B", "C", "D", "E"];
+        return (
+          <div className="space-y-2">
+            {options.map((opt: string) => (
+              <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  checked={(answer as string[])?.includes(opt) || false}
+                  onChange={(e) => {
+                    const newVal = e.target.checked
+                      ? [...(answer as string[] || []), opt]
+                      : (answer as string[] || []).filter((v: string) => v !== opt);
+                    setAnswer(newVal);
+                  }}
+                />
+                <span className="text-sm font-medium text-slate-700">{opt}</span>
+              </label>
+            ))}
+          </div>
+        );
+      } else {
+        const options = q.options || ["A", "B", "C", "D"];
+        return (
+          <div className="space-y-2">
+            {options.map((opt: string) => (
+              <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  className="w-4 h-4 border-slate-300 text-blue-600 focus:ring-blue-500"
+                  name={qId}
+                  value={opt}
+                  checked={answer === opt}
+                  onChange={() => setAnswer(opt)}
+                />
+                <span className="text-sm font-medium text-slate-700">{opt}</span>
+              </label>
+            ))}
+          </div>
+        );
+      }
+    }
+
+    // --- MATCHING (dropdown) ---
+    if (type === "matching") {
+      const options = q.options || ["A", "B", "C", "D", "E", "F", "G", "H"];
+      return (
+        <select
+          className="w-40 h-10 px-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          value={answer || ""}
+          onChange={(e) => setAnswer(e.target.value)}
+        >
+          <option value="" disabled>Select...</option>
+          {options.map((opt: string) => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
+      );
+    }
+
+    // --- DIAGRAM LABELING (placeholder) ---
+    if (type === "diagram_labeling") {
+      return (
+        <div className="space-y-2">
+          <p className="text-xs text-amber-600">Diagram labeling (coming soon)</p>
+          <Input
+            className="h-12 text-lg border-2 focus:border-blue-500 bg-slate-50/50"
+            placeholder="Label..."
+            value={answer as string}
+            onChange={(e) => setAnswer(e.target.value)}
+          />
+        </div>
+      );
+    }
+
+    // --- TABLE COMPLETION (placeholder) ---
+    if (type === "table_completion") {
+      return (
+        <div className="space-y-2">
+          <p className="text-xs text-amber-600">Table completion (coming soon)</p>
+          <Input
+            className="h-12 text-lg border-2 focus:border-blue-500 bg-slate-50/50"
+            placeholder="Answer..."
+            value={answer as string}
+            onChange={(e) => setAnswer(e.target.value)}
+          />
+        </div>
+      );
+    }
+
+    // --- DEFAULT: completion, note, short_answer ---
+    return (
+      <Input
+        className="h-12 text-lg border-2 focus:border-blue-500 bg-slate-50/50"
+        placeholder="Javobingiz..."
+        value={answer as string}
+        onChange={(e) => setAnswer(e.target.value)}
+      />
+    );
+  };
+
   if (!hasStarted) {
     return (
       <div className="fixed inset-0 bg-[#f8fafc] flex items-center justify-center p-4">
@@ -360,11 +439,11 @@ export default function StudentExam() {
   }
 
   if (!examContent) {
-      return (
-        <div className="h-screen flex items-center justify-center bg-white">
-            <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
-        </div>
-      );
+    return (
+      <div className="h-screen flex items-center justify-center bg-white">
+        <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
+      </div>
+    );
   }
 
   return (
@@ -402,21 +481,20 @@ export default function StudentExam() {
           </div>
         </div>
 
-        <Button variant="outline" size="sm" className="font-bold px-6 border-slate-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200" 
+        <Button variant="outline" size="sm" className="font-bold px-6 border-slate-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
             onClick={() => { if(confirm("Tugatmoqchimisiz?")) handleFinalSubmit(); }}>
           Finish Test
         </Button>
       </header>
 
-      {/* MAIN CONTENT */}
       <main className="flex-1 overflow-hidden relative flex flex-col">
         {currentSection === 'listening' ? (
-          <ListeningComponent 
-            content={examContent?.listening} 
-            audioUrl={examContent?.listening?.audioUrl}
-            onSectionComplete={() => setCurrentSection('reading')} 
-            answers={answers.listening} 
-            setAnswers={(val: any) => setAnswers({...answers, listening: val})} 
+          <ListeningComponent
+            content={examContent?.sections?.listening}
+            audioUrl={examContent?.sections?.listening?.audioUrl}
+            onSectionComplete={() => setCurrentSection('reading')}
+            answers={answers.listening}
+            setAnswers={(val: any) => setAnswers({...answers, listening: val})}
           />
         ) : (
           <ResizablePanelGroup direction="horizontal" className="flex-1 h-full">
@@ -426,10 +504,10 @@ export default function StudentExam() {
                 <div className="h-12 bg-slate-50 border-b flex items-center px-4 overflow-x-auto no-scrollbar shrink-0">
                   {currentSection === 'reading' ? (
                     <div className="flex gap-1">
-                      {examContent?.reading?.passages?.map((_: any, idx: number) => (
-                        <button 
-                            key={`passage-btn-${idx}`} 
-                            onClick={() => setActivePassageIdx(idx)} 
+                      {examContent?.sections?.reading?.passages?.map((_: any, idx: number) => (
+                        <button
+                            key={`passage-btn-${idx}`}
+                            onClick={() => setActivePassageIdx(idx)}
                             className={`px-6 h-12 text-xs font-black transition-all border-b-2 ${activePassageIdx === idx ? 'bg-white border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                         >
                           PASSAGE {idx + 1}
@@ -438,10 +516,10 @@ export default function StudentExam() {
                     </div>
                   ) : (
                     <div className="flex gap-1">
-                      {examContent?.writing?.tasks?.map((_: any, idx: number) => (
-                          <button 
+                      {examContent?.sections?.writing?.tasks?.map((_: any, idx: number) => (
+                          <button
                             key={`task-btn-${idx}`}
-                            onClick={() => setActiveWritingTask(idx)} 
+                            onClick={() => setActiveWritingTask(idx)}
                             className={`px-6 h-12 text-xs font-black transition-all border-b-2 ${activeWritingTask === idx ? 'bg-white border-blue-600 text-blue-600' : 'border-transparent text-slate-400'}`}
                         >
                             TASK {idx + 1}
@@ -452,24 +530,24 @@ export default function StudentExam() {
                 </div>
 
                 <ScrollArea className="flex-1 h-full">
-                  <div 
-                    className="p-12 max-w-3xl mx-auto select-text selection:bg-yellow-300 selection:text-black" 
+                  <div
+                    className="p-12 max-w-3xl mx-auto select-text selection:bg-yellow-300 selection:text-black"
                     style={{ fontSize: `${zoom}%` }}
-                    onMouseUp={handleTextHighlight} 
+                    onMouseUp={handleTextHighlight}
                   >
                     {currentSection === 'reading' ? (
                       <article>
-                        <h2 className="text-3xl font-black mb-8 text-slate-900 leading-tight">{examContent?.reading?.passages?.[activePassageIdx]?.title}</h2>
-                        {examContent?.reading?.passages?.[activePassageIdx]?.image && (
-                          <img 
-                            src={getImageUrl(examContent.reading.passages[activePassageIdx].image)} 
-                            alt="Visual" 
+                        <h2 className="text-3xl font-black mb-8 text-slate-900 leading-tight">{examContent?.sections?.reading?.passages?.[activePassageIdx]?.title}</h2>
+                        {examContent?.sections?.reading?.passages?.[activePassageIdx]?.image && (
+                          <img
+                            src={getImageUrl(examContent.sections.reading.passages[activePassageIdx].image)}
+                            alt="Visual"
                             className="w-full mb-6 rounded-lg border shadow-sm"
                             onError={(e) => { e.currentTarget.style.display = 'none'; }}
                           />
                         )}
                         <div className="text-xl leading-[1.8] text-slate-800 font-serif whitespace-pre-wrap">
-                          {examContent?.reading?.passages?.[activePassageIdx]?.content}
+                          {examContent?.sections?.reading?.passages?.[activePassageIdx]?.content}
                         </div>
                       </article>
                     ) : (
@@ -477,16 +555,16 @@ export default function StudentExam() {
                       <div className="space-y-8">
                           <div className="bg-blue-50 p-8 rounded-2xl border-2 border-blue-100 relative">
                             <Badge className="absolute -top-3 left-6 bg-blue-600 border-none">Writing Task {activeWritingTask + 1}</Badge>
-                            {examContent?.writing?.tasks?.[activeWritingTask]?.image && (
-                              <img 
-                                src={getImageUrl(examContent.writing.tasks[activeWritingTask].image)} 
-                                alt="Task diagram" 
+                            {examContent?.sections?.writing?.tasks?.[activeWritingTask]?.image && (
+                              <img
+                                src={getImageUrl(examContent.sections.writing.tasks[activeWritingTask].image)}
+                                alt="Task diagram"
                                 className="w-full mb-6 rounded-lg border shadow-sm bg-white p-2"
                                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
                               />
                             )}
                             <p className="text-xl font-medium text-slate-800 italic leading-relaxed whitespace-pre-line">
-                              {examContent?.writing?.tasks?.[activeWritingTask]?.title || "Writing task prompt"}
+                              {examContent?.sections?.writing?.tasks?.[activeWritingTask]?.title || "Writing task prompt"}
                             </p>
                           </div>
                           <div className="flex items-start gap-2 text-slate-500 text-sm">
@@ -508,12 +586,10 @@ export default function StudentExam() {
                 <div className="p-8 md:p-12 max-w-2xl mx-auto pb-32">
                   {currentSection === 'reading' ? (
                     <div className="space-y-6">
-                      {examContent?.reading?.passages?.[activePassageIdx]?.questions?.length > 0 ? (
-                        examContent.reading.passages[activePassageIdx].questions.map((q: any, i: number) => {
-                          // Hisoblash global indeksni – barcha oldingi passage savollarini qo'shish
-                          const questionsBefore = examContent.reading.passages.slice(0, activePassageIdx).reduce((acc: number, curr: any) => acc + (curr.questions?.length || 0), 0);
-                          const listeningQuestionsCount = examContent?.listening?.parts?.reduce((acc: number, part: any) => acc + (part.questions?.length || 0), 0) || 0;
-                          // Listening savollari birinchi keladi, keyin reading savollari keladi
+                      {examContent?.sections?.reading?.passages?.[activePassageIdx]?.questions?.length > 0 ? (
+                        examContent.sections.reading.passages[activePassageIdx].questions.map((q: any, i: number) => {
+                          const questionsBefore = examContent.sections.reading.passages.slice(0, activePassageIdx).reduce((acc: number, curr: any) => acc + (curr.questions?.length || 0), 0);
+                          const listeningQuestionsCount = examContent?.sections?.listening?.parts?.reduce((acc: number, part: any) => acc + (part.questions?.length || 0), 0) || 0;
                           const qGlobalIdx = listeningQuestionsCount + questionsBefore + i + 1;
                           const qId = `q-${qGlobalIdx}`;
 
@@ -523,15 +599,17 @@ export default function StudentExam() {
                                 <span className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm shrink-0">{qGlobalIdx}</span>
                                 <div className="flex-1 space-y-4">
                                   <div className="font-bold text-slate-700" dangerouslySetInnerHTML={{ __html: q?.text || "Savol matni yo'q" }}></div>
-                                  {/* Savol turiga qarab input yoki boshqa element */}
-                                  <Input 
-                                      className="h-12 text-lg border-2 focus:border-blue-500 bg-slate-50/50" 
-                                      placeholder="Javobingiz..."
-                                      value={answers.reading[qId] || ""} 
-                                      onChange={(e) => setAnswers({...answers, reading: {...answers.reading, [qId]: e.target.value}})} 
-                                  />
+                                  {q.instruction && (
+                                    <p className="text-xs font-semibold text-blue-600 italic">{q.instruction}</p>
+                                  )}
+                                  {renderQuestionInput(
+                                    q,
+                                    qId,
+                                    answers.reading?.[qId],
+                                    (val) => setAnswers({...answers, reading: {...answers.reading, [qId]: val}})
+                                  )}
                                 </div>
-                                <button 
+                                <button
                                   onClick={() => setReviewFlags({...reviewFlags, [qId]: !reviewFlags[qId]})}
                                   title="Flag for review"
                                 >
@@ -554,12 +632,12 @@ export default function StudentExam() {
                             WORDS: {getWordCount}
                           </Badge>
                         </div>
-                        <Textarea 
-                            className="min-h-[500px] p-8 text-xl leading-[1.8] font-serif border-2 border-slate-200 rounded-2xl focus:border-blue-600 shadow-inner bg-white resize-y" 
+                        <Textarea
+                            className="min-h-[500px] p-8 text-xl leading-[1.8] font-serif border-2 border-slate-200 rounded-2xl focus:border-blue-600 shadow-inner bg-white resize-y"
                             placeholder="Type your response here..."
-                            value={activeWritingTask === 0 ? answers.writingTask1 : answers.writingTask2} 
-                            spellCheck={false} 
-                            onChange={(e) => setAnswers({...answers, [activeWritingTask === 0 ? 'writingTask1' : 'writingTask2']: e.target.value})} 
+                            value={activeWritingTask === 0 ? answers.writingTask1 : answers.writingTask2}
+                            spellCheck={false}
+                            onChange={(e) => setAnswers({...answers, [activeWritingTask === 0 ? 'writingTask1' : 'writingTask2']: e.target.value})}
                         />
                     </div>
                   )}
@@ -576,21 +654,19 @@ export default function StudentExam() {
           {Array.from({ length: totalQuestions }).map((_, i) => {
             const qNum = i + 1;
             const qId = `q-${qNum}`;
-            // Javob borligini aniqlash: listening yoki reading
-            const listeningQuestionsCount = examContent?.listening?.parts?.reduce((acc: number, part: any) => acc + (part.questions?.length || 0), 0) || 0;
+            const listeningQuestionsCount = examContent?.sections?.listening?.parts?.reduce((acc: number, part: any) => acc + (part.questions?.length || 0), 0) || 0;
             const isListening = qNum <= listeningQuestionsCount;
-            const isAnswered = isListening 
-              ? answers.listening?.[qId] 
+            const isAnswered = isListening
+              ? answers.listening?.[qId]
               : answers.reading?.[qId];
             const isReview = reviewFlags[qId];
-
             return (
               <button
                 key={qNum}
                 onClick={() => scrollToQuestion(qNum)}
                 className={`w-8 h-8 rounded-sm text-[10px] font-bold flex items-center justify-center transition-all border-b-2
-                  ${isReview ? 'bg-orange-500 text-white border-orange-700 shadow-inner' : 
-                    isAnswered ? 'bg-blue-700 text-white border-blue-900' : 
+                  ${isReview ? 'bg-orange-500 text-white border-orange-700 shadow-inner' :
+                    isAnswered ? 'bg-blue-700 text-white border-blue-900' :
                     'bg-white text-slate-600 border-slate-300 hover:border-slate-400'}`}
               >
                 {qNum}

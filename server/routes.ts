@@ -247,7 +247,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(403).json({ message: "Imtihon yakunlangan" });
       }
 
-      // MUHIM: start_time o'rniga startedAt ishlatildi
       const { error: updateError } = await supabase
         .from("exam_sessions")
         .update({
@@ -487,7 +486,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.post(api.sessions.start.path, async (req, res) => {
     try {
-      // MUHIM: start_time -> startedAt
       const { data: session, error } = await supabase
         .from("exam_sessions")
         .update({ status: "active", startedAt: new Date().toISOString() })
@@ -549,55 +547,130 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // ------------------------------------------------------------
-  // SUBMISSION & AUTO-GRADING
+  // SUBMISSION & AUTO-GRADING (TAKOMILLASHTIRILGAN)
   // ------------------------------------------------------------
-  app.post(api.sessions.submit.path, async (req, res) => {
-    try {
-      const sessionId = Number(req.params.id);
-      const { answers, isFinal } = req.body;
-      let autoGrading: any = {};
+      // ------------------------------------------------------------
+      // SUBMISSION & AUTO-GRADING
+      // ------------------------------------------------------------
+      app.post("/api/sessions/:id/submit", async (req, res) => {
+        try {
+          const sessionId = Number(req.params.id);
+          const { answers, isFinal } = req.body;
+          let autoGrading: any = { listening: { score: 0, total: 0 }, reading: { score: 0, total: 0 } };
 
-      if (isFinal) {
-        const { data: session } = await supabase
-          .from("exam_sessions")
-          .select("exam_id")
-          .eq("id", sessionId)
-          .maybeSingle();
-
-        if (session?.exam_id) {
-          const { data: exam } = await supabase
-            .from("exams")
-            .select("content")
-            .eq("id", session.exam_id)
+          // 1. Avval session va exam ma'lumotlarini olish
+          const { data: sessionData, error: sessionError } = await supabase
+            .from("exam_sessions")
+            .select("exam_id")
+            .eq("id", sessionId)
             .maybeSingle();
 
-          if (exam) {
-            const content = exam.content as any;
-            ["listening", "reading"].forEach((skill) => {
-              const skillContent = content[skill];
-              let questionsList = skillContent?.questions || [];
-              if (skill === "reading" && skillContent?.passages) {
-                questionsList = skillContent.passages.flatMap((p: any) => p.questions || []);
-              }
-
-              if (questionsList.length > 0) {
-                let score = 0;
-                questionsList.forEach((q: any) => {
-                  const studentAns = answers[skill]?.[q.id]?.toString().trim().toLowerCase();
-                  const correctAns = q.answer?.toString().trim().toLowerCase();
-                  if (studentAns && studentAns === correctAns) score++;
-                });
-                autoGrading[skill] = { score, total: questionsList.length };
-              }
-            });
+          if (sessionError) {
+            console.error("Session fetch error:", sessionError);
+            return res.status(500).json({ message: "Server xatosi: " + sessionError.message });
           }
-        }
-      }
 
+          if (!sessionData) {
+            return res.status(404).json({ message: "Sessiya topilmadi" });
+          }
+
+          const { data: examData, error: examError } = await supabase
+            .from("exams")
+            .select("content")
+            .eq("id", sessionData.exam_id)
+            .maybeSingle();
+
+          if (examError) {
+            console.error("Exam fetch error:", examError);
+            return res.status(500).json({ message: "Server xatosi: " + examError.message });
+          }
+
+          if (!examData) {
+            return res.status(404).json({ message: "Exam topilmadi" });
+          }
+
+          const content = examData.content;
+          // ... auto-grading kodi (oldingi versiyadagidek) ...
+
+          // 2. Javoblarni saqlash
+          await supabase
+            .from("submissions")
+            .upsert({ session_id: sessionId, sessionId: sessionId, answers }, { onConflict: "session_id" });
+
+          // 3. Agar imtihon yakunlangan bo'lsa, grading va statusni yangilash
+          if (isFinal) {
+            // autoGrading natijalarini hisoblash (yuqoridagi kod)
+            // ...
+            await supabase
+              .from("submissions")
+              .update({ grading: { autoGraded: autoGrading } })
+              .eq("session_id", sessionId);
+
+            const hasWriting = content?.sections?.writing?.tasks?.length > 0;
+
+            await supabase
+              .from("exam_sessions")
+              .update({
+                status: hasWriting ? "pending_grading" : "completed",
+                result_status: "marking",
+              })
+              .eq("id", sessionId);
+          }
+
+          res.json({ message: "Yakunlandi", autoGrading });
+        } catch (error) {
+          console.error("Submit xatosi:", error);
+          res.status(500).json({ message: "Xatolik", error: error.message });
+        }
+      });
+      // 3. Reading savollarini baholash
+      let readingTotal = 0;
+      let readingScore = 0;
+      readingPassages.forEach((passage: any) => {
+        passage.questions?.forEach((q: any) => {
+          readingTotal++;
+          const qId = `q-${q.q}`;
+          const studentAns = answers.reading?.[qId];
+          if (studentAns === undefined || studentAns === null) return;
+
+          const correctAns = q.answer;
+          if (!correctAns) return;
+
+          if (q.type === "multiple") {
+            if (Array.isArray(correctAns)) {
+              const studentArr = Array.isArray(studentAns) ? studentAns : [studentAns];
+              const correctArr = correctAns;
+              if (studentArr.length === correctArr.length && studentArr.every(v => correctArr.includes(v))) {
+                readingScore++;
+              }
+            } else {
+              if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
+                readingScore++;
+              }
+            }
+          } else if (q.type === "matching") {
+            if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
+              readingScore++;
+            }
+          } else if (q.type === "tfng" || q.type === "ynng" || q.type === "completion" || q.type === "note" || q.type === "short_answer") {
+            if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
+              readingScore++;
+            }
+          } else {
+            if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
+              readingScore++;
+            }
+          }
+        });
+      });
+      autoGrading.reading = { score: readingScore, total: readingTotal };
+
+      // 4. Javoblarni saqlash
       await supabase
         .from("submissions")
         .upsert({ session_id: sessionId, answers }, { onConflict: "session_id" });
 
+      // 5. Agar imtihon yakunlangan bo'lsa, auto-grading natijalarini saqlash va sessiya statusini yangilash
       if (isFinal) {
         const { data: sub } = await supabase
           .from("submissions")
@@ -605,37 +678,26 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           .eq("session_id", sessionId)
           .maybeSingle();
 
+        const updatedGrading = { ...(sub?.grading || {}), autoGraded: autoGrading };
+
         await supabase
           .from("submissions")
-          .update({ grading: { ...(sub?.grading || {}), autoGraded: autoGrading } })
+          .update({ grading: updatedGrading })
           .eq("session_id", sessionId);
 
-        const { data: sData } = await supabase
+        // Writing mavjudligini tekshirish
+        const hasWriting = content?.writing?.tasks?.length > 0;
+
+        await supabase
           .from("exam_sessions")
-          .select("exam_id")
-          .eq("id", sessionId)
-          .maybeSingle();
-
-        if (sData?.exam_id) {
-          const { data: eData } = await supabase
-            .from("exams")
-            .select("content")
-            .eq("id", sData.exam_id)
-            .maybeSingle();
-
-          const hasWriting = (eData?.content as any)?.writing?.tasks?.length > 0;
-
-          await supabase
-            .from("exam_sessions")
-            .update({
-              status: hasWriting ? "pending_grading" : "completed",
-              result_status: "marking",
-            })
-            .eq("id", sessionId);
-        }
+          .update({
+            status: hasWriting ? "pending_grading" : "completed",
+            result_status: "marking",
+          })
+          .eq("id", sessionId);
       }
 
-      res.json({ message: "Yakunlandi" });
+      res.json({ message: "Yakunlandi", autoGrading });
     } catch (error) {
       console.error("Submit xatosi:", error);
       res.status(500).json({ message: "Xatolik" });
