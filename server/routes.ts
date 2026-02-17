@@ -549,80 +549,85 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ------------------------------------------------------------
   // SUBMISSION & AUTO-GRADING (TAKOMILLASHTIRILGAN)
   // ------------------------------------------------------------
-      // ------------------------------------------------------------
-      // SUBMISSION & AUTO-GRADING
-      // ------------------------------------------------------------
-      app.post("/api/sessions/:id/submit", async (req, res) => {
-        try {
-          const sessionId = Number(req.params.id);
-          const { answers, isFinal } = req.body;
-          let autoGrading: any = { listening: { score: 0, total: 0 }, reading: { score: 0, total: 0 } };
+  app.post(api.sessions.submit.path, async (req, res) => {
+    try {
+      const sessionId = Number(req.params.id);
+      const { answers, isFinal } = req.body;
+      let autoGrading: any = { listening: { score: 0, total: 0 }, reading: { score: 0, total: 0 } };
 
-          // 1. Avval session va exam ma'lumotlarini olish
-          const { data: sessionData, error: sessionError } = await supabase
-            .from("exam_sessions")
-            .select("exam_id")
-            .eq("id", sessionId)
-            .maybeSingle();
+      // 1. Avval exam va contentni olish
+      const { data: sessionData } = await supabase
+        .from("exam_sessions")
+        .select("exam_id")
+        .eq("id", sessionId)
+        .maybeSingle();
 
-          if (sessionError) {
-            console.error("Session fetch error:", sessionError);
-            return res.status(500).json({ message: "Server xatosi: " + sessionError.message });
+      if (!sessionData?.exam_id) {
+        return res.status(404).json({ message: "Sessiya yoki exam topilmadi" });
+      }
+
+      const { data: examData } = await supabase
+        .from("exams")
+        .select("content")
+        .eq("id", sessionData.exam_id)
+        .maybeSingle();
+
+      if (!examData) {
+        return res.status(404).json({ message: "Exam ma'lumotlari topilmadi" });
+      }
+
+      const content = examData.content;
+      const listeningParts = content?.listening?.parts || [];
+      const readingPassages = content?.reading?.passages || [];
+
+      // 2. Listening savollarini baholash
+      let listeningTotal = 0;
+      let listeningScore = 0;
+      listeningParts.forEach((part: any) => {
+        part.questions?.forEach((q: any) => {
+          listeningTotal++;
+          const qId = `q-${q.q}`;
+          const studentAns = answers.listening?.[qId];
+          if (studentAns === undefined || studentAns === null) return;
+
+          const correctAns = q.answer;
+          if (!correctAns) return;
+
+          // Turiga qarab solishtirish
+          if (q.type === "multiple") {
+            if (Array.isArray(correctAns)) {
+              // Ko'p tanlovli – massivni solishtirish (tartib muhim emas)
+              const studentArr = Array.isArray(studentAns) ? studentAns : [studentAns];
+              const correctArr = correctAns;
+              if (studentArr.length === correctArr.length && studentArr.every(v => correctArr.includes(v))) {
+                listeningScore++;
+              }
+            } else {
+              // Yagona tanlov
+              if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
+                listeningScore++;
+              }
+            }
+          } else if (q.type === "matching") {
+            // Matching – oddiy string solishtirish
+            if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
+              listeningScore++;
+            }
+          } else if (q.type === "tfng" || q.type === "ynng" || q.type === "completion" || q.type === "note" || q.type === "short_answer") {
+            // To'liq moslik
+            if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
+              listeningScore++;
+            }
+          } else {
+            // Default – oddiy solishtirish
+            if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
+              listeningScore++;
+            }
           }
-
-          if (!sessionData) {
-            return res.status(404).json({ message: "Sessiya topilmadi" });
-          }
-
-          const { data: examData, error: examError } = await supabase
-            .from("exams")
-            .select("content")
-            .eq("id", sessionData.exam_id)
-            .maybeSingle();
-
-          if (examError) {
-            console.error("Exam fetch error:", examError);
-            return res.status(500).json({ message: "Server xatosi: " + examError.message });
-          }
-
-          if (!examData) {
-            return res.status(404).json({ message: "Exam topilmadi" });
-          }
-
-          const content = examData.content;
-          // ... auto-grading kodi (oldingi versiyadagidek) ...
-
-          // 2. Javoblarni saqlash
-          await supabase
-            .from("submissions")
-            .upsert({ session_id: sessionId, sessionId: sessionId, answers }, { onConflict: "session_id" });
-
-          // 3. Agar imtihon yakunlangan bo'lsa, grading va statusni yangilash
-          if (isFinal) {
-            // autoGrading natijalarini hisoblash (yuqoridagi kod)
-            // ...
-            await supabase
-              .from("submissions")
-              .update({ grading: { autoGraded: autoGrading } })
-              .eq("session_id", sessionId);
-
-            const hasWriting = content?.sections?.writing?.tasks?.length > 0;
-
-            await supabase
-              .from("exam_sessions")
-              .update({
-                status: hasWriting ? "pending_grading" : "completed",
-                result_status: "marking",
-              })
-              .eq("id", sessionId);
-          }
-
-          res.json({ message: "Yakunlandi", autoGrading });
-        } catch (error) {
-          console.error("Submit xatosi:", error);
-          res.status(500).json({ message: "Xatolik", error: error.message });
-        }
+        });
       });
+      autoGrading.listening = { score: listeningScore, total: listeningTotal };
+
       // 3. Reading savollarini baholash
       let readingTotal = 0;
       let readingScore = 0;
