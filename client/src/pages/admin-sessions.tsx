@@ -17,14 +17,14 @@ import { supabase } from "@/lib/supabase";
 interface Exam {
   id: number;
   title: string;
-  time_limit: number;          // snake_case from Supabase
-  timeLimit?: number;           // camelCase fallback
+  time_limit: number;
+  timeLimit?: number;
   created_at: string;
 }
 
 interface Session {
   id: number;
-  studentName: string;          // full name (computed)
+  studentName: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -93,7 +93,8 @@ export default function AdminSessions() {
 
   // Data fetching
   const { data: rawSessions, isLoading, refetch, error: sessionsError } = useSessions();
-  // Normalize sessions data (ensure all fields exist)
+
+  // Normalize sessions data
   const sessions: Session[] = useMemo(() => {
     if (!rawSessions) return [];
     return (rawSessions as any[]).map(s => ({
@@ -130,8 +131,8 @@ export default function AdminSessions() {
     },
   });
 
-  // Violations
-  const { data: allViolations, error: violationsError } = useQuery<Violation[]>({
+  // Violations (error olib tashlandi – ishlatilmagan)
+  const { data: allViolations } = useQuery<Violation[]>({
     queryKey: ['/api/violations'],
     queryFn: async () => {
       try {
@@ -147,7 +148,7 @@ export default function AdminSessions() {
     enabled: autoRefresh,
   });
 
-  // Auto-refresh sessions when enabled
+  // Auto-refresh sessions
   useEffect(() => {
     if (!autoRefresh) return;
     const interval = setInterval(() => {
@@ -173,13 +174,11 @@ export default function AdminSessions() {
   const filteredSessions = useMemo(() => {
     let result = sessions;
 
-    // Filter by tab
     if (activeTab === "waiting") result = result.filter(s => s.status === "pending_grading");
     else if (activeTab === "marking") result = result.filter(s => s.status === "in_progress" || s.status === "active");
     else if (activeTab === "graded") result = result.filter(s => s.status === "graded" && !s.resultsReleased);
     else if (activeTab === "released") result = result.filter(s => s.resultsReleased);
 
-    // Filter by search
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter(s => 
@@ -188,7 +187,6 @@ export default function AdminSessions() {
       );
     }
 
-    // Sort by creation date (newest first)
     return result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [sessions, activeTab, searchQuery]);
 
@@ -197,7 +195,7 @@ export default function AdminSessions() {
     if (!confirm("DIQQAT: Ushbu sessiyani va unga tegishli barcha javoblarni o'chirib tashlamoqchimisiz?")) return;
     try {
       await apiRequest("DELETE", `/api/sessions/${id}`);
-      toast({ title: "Muvaffaqiyatli o'chirildi", variant: "success", className: "bg-red-500 text-white" });
+      toast({ title: "Muvaffaqiyatli o'chirildi", className: "bg-red-500 text-white" });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       refetch();
     } catch (err) {
@@ -214,7 +212,7 @@ export default function AdminSessions() {
     if (!confirm("Sessiyani majburiy yakunlamoqchimisiz?")) return;
     try {
       await apiRequest("POST", `/api/sessions/${id}/terminate`, {});
-      toast({ title: "Sessiya yakunlandi", variant: "success", className: "bg-orange-500 text-white" });
+      toast({ title: "Sessiya yakunlandi", className: "bg-orange-500 text-white" });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       refetch();
     } catch (err) {
@@ -226,7 +224,7 @@ export default function AdminSessions() {
     setIsReleasing(true);
     try {
       await apiRequest("POST", `/api/sessions/${sessionId}/release`, {});
-      toast({ title: "Natija talabaga yuborildi", variant: "success", className: "bg-green-600 text-white" });
+      toast({ title: "Natija talabaga yuborildi", className: "bg-green-600 text-white" });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       setSelectedSubmission(null);
       refetch();
@@ -256,7 +254,7 @@ export default function AdminSessions() {
 
       setNewSessionInfo({ code: randomCode, pass: randomPass, name: studentName });
       setStudentName("");
-      toast({ title: "Yangi sessiya yaratildi", variant: "success" });
+      toast({ title: "Yangi sessiya yaratildi", className: "bg-green-600 text-white" });
     } catch (err) {
       toast({ title: "Yaratishda xatolik", variant: "destructive" });
     }
@@ -307,7 +305,6 @@ export default function AdminSessions() {
           ) : (
             activeSessions.map((session) => (
               <div key={session.id} className="relative aspect-video bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl group hover:scale-[1.02] transition-all duration-300">
-                 {/* Mock Video Feed */}
                  <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-950">
                     {session.isCameraActive ? (
                       <lucideReact.Video size={48} className="text-emerald-500/20 animate-pulse" />
@@ -321,7 +318,6 @@ export default function AdminSessions() {
                     </div>
                  </div>
 
-                 {/* Student Info Overlay */}
                  <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black via-black/60 to-transparent">
                     <div className="flex justify-between items-end">
                        <div>
@@ -367,7 +363,7 @@ export default function AdminSessions() {
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
 
-          {/* LEFT COLUMN: Main Controls & List */}
+          {/* LEFT COLUMN */}
           <div className="xl:col-span-8 space-y-8">
 
             {/* GENERATE CARD */}
@@ -413,7 +409,6 @@ export default function AdminSessions() {
                   </uiKit.Button>
                 </form>
 
-                {/* NEW SESSION ALERT */}
                 {newSessionInfo && (
                   <div className="mt-6 p-1 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl animate-in zoom-in-95 duration-300 shadow-xl">
                     <div className="bg-slate-900 roundedxl p-5 rounded-[0.9rem] relative overflow-hidden">
@@ -454,7 +449,6 @@ export default function AdminSessions() {
                     <lucideReact.List size={16}/> Session Manager
                 </h3>
 
-                {/* Search & Refresh Controls */}
                 <div className="flex items-center gap-3 w-full sm:w-auto">
                     <div className="relative group flex-1 sm:flex-none">
                         <lucideReact.Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={16}/>
@@ -607,7 +601,7 @@ export default function AdminSessions() {
         </div>
       </div>
 
-      {/* RESULT / GRADING MODAL */}
+      {/* RESULT MODAL */}
       <Dialog open={!!selectedSubmission} onOpenChange={(open) => !open && setSelectedSubmission(null)}>
         <DialogContent aria-describedby="result-desc" className="max-w-2xl bg-white p-0 rounded-[2.5rem] overflow-hidden shadow-2xl border-none outline-none">
           {selectedSubmission && (
