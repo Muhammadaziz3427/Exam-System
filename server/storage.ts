@@ -159,7 +159,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateSessionInfo(id: number, info: any): Promise<ExamSession> {
-    const { data, error } = await supabase.from('exam_sessions').update(info).eq('id', id).select().single();
+    const payload: any = {};
+    if (info.firstName !== undefined) payload.first_name = info.firstName;
+    if (info.lastName !== undefined) payload.last_name = info.lastName;
+    if (info.email !== undefined) payload.email = info.email;
+    if (info.studentName !== undefined) payload.student_name = info.studentName;
+
+    const { data, error } = await supabase.from('exam_sessions').update(payload).eq('id', id).select().single();
     if (error) throw error;
     return data;
   }
