@@ -3,14 +3,18 @@ import { api, buildUrl } from "@shared/routes";
 import { type InsertSession } from "@shared/schema";
 import { supabase } from "@/lib/supabase";
 
-// --- QUERY KEYS ---
+// ------------------------------------------------------------
+// Query Keys
+// ------------------------------------------------------------
 export const sessionKeys = {
   all: ["sessions"] as const,
   lists: () => [...sessionKeys.all, "list"] as const,
   detail: (id: number | string) => [...sessionKeys.all, "detail", id] as const,
 };
 
-// --- TYPES ---
+// ------------------------------------------------------------
+// Types
+// ------------------------------------------------------------
 interface SubmitPayload {
   id: number | string;
   answers: Record<string, any>;
@@ -27,7 +31,9 @@ interface ViolationPayload {
   type: 'tab_switch' | 'fullscreen_exit' | 'window_blur' | 'multiple_faces' | 'no_face';
 }
 
-// 1. Barcha sessiyalarni olish
+// ------------------------------------------------------------
+// 1. Barcha sessiyalarni olish (real-time monitoring)
+// ------------------------------------------------------------
 export function useSessions() {
   return useQuery({
     queryKey: sessionKeys.lists(),
@@ -37,15 +43,20 @@ export function useSessions() {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Sessiyalarni yuklashda xato:", error.message);
+        throw error;
+      }
       return data || [];
     },
-    refetchInterval: 5000, 
+    refetchInterval: 5000,   // har 5 sekundda yangilanadi
     staleTime: 2000,
   });
 }
 
-// 2. Yagona sessiyani olish
+// ------------------------------------------------------------
+// 2. Yagona sessiyani olish (barcha bog‘langan ma'lumotlar bilan)
+// ------------------------------------------------------------
 export function useSession(id: number | string) {
   return useQuery({
     queryKey: sessionKeys.detail(id),
@@ -56,32 +67,38 @@ export function useSession(id: number | string) {
         .eq('id', id)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Sessiya ma'lumotlarini olishda xato:", error.message);
+        throw error;
+      }
 
+      // exams ichidan audioUrl ni olish
+      const exam = data?.exams as any;
       return {
         ...data,
-        audioUrl: data?.audioUrl || "",
+        audioUrl: exam?.audioUrl || null,
       };
     },
     enabled: !!id,
   });
 }
 
-// 3. Yangi sessiya yaratish (TOZALANGAN VARIANT)
+// ------------------------------------------------------------
+// 3. Yangi sessiya yaratish (faqat mavjud ustunlar bilan)
+// ------------------------------------------------------------
 export function useCreateSession() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: InsertSession) => {
-      // 400 xatosini oldini olish uchun faqat bazada aniq bor ustunlarni yuboramiz
+      // Supabase jadvalidagi ustun nomlariga mos payload
       const payload = {
-        examId: data.examId,
-        studentName: data.studentName,
-        accessCode: data.accessCode,
+        exam_id: data.examId,                     // snake_case bo‘lishi mumkin
+        student_name: data.studentName,
+        access_code: data.accessCode,
+        password: (data as any).password,         // agar kerak bo‘lsa
         status: 'pending',
-        // Agar firstName/lastName bazada bo'lsa buni qoldiring, bo'lmasa o'chiring
-        firstName: (data as any).firstName || null,
-        lastName: (data as any).lastName || null,
-        email: (data as any).email || null,
+        // Agar jadvalda qo‘shimcha ustunlar bo‘lsa, shu yerga qo‘shing
+        // first_name, last_name, email – agar mavjud bo‘lsa
       };
 
       const { data: newSession, error } = await supabase
@@ -102,7 +119,9 @@ export function useCreateSession() {
   });
 }
 
-// 4. Imtihonni boshlash
+// ------------------------------------------------------------
+// 4. Imtihonni boshlash (status → active, start_time yoziladi)
+// ------------------------------------------------------------
 export function useStartSession() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -111,13 +130,16 @@ export function useStartSession() {
         .from('exam_sessions')
         .update({ 
           status: 'active', 
-          startedAt: new Date().toISOString() 
+          start_time: new Date().toISOString(),   // column name: start_time
         })
         .eq('id', id)
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Sessiyani boshlashda xato:", error.message);
+        throw error;
+      }
       return data;
     },
     onSuccess: (_, id) => {
@@ -127,34 +149,46 @@ export function useStartSession() {
   });
 }
 
-// 5. Javoblarni yuborish
+// ------------------------------------------------------------
+// 5. Javoblarni yuborish (va ixtiyoriy backend autograd)
+// ------------------------------------------------------------
 export function useSubmitAnswers() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...payload }: SubmitPayload) => {
+      // Supabase ga yangilash
+      const updateData: any = {
+        answers: payload.answers,
+        status: payload.isFinal ? 'completed' : (payload.status || 'active'),
+        updated_at: new Date().toISOString(),
+      };
+      if (payload.remainingTime !== undefined) {
+        updateData.remaining_time = payload.remainingTime;
+      }
+
       const { data, error } = await supabase
         .from('exam_sessions')
-        .update({
-          answers: payload.answers,
-          status: payload.isFinal ? 'completed' : (payload.status || 'active'),
-          remainingTime: payload.remainingTime,
-          updatedAt: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', id)
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Javoblarni saqlashda xato:", error.message);
+        throw error;
+      }
 
+      // Agar imtihon yakunlangan bo‘lsa, backend autograd endpoint'ini chaqirish
       if (payload.isFinal) {
         try {
           await fetch(buildUrl(api.sessions.submit.path, { id: String(id) }), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...payload, isFinal: true }),
+            body: JSON.stringify(payload),
           });
         } catch (e) {
-          console.error("Backend hisoblashda xato (ixtiyoriy):", e);
+          // Autograd muhim emas, faqat log yozamiz
+          console.warn("Backend autograd xatosi (davom etish mumkin):", e);
         }
       }
 
@@ -167,7 +201,9 @@ export function useSubmitAnswers() {
   });
 }
 
+// ------------------------------------------------------------
 // 6. Qoidabuzarliklarni qayd etish
+// ------------------------------------------------------------
 export function useLogViolation() {
   return useMutation({
     mutationFn: async ({ id, type }: ViolationPayload) => {
@@ -175,12 +211,16 @@ export function useLogViolation() {
         .from('violations')
         .insert([{ 
           session_id: id, 
-          type: type, 
+          type, 
           created_at: new Date().toISOString() 
-        }]);
+        }])
+        .select();   // .select() qo‘shildi – yaratilgan qatorni qaytaradi
 
-      if (error) throw error;
-      return data;
+      if (error) {
+        console.error("Qoidabuzarlikni yozishda xato:", error.message);
+        throw error;
+      }
+      return data?.[0] || null;
     },
     retry: 1,
   });

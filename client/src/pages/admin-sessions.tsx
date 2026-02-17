@@ -1,8 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import * as uiKit from "@/components/ui-kit"; 
+import * as uiKit from "@/components/ui-kit";
 import { useSessions, useCreateSession } from "@/hooks/use-sessions";
-// useExams ni olib tashladik, chunki endi to'g'ridan-to'g'ri so'rov yuboramiz
 import * as lucideReact from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -10,12 +9,25 @@ import * as tabs from "@/components/ui/tabs";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import { supabase } from "@/lib/supabase"; // Supabase klientini import qilish kerak
+import { supabase } from "@/lib/supabase";
 
-// --- TYPES (Kod barqarorligi uchun) ---
+// ------------------------------------------------------------
+// TYPES
+// ------------------------------------------------------------
+interface Exam {
+  id: number;
+  title: string;
+  time_limit: number;          // snake_case from Supabase
+  timeLimit?: number;           // camelCase fallback
+  created_at: string;
+}
+
 interface Session {
   id: number;
-  studentName: string;
+  studentName: string;          // full name (computed)
+  firstName: string;
+  lastName: string;
+  email: string;
   accessCode: string;
   password: string;
   status: 'active' | 'in_progress' | 'completed' | 'pending_grading' | 'graded';
@@ -31,9 +43,6 @@ interface Session {
   writingScore?: string;
   speakingScore?: string;
   createdAt: string;
-  firstName: string;
-  lastName: string;
-  email: string;
   examId: number;
 }
 
@@ -44,15 +53,9 @@ interface Violation {
   timestamp: string;
 }
 
-// Supabase dan keladigan Exam tipi
-interface Exam {
-  id: number;
-  title: string;
-  time_limit: number; // Supabase da odatda snake_case bo'ladi
-  timeLimit?: number; // Ehtimoliy camelCase uchun
-}
-
-// --- HELPER FUNCTIONS ---
+// ------------------------------------------------------------
+// HELPER FUNCTIONS
+// ------------------------------------------------------------
 const calculateBandScore = (session: Session, skill: 'listening' | 'reading' | 'writing' | 'speaking'): string => {
   const g = session.grading;
   if (!g) return "0.0";
@@ -70,11 +73,14 @@ const calculateBandScore = (session: Session, skill: 'listening' | 'reading' | '
   return "0.0";
 };
 
+// ------------------------------------------------------------
+// MAIN COMPONENT
+// ------------------------------------------------------------
 export default function AdminSessions() {
   const { toast } = useToast();
   const createSession = useCreateSession();
 
-  // State Management
+  // State
   const [selectedSubmission, setSelectedSubmission] = useState<Session | null>(null);
   const [isReleasing, setIsReleasing] = useState(false);
   const [activeTab, setActiveTab] = useState("waiting");
@@ -85,65 +91,72 @@ export default function AdminSessions() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [newSessionInfo, setNewSessionInfo] = useState<{code: string, pass: string, name: string} | null>(null);
 
-  // Data Fetching
-  const { data: rawSessions, isLoading, refetch } = useSessions();
-  const sessions = (rawSessions as Session[]) || [];
+  // Data fetching
+  const { data: rawSessions, isLoading, refetch, error: sessionsError } = useSessions();
+  // Normalize sessions data (ensure all fields exist)
+  const sessions: Session[] = useMemo(() => {
+    if (!rawSessions) return [];
+    return (rawSessions as any[]).map(s => ({
+      id: s.id,
+      studentName: s.studentName || `${s.firstName || ''} ${s.lastName || ''}`.trim() || 'Unknown',
+      firstName: s.firstName || '',
+      lastName: s.lastName || '',
+      email: s.email || '',
+      accessCode: s.accessCode || '',
+      password: s.password || '',
+      status: s.status || 'created',
+      resultsReleased: s.resultsReleased || false,
+      isCameraActive: s.isCameraActive || false,
+      currentSection: s.currentSection,
+      overallBand: s.overallBand,
+      grading: s.grading,
+      writingScore: s.writingScore,
+      speakingScore: s.speakingScore,
+      createdAt: s.createdAt || new Date().toISOString(),
+      examId: s.examId || 0,
+    }));
+  }, [rawSessions]);
 
-  // --- O'ZGARISH: Supabase dan Exam larni olish ---
-  const { data: exams } = useQuery({
+  // Exams from Supabase
+  const { data: exams, error: examsError } = useQuery<Exam[]>({
     queryKey: ['supabase_exams'],
     queryFn: async () => {
-      // 'exams' jadvalidan ma'lumotlarni olish
       const { data, error } = await supabase
         .from('exams')
         .select('*')
-        .order('created_at', { ascending: false }); // Eng yangilari tepad
-
-      if (error) {
-        console.error("Supabase exams error:", error);
-        throw error;
-      }
-      return data as Exam[];
-    }
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
   });
 
-  const { data: allViolations } = useQuery({
+  // Violations
+  const { data: allViolations, error: violationsError } = useQuery<Violation[]>({
     queryKey: ['/api/violations'],
     queryFn: async () => {
-      const res = await fetch('/api/violations');
-      return res.json();
+      try {
+        const res = await fetch('/api/violations');
+        if (!res.ok) throw new Error('Failed to fetch violations');
+        return res.json();
+      } catch (err) {
+        console.warn('Violations endpoint not available, using empty array');
+        return [];
+      }
     },
-    refetchInterval: autoRefresh ? 5000 : false, // Avto-yangilanishni boshqarish
-    enabled: autoRefresh
+    refetchInterval: autoRefresh ? 5000 : false,
+    enabled: autoRefresh,
   });
 
-  // Derived State (Memoized)
-  const activeSessions = useMemo(() => {
-    return sessions.filter(s => s.status === "in_progress" || s.status === "active");
-  }, [sessions]);
+  // Auto-refresh sessions when enabled
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(() => {
+      refetch();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, refetch]);
 
-  const filteredSessions = useMemo(() => {
-    let result = sessions;
-
-    // Tab Filter
-    if (activeTab === "waiting") result = result.filter(s => s.status === "pending_grading");
-    else if (activeTab === "marking") result = result.filter(s => s.status === "in_progress" || s.status === "active");
-    else if (activeTab === "graded") result = result.filter(s => s.status === "graded" && !s.resultsReleased);
-    else if (activeTab === "released") result = result.filter(s => s.resultsReleased);
-
-    // Search Filter
-    if (searchQuery) {
-      const lowerQ = searchQuery.toLowerCase();
-      result = result.filter(s => 
-        s.studentName.toLowerCase().includes(lowerQ) || 
-        s.accessCode.toLowerCase().includes(lowerQ)
-      );
-    }
-
-    return result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [sessions, activeTab, searchQuery]);
-
-  // Effects
+  // TV mode escape key
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isTvMode) setIsTvMode(false);
@@ -152,12 +165,39 @@ export default function AdminSessions() {
     return () => window.removeEventListener("keydown", handleEsc);
   }, [isTvMode]);
 
+  // Computed values
+  const activeSessions = useMemo(() => {
+    return sessions.filter(s => s.status === "in_progress" || s.status === "active");
+  }, [sessions]);
+
+  const filteredSessions = useMemo(() => {
+    let result = sessions;
+
+    // Filter by tab
+    if (activeTab === "waiting") result = result.filter(s => s.status === "pending_grading");
+    else if (activeTab === "marking") result = result.filter(s => s.status === "in_progress" || s.status === "active");
+    else if (activeTab === "graded") result = result.filter(s => s.status === "graded" && !s.resultsReleased);
+    else if (activeTab === "released") result = result.filter(s => s.resultsReleased);
+
+    // Filter by search
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(s => 
+        s.studentName.toLowerCase().includes(q) || 
+        s.accessCode.toLowerCase().includes(q)
+      );
+    }
+
+    // Sort by creation date (newest first)
+    return result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [sessions, activeTab, searchQuery]);
+
   // Handlers
   const handleDeleteSession = async (id: number) => {
     if (!confirm("DIQQAT: Ushbu sessiyani va unga tegishli barcha javoblarni o'chirib tashlamoqchimisiz?")) return;
     try {
       await apiRequest("DELETE", `/api/sessions/${id}`);
-      toast({ title: "Muvaffaqiyatli o'chirildi", className: "bg-red-500 text-white" });
+      toast({ title: "Muvaffaqiyatli o'chirildi", variant: "success", className: "bg-red-500 text-white" });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       refetch();
     } catch (err) {
@@ -174,7 +214,7 @@ export default function AdminSessions() {
     if (!confirm("Sessiyani majburiy yakunlamoqchimisiz?")) return;
     try {
       await apiRequest("POST", `/api/sessions/${id}/terminate`, {});
-      toast({ title: "Sessiya yakunlandi", className: "bg-orange-500 text-white" });
+      toast({ title: "Sessiya yakunlandi", variant: "success", className: "bg-orange-500 text-white" });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       refetch();
     } catch (err) {
@@ -186,7 +226,7 @@ export default function AdminSessions() {
     setIsReleasing(true);
     try {
       await apiRequest("POST", `/api/sessions/${sessionId}/release`, {});
-      toast({ title: "Natija talabaga yuborildi", className: "bg-green-600 text-white" });
+      toast({ title: "Natija talabaga yuborildi", variant: "success", className: "bg-green-600 text-white" });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       setSelectedSubmission(null);
       refetch();
@@ -211,16 +251,24 @@ export default function AdminSessions() {
         email: `${studentName.toLowerCase().replace(/\s+/g, '.')}@exam.com`,
         examId: parseInt(selectedExamId),
         accessCode: randomCode,
-        password: randomPass
+        password: randomPass,
       });
 
       setNewSessionInfo({ code: randomCode, pass: randomPass, name: studentName });
       setStudentName("");
-      toast({ title: "Yangi sessiya yaratildi" });
+      toast({ title: "Yangi sessiya yaratildi", variant: "success" });
     } catch (err) {
-      toast({ title: "Yaratishda xatolik" });
+      toast({ title: "Yaratishda xatolik", variant: "destructive" });
     }
   };
+
+  // Show errors if any
+  if (sessionsError) {
+    toast({ title: "Sessiyalarni yuklashda xatolik", variant: "destructive" });
+  }
+  if (examsError) {
+    toast({ title: "Examlarni yuklashda xatolik", variant: "destructive" });
+  }
 
   // --- TV MODE VIEW ---
   if (isTvMode) {
@@ -523,7 +571,7 @@ export default function AdminSessions() {
               </div>
 
               <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1">
-                {allViolations?.length === 0 ? (
+                {!allViolations || allViolations.length === 0 ? (
                   <div className="text-center py-20 flex flex-col items-center">
                     <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mb-3">
                         <lucideReact.ShieldCheck size={32} className="text-emerald-500" />
@@ -532,8 +580,8 @@ export default function AdminSessions() {
                     <p className="text-[11px] text-slate-400 mt-1">No violations detected currently.</p>
                   </div>
                 ) : (
-                  allViolations?.map((v: Violation) => {
-                    const student = sessions?.find(s => s.id === v.sessionId);
+                  allViolations.map((v: Violation) => {
+                    const student = sessions.find(s => s.id === v.sessionId);
                     return (
                       <div key={v.id} className="p-4 bg-red-50/50 border border-red-100 rounded-2xl hover:bg-red-50 transition-colors group">
                         <div className="flex justify-between items-start mb-2">
