@@ -89,23 +89,23 @@ export class DatabaseStorage implements IStorage {
     const { data, error } = await supabase.from('exam_sessions').insert([{
       ...session,
       status: 'created',
-      resultStatus: 'active',
-      startTime: null,
-      isCameraActive: false,
-      resultsReleased: false,
-      isUsed: false
+      result_status: 'active',
+      start_time: null,
+      is_camera_active: false,
+      results_released: false,
+      is_used: false
     }]).select().single();
     if (error) throw error;
     return data;
   }
 
   async getSessionByCode(code: string): Promise<ExamSession | undefined> {
-    const { data } = await supabase.from('exam_sessions').select('*').eq('accessCode', code).single();
+    const { data } = await supabase.from('exam_sessions').select('*').eq('access_code', code).maybeSingle();
     return data || undefined;
   }
 
   async getSession(id: number): Promise<ExamSession | undefined> {
-    const { data } = await supabase.from('exam_sessions').select('*').eq('id', id).single();
+    const { data } = await supabase.from('exam_sessions').select('*').eq('id', id).maybeSingle();
     return data || undefined;
   }
 
@@ -115,14 +115,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSessionsByTeacher(teacherId: number): Promise<ExamSession[]> {
-    const { data } = await supabase.from('exam_sessions').select('*').eq('assignedTeacherId', teacherId).order('id', { ascending: false });
+    const { data } = await supabase.from('exam_sessions').select('*').eq('assigned_teacher_id', teacherId).order('id', { ascending: false });
     return data || [];
   }
 
   async updateSessionStatus(id: number, status: string): Promise<ExamSession> {
     const payload: any = { status };
     if (status === 'completed' || status === 'pending_grading') {
-      payload.endTime = new Date().toISOString();
+      payload.end_time = new Date().toISOString();
     }
     const { data, error } = await supabase.from('exam_sessions').update(payload).eq('id', id).select().single();
     if (error) throw error;
@@ -130,19 +130,30 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateSessionState(id: number, state: { currentSection?: string, remainingTime?: number }): Promise<ExamSession> {
-    const { data, error } = await supabase.from('exam_sessions').update(state).eq('id', id).select().single();
+    const payload: any = {};
+    if (state.currentSection) payload.current_section = state.currentSection;
+    if (state.remainingTime !== undefined) payload.remaining_time = state.remainingTime;
+    
+    const { data, error } = await supabase.from('exam_sessions').update(payload).eq('id', id).select().single();
     if (error) throw error;
     return data;
   }
 
-  async updateSessionResultStatus(id: number, resultStatus: string): Promise<ExamSession> {
-    const { data, error } = await supabase.from('exam_sessions').update({ resultStatus }).eq('id', id).select().single();
+  async updateSessionResultStatus(id: number, result_status: string): Promise<ExamSession> {
+    const { data, error } = await supabase.from('exam_sessions').update({ result_status }).eq('id', id).select().single();
     if (error) throw error;
     return data;
   }
 
   async updateSessionScores(id: number, scores: any): Promise<ExamSession> {
-    const { data, error } = await supabase.from('exam_sessions').update(scores).eq('id', id).select().single();
+    const payload: any = {};
+    if (scores.writingScore !== undefined) payload.writing_score = scores.writingScore;
+    if (scores.speakingScore !== undefined) payload.speaking_score = scores.speakingScore;
+    if (scores.readingScore !== undefined) payload.reading_score = scores.readingScore;
+    if (scores.listeningScore !== undefined) payload.listening_score = scores.listeningScore;
+    if (scores.overallBand !== undefined) payload.overall_band = scores.overallBand;
+
+    const { data, error } = await supabase.from('exam_sessions').update(payload).eq('id', id).select().single();
     if (error) throw error;
     return data;
   }
@@ -155,29 +166,29 @@ export class DatabaseStorage implements IStorage {
 
   async updateCameraStatus(id: number, isActive: boolean): Promise<void> {
     await supabase.from('exam_sessions').update({ 
-      isCameraActive: isActive, 
-      lastCameraPulse: new Date().toISOString() 
+      is_camera_active: isActive, 
+      last_camera_pulse: new Date().toISOString() 
     }).eq('id', id);
   }
 
   async startSession(id: number): Promise<ExamSession> {
     const { data, error } = await supabase.from('exam_sessions').update({
       status: 'in_progress',
-      startTime: new Date().toISOString()
+      start_time: new Date().toISOString()
     }).eq('id', id).select().single();
     if (error) throw error;
     return data;
   }
 
   async releaseResults(id: number): Promise<ExamSession> {
-    const { data, error } = await supabase.from('exam_sessions').update({ resultsReleased: true }).eq('id', id).select().single();
+    const { data, error } = await supabase.from('exam_sessions').update({ results_released: true }).eq('id', id).select().single();
     if (error) throw error;
     return data;
   }
 
   async deleteSession(id: number): Promise<void> {
-    await supabase.from('violations').delete().eq('sessionId', id);
-    await supabase.from('submissions').delete().eq('sessionId', id);
+    await supabase.from('violations').delete().eq('session_id', id);
+    await supabase.from('submissions').delete().eq('session_id', id);
     await supabase.from('exam_sessions').delete().eq('id', id);
   }
 
@@ -186,15 +197,15 @@ export class DatabaseStorage implements IStorage {
     // Supabase .upsert() funksiyasi onConflict bilan ishlaydi
     const { data, error } = await supabase.from('submissions').upsert({
       ...submission,
-      lastSavedAt: new Date().toISOString()
-    }, { onConflict: 'sessionId' }).select().single();
+      last_saved_at: new Date().toISOString()
+    }, { onConflict: 'session_id' }).select().single();
 
     if (error) throw error;
     return data;
   }
 
   async getSubmission(sessionId: number): Promise<Submission | undefined> {
-    const { data } = await supabase.from('submissions').select('*').eq('sessionId', sessionId).single();
+    const { data } = await supabase.from('submissions').select('*').eq('session_id', sessionId).maybeSingle();
     return data || undefined;
   }
 
@@ -207,7 +218,7 @@ export class DatabaseStorage implements IStorage {
 
     const { data, error } = await supabase.from('submissions')
       .update({ grading: updatedGrading })
-      .eq('sessionId', sessionId)
+      .eq('session_id', sessionId)
       .select().single();
 
     if (error) throw error;
@@ -228,7 +239,7 @@ export class DatabaseStorage implements IStorage {
       advancedAssessment: { ...(currentGrading.advancedAssessment || {}), ...assessment }
     };
 
-    const { data, error } = await supabase.from('submissions').update({ grading: updatedGrading }).eq('sessionId', sessionId).select().single();
+    const { data, error } = await supabase.from('submissions').update({ grading: updatedGrading }).eq('session_id', sessionId).select().single();
     if (error) throw error;
     return data;
   }
@@ -243,7 +254,7 @@ export class DatabaseStorage implements IStorage {
       advanced_analysis: { ...(currentGrading.advanced_analysis || {}), ...analysis }
     };
 
-    const { data, error } = await supabase.from('submissions').update({ grading: updatedGrading }).eq('sessionId', sessionId).select().single();
+    const { data, error } = await supabase.from('submissions').update({ grading: updatedGrading }).eq('session_id', sessionId).select().single();
     if (error) throw error;
     return data;
   }
@@ -261,7 +272,10 @@ export class DatabaseStorage implements IStorage {
 
   // --- VIOLATIONS ---
   async logViolation(violation: InsertViolation): Promise<Violation> {
-    const { data, error } = await supabase.from('violations').insert([violation]).select().single();
+    const { data, error } = await supabase.from('violations').insert([{
+      session_id: violation.sessionId,
+      type: violation.type
+    }]).select().single();
     if (error) throw error;
     return data;
   }

@@ -124,7 +124,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           {
             title,
             content: examContent,
-            time_limit: 60,              // snake_case bo‘lishi mumkin, tekshiring
+            time_limit: 60,
             is_published: false,
           },
         ])
