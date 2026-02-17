@@ -190,26 +190,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { data: session, error } = await supabase
         .from("exam_sessions")
         .select("*")
-        .eq("access_code", normalizedCode)
-        .maybeSingle();   // .single() emas – agar topilmasa null qaytaradi, error emas
+        .or(`access_code.eq."${normalizedCode}",accessCode.eq."${normalizedCode}"`)
+        .maybeSingle();
 
       if (error) {
         console.error("[LOGIN] 3. Supabase xatosi:", error);
-        // Agar ustun topilmasa (Postgres error code '42703' - undefined_column), ehtimol xato yozilgan
-        if (error.code === '42703') {
-           // Ikkinchi urinish: access_code o'rniga accessCode
-           const { data: sessionAlt, error: errorAlt } = await supabase
-            .from("exam_sessions")
-            .select("*")
-            .eq("accessCode", normalizedCode)
-            .maybeSingle();
-           
-           if (!errorAlt && sessionAlt) {
-              // Topildi! Demak bazada accessCode deb nomlangan
-              // Davom etamiz...
-              return handleSessionLogin(sessionAlt, password, res);
-           }
-        }
         return res.status(500).json({ message: "Server xatosi: " + error.message });
       }
 
@@ -234,10 +219,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       dbPassword: session.password,
     });
 
-    const isUsed = session.is_used !== undefined ? session.is_used : session.isUsed;
+    const isUsed = session.is_used === true || session.isUsed === true;
+    const dbPassword = session.password || session.Password;
 
     // Parolni tekshirish (ochiq matn)
-    if (session.password !== password.trim()) {
+    if (dbPassword !== password.trim()) {
       console.log("[LOGIN] 6. Parol mos kelmadi");
       return res.status(401).json({ message: "Parol noto'g'ri" });
     }
