@@ -3,14 +3,12 @@ import { api, buildUrl } from "@shared/routes";
 import { type InsertSession } from "@shared/schema";
 import { supabase } from "@/lib/supabase";
 
-// --- QUERY KEYS ---
 export const sessionKeys = {
   all: ["sessions"] as const,
   lists: () => [...sessionKeys.all, "list"] as const,
   detail: (id: number | string) => [...sessionKeys.all, "detail", id] as const,
 };
 
-// --- TYPES ---
 interface SubmitPayload {
   id: number | string;
   answers: Record<string, any>;
@@ -27,7 +25,9 @@ interface ViolationPayload {
   type: 'tab_switch' | 'fullscreen_exit' | 'window_blur' | 'multiple_faces' | 'no_face';
 }
 
+// ------------------------------------------------------------
 // 1. Barcha sessiyalarni olish
+// ------------------------------------------------------------
 export function useSessions() {
   return useQuery({
     queryKey: sessionKeys.lists(),
@@ -36,16 +36,17 @@ export function useSessions() {
         .from('exam_sessions')
         .select('*')
         .order('created_at', { ascending: false });
-
       if (error) throw error;
       return data || [];
     },
-    refetchInterval: 5000, 
+    refetchInterval: 5000,
     staleTime: 2000,
   });
 }
 
+// ------------------------------------------------------------
 // 2. Yagona sessiyani olish
+// ------------------------------------------------------------
 export function useSession(id: number | string) {
   return useQuery({
     queryKey: sessionKeys.detail(id),
@@ -55,34 +56,39 @@ export function useSession(id: number | string) {
         .select('*, exams(*)')
         .eq('id', id)
         .single();
-
       if (error) throw error;
-
-      return {
-        ...data,
-        audioUrl: data?.audioUrl || "",
-      };
+      const exam = data?.exams as any;
+      return { ...data, audioUrl: exam?.audioUrl || null };
     },
     enabled: !!id,
   });
 }
 
-// 3. Yangi sessiya yaratish (TOZALANGAN VARIANT)
+// ------------------------------------------------------------
+// 3. Yangi sessiya yaratish (FAQAT MAVJUD USTUNLAR BILAN)
+// ------------------------------------------------------------
 export function useCreateSession() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: InsertSession) => {
-      // 400 xatosini oldini olish uchun faqat bazada aniq bor ustunlarni yuboramiz
-      const payload = {
+    mutationFn: async (data: InsertSession & { firstName?: string; lastName?: string; email?: string; password: string }) => {
+      // Jadvalda mavjud bo'lgan ustunlar:
+      // camelCase: examId, studentName, firstName, lastName, email, accessCode, password, status
+      // snake_case: is_used, access_code (agar mavjud bo'lsa)
+      const payload: any = {
         examId: data.examId,
         studentName: data.studentName,
+        firstName: data.firstName || null,
+        lastName: data.lastName || null,
+        email: data.email || null,
         accessCode: data.accessCode,
+        password: data.password,
         status: 'pending',
-        // Agar firstName/lastName bazada bo'lsa buni qoldiring, bo'lmasa o'chiring
-        firstName: (data as any).firstName || null,
-        lastName: (data as any).lastName || null,
-        email: (data as any).email || null,
+        is_used: false,
       };
+
+      // Agar access_code ustuni mavjud bo'lsa (sizning jadvalingizda bor), uni ham qo'shamiz
+      // (lekin accessCode bilan bir xil qiymat)
+      payload.access_code = data.accessCode;
 
       const { data: newSession, error } = await supabase
         .from('exam_sessions')
@@ -90,10 +96,7 @@ export function useCreateSession() {
         .select()
         .single();
 
-      if (error) {
-        console.error("Sessiya yaratishda xato:", error.message);
-        throw error;
-      }
+      if (error) throw error;
       return newSession;
     },
     onSuccess: () => {
@@ -102,21 +105,19 @@ export function useCreateSession() {
   });
 }
 
-// 4. Imtihonni boshlash
+// ------------------------------------------------------------
+// 4. Imtihonni boshlash (startedAt yangilanadi)
+// ------------------------------------------------------------
 export function useStartSession() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: number | string) => {
       const { data, error } = await supabase
         .from('exam_sessions')
-        .update({ 
-          status: 'active', 
-          startedAt: new Date().toISOString() 
-        })
+        .update({ status: 'active', startedAt: new Date().toISOString() })
         .eq('id', id)
         .select()
         .single();
-
       if (error) throw error;
       return data;
     },
@@ -127,37 +128,37 @@ export function useStartSession() {
   });
 }
 
+// ------------------------------------------------------------
 // 5. Javoblarni yuborish
+// ------------------------------------------------------------
 export function useSubmitAnswers() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...payload }: SubmitPayload) => {
+      const updateData: any = {
+        answers: payload.answers,
+        status: payload.isFinal ? 'completed' : (payload.status || 'active'),
+        remainingTime: payload.remainingTime,
+        updatedAt: new Date().toISOString(),
+      };
       const { data, error } = await supabase
         .from('exam_sessions')
-        .update({
-          answers: payload.answers,
-          status: payload.isFinal ? 'completed' : (payload.status || 'active'),
-          remainingTime: payload.remainingTime,
-          updatedAt: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', id)
         .select()
         .single();
-
       if (error) throw error;
-
       if (payload.isFinal) {
         try {
           await fetch(buildUrl(api.sessions.submit.path, { id: String(id) }), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...payload, isFinal: true }),
+            body: JSON.stringify(payload),
           });
         } catch (e) {
-          console.error("Backend hisoblashda xato (ixtiyoriy):", e);
+          console.warn("Backend autograd xatosi (davom etish mumkin):", e);
         }
       }
-
       return data;
     },
     onSuccess: (_, variables) => {
@@ -167,20 +168,18 @@ export function useSubmitAnswers() {
   });
 }
 
+// ------------------------------------------------------------
 // 6. Qoidabuzarliklarni qayd etish
+// ------------------------------------------------------------
 export function useLogViolation() {
   return useMutation({
     mutationFn: async ({ id, type }: ViolationPayload) => {
       const { data, error } = await supabase
         .from('violations')
-        .insert([{ 
-          session_id: id, 
-          type: type, 
-          created_at: new Date().toISOString() 
-        }]);
-
+        .insert([{ session_id: id, type, created_at: new Date().toISOString() }])
+        .select();
       if (error) throw error;
-      return data;
+      return data?.[0] || null;
     },
     retry: 1,
   });
