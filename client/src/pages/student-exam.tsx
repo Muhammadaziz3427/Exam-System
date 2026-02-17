@@ -63,14 +63,13 @@ export default function StudentExam() {
   const logViolation = useLogViolation();
 
   // --- Utility Functions ---
-
   const getImageUrl = (path: string) => {
     if (!path) return "";
+    // Agar path to'liq URL bo'lsa, o'zini qaytar, aks holda /uploads/ prefiksi bilan
     return path.startsWith('http') ? path : `/uploads/${path}`;
   };
 
   const scrollToQuestion = (qNum: number) => {
-    // Scroll area ichidagi elementni topish
     const element = document.getElementById(`q-container-${qNum}`);
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -81,28 +80,21 @@ export default function StudentExam() {
   const handleTextHighlight = () => {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) return;
-
-    // Faqat Reading sectionda ishlashi uchun
     if (currentSection !== 'reading') return;
 
     try {
       const range = selection.getRangeAt(0);
       const span = document.createElement("span");
-      span.style.backgroundColor = "#fde047"; // Yellow-300 (Tailwind)
+      span.style.backgroundColor = "#fde047";
       span.style.color = "#000";
-      // Oddiy highlight qilish (faqat text node ichida bo'lsa)
-      // Murakkab HTML strukturalarni buzmaslik uchun try-catch
       range.surroundContents(span);
       selection.removeAllRanges();
     } catch (e) {
-      // Agar tanlov bir nechta blok elementlarni qamrab olsa, browser xato beradi.
-      // Bunday holda biz shunchaki e'tiborsiz qoldiramiz yoki oddiy CSS selection ishlaydi.
       console.log("Highlight complex range skipped");
     }
   };
 
   // --- Camera Logic ---
-
   const checkCamera = async () => {
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
@@ -123,10 +115,9 @@ export default function StudentExam() {
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
     }
-  }, [stream, hasStarted, cameraReady]);
+  }, [stream]);
 
   // --- Security & Monitoring ---
-
   useEffect(() => {
     if (!hasStarted || !cameraReady) return;
     const pulseInterval = setInterval(() => {
@@ -166,7 +157,6 @@ export default function StudentExam() {
   }, [hasStarted, sessionId, logViolation, toast]);
 
   // --- Timer Logic ---
-
   const setupSectionTimer = (section: Section, content: any) => {
     let minutes = 60; 
     if (section === 'listening') minutes = content?.listening?.duration || 30;
@@ -188,7 +178,7 @@ export default function StudentExam() {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [hasStarted, currentSection, timeLeft]);
+  }, [hasStarted, currentSection]);
 
   const handleSectionAutoTransition = () => {
     if (currentSection === 'listening') {
@@ -228,7 +218,6 @@ export default function StudentExam() {
   }, [answers, hasStarted, sessionId]);
 
   // --- Submission & Finish ---
-
   const handleFinalSubmit = async (autoSubmit: boolean = false) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
@@ -260,7 +249,6 @@ export default function StudentExam() {
         duration: 3000
       });
 
-      // Bosh sahifaga yo'naltirish (Javoblarni ko'rsatmasdan)
       setTimeout(() => {
         setHasStarted(false); 
         setLocation("/"); 
@@ -277,7 +265,6 @@ export default function StudentExam() {
   };
 
   // --- Init ---
-
   const startExamFlow = async () => {
     if (!email.includes("@")) {
         toast({ title: "Email xato", description: "To'g'ri email kiriting", variant: "destructive" });
@@ -318,9 +305,15 @@ export default function StudentExam() {
      return text.trim().split(/\s+/).filter((w: string) => w.length > 0).length;
   }, [answers.writingTask1, answers.writingTask2, activeWritingTask]);
 
+  // --- Helper to get all questions for navigation (listening + reading) ---
+  const totalQuestions = useMemo(() => {
+    if (!examContent) return 40;
+    const listeningCount = examContent?.listening?.parts?.reduce((acc: number, part: any) => acc + (part.questions?.length || 0), 0) || 0;
+    const readingCount = examContent?.reading?.passages?.reduce((acc: number, passage: any) => acc + (passage.questions?.length || 0), 0) || 0;
+    return listeningCount + readingCount;
+  }, [examContent]);
 
   // --- Render Screens ---
-
   if (!hasStarted) {
     return (
       <div className="fixed inset-0 bg-[#f8fafc] flex items-center justify-center p-4">
@@ -400,7 +393,7 @@ export default function StudentExam() {
               {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
             </span>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700">
               <ShieldCheck size={18} />
@@ -427,7 +420,7 @@ export default function StudentExam() {
           />
         ) : (
           <ResizablePanelGroup direction="horizontal" className="flex-1 h-full">
-            {/* LEFT PANEL: CONTENT (Reading Passage) */}
+            {/* LEFT PANEL: CONTENT (Reading Passage or Writing Task) */}
             <ResizablePanel defaultSize={45} className="bg-white border-r-4 border-slate-100 min-w-[300px]">
               <div className="h-full flex flex-col">
                 <div className="h-12 bg-slate-50 border-b flex items-center px-4 overflow-x-auto no-scrollbar shrink-0">
@@ -445,7 +438,7 @@ export default function StudentExam() {
                     </div>
                   ) : (
                     <div className="flex gap-1">
-                      {[0, 1].map((idx) => (
+                      {examContent?.writing?.tasks?.map((_: any, idx: number) => (
                           <button 
                             key={`task-btn-${idx}`}
                             onClick={() => setActiveWritingTask(idx)} 
@@ -459,7 +452,6 @@ export default function StudentExam() {
                 </div>
 
                 <ScrollArea className="flex-1 h-full">
-                  {/* Highlight ishlaydigan joy: selection:bg-yellow-300 */}
                   <div 
                     className="p-12 max-w-3xl mx-auto select-text selection:bg-yellow-300 selection:text-black" 
                     style={{ fontSize: `${zoom}%` }}
@@ -494,7 +486,7 @@ export default function StudentExam() {
                               />
                             )}
                             <p className="text-xl font-medium text-slate-800 italic leading-relaxed whitespace-pre-line">
-                              {examContent?.writing?.tasks?.[activeWritingTask]?.content}
+                              {examContent?.writing?.tasks?.[activeWritingTask]?.title || "Writing task prompt"}
                             </p>
                           </div>
                           <div className="flex items-start gap-2 text-slate-500 text-sm">
@@ -510,17 +502,19 @@ export default function StudentExam() {
 
             <ResizableHandle withHandle className="w-2 hover:bg-blue-500 transition-colors" />
 
-            {/* RIGHT PANEL: QUESTIONS (Fixed Scrolling) */}
+            {/* RIGHT PANEL: QUESTIONS (Reading Questions or Writing Input) */}
             <ResizablePanel defaultSize={55} className="bg-[#f8fafc] min-w-[300px]">
               <ScrollArea className="h-full">
                 <div className="p-8 md:p-12 max-w-2xl mx-auto pb-32">
                   {currentSection === 'reading' ? (
                     <div className="space-y-6">
-                      {/* Check if questions exist */}
                       {examContent?.reading?.passages?.[activePassageIdx]?.questions?.length > 0 ? (
                         examContent.reading.passages[activePassageIdx].questions.map((q: any, i: number) => {
+                          // Hisoblash global indeksni – barcha oldingi passage savollarini qo'shish
                           const questionsBefore = examContent.reading.passages.slice(0, activePassageIdx).reduce((acc: number, curr: any) => acc + (curr.questions?.length || 0), 0);
-                          const qGlobalIdx = questionsBefore + i + 1;
+                          const listeningQuestionsCount = examContent?.listening?.parts?.reduce((acc: number, part: any) => acc + (part.questions?.length || 0), 0) || 0;
+                          // Listening savollari birinchi keladi, keyin reading savollari keladi
+                          const qGlobalIdx = listeningQuestionsCount + questionsBefore + i + 1;
                           const qId = `q-${qGlobalIdx}`;
 
                           return (
@@ -529,8 +523,7 @@ export default function StudentExam() {
                                 <span className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm shrink-0">{qGlobalIdx}</span>
                                 <div className="flex-1 space-y-4">
                                   <div className="font-bold text-slate-700" dangerouslySetInnerHTML={{ __html: q?.text || "Savol matni yo'q" }}></div>
-
-                                  {/* Savol turiga qarab input chiqarish mumkin. Hozircha oddiy input */}
+                                  {/* Savol turiga qarab input yoki boshqa element */}
                                   <Input 
                                       className="h-12 text-lg border-2 focus:border-blue-500 bg-slate-50/50" 
                                       placeholder="Javobingiz..."
@@ -577,83 +570,20 @@ export default function StudentExam() {
         )}
       </main>
 
-      {/* FOOTER NAVIGATOR (Independent Scrolling Fix) */}
-      <footer className="h-16 bg-white border-t flex items-center px-4 md:px-8 justify-between shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-50 shrink-0">
-        <div className="flex items-center gap-6 shrink-0">
-          <div className="w-12 h-8 bg-black rounded border border-white/20 overflow-hidden relative">
-              <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
-              <div className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          </div>
-        </div>
-
-        <div className="flex-1 max-w-4xl mx-4 overflow-hidden">
-            {currentSection !== 'writing' && (
-                <div className="flex items-center gap-2">
-                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0 hidden md:block">Navigator</span>
-                  {/* ScrollArea: Bu yerda 'orientation' atributini olib tashlaymiz */}
-                  <ScrollArea className="w-full whitespace-nowrap">
-                    <div className="flex gap-1.5 px-1 py-1">
-                      {Array.from({ length: 40 }).map((_, i) => {
-                        const qNum = i + 1;
-                        const qId = `q-${qNum}`;
-                        const hasAns = (currentSection === 'reading' && answers.reading?.[qId]) || 
-                                       (currentSection === 'listening' && answers.listening?.[qId]);
-                        const isFlagged = reviewFlags[qId];
-
-                        return (
-                          <button 
-                            key={`nav-q-${i}`} 
-                            onClick={() => scrollToQuestion(qNum)} 
-                            className={`w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-[10px] font-bold border-2 relative transition-colors
-                              ${hasAns ? 'bg-[#2c3e50] border-[#2c3e50] text-white' : 'bg-white border-slate-100 text-slate-400 hover:border-blue-400'}
-                            `}
-                          >
-                            {qNum}
-                            {isFlagged && <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white" />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {/* ScrollBar: Bu yerda orientation="horizontal" qolishi shart */}
-                    <ScrollBar orientation="horizontal" className="h-2" />
-                  </ScrollArea>
-                </div>
-            )}
-        </div>
-
-        <div className="flex items-center gap-6 shrink-0">
-          <div className="hidden md:flex items-center gap-2 text-emerald-600 font-bold text-[10px] uppercase bg-emerald-50 px-2 py-1 rounded">
-            <CheckCircle2 size={14} /> Saved
-          </div>
-          {currentSection !== 'writing' ? (
-            <Button 
-                className="bg-emerald-600 hover:bg-emerald-700 font-bold shadow-md shadow-emerald-200" 
-                onClick={() => setCurrentSection(currentSection === 'listening' ? 'reading' : 'writing')}
-            >
-              Next Section <ChevronRight className="ml-1" size={16}/>
-            </Button>
-          ) : (
-              <Button 
-                variant="default" 
-                className="bg-blue-600 hover:bg-blue-700 font-bold" 
-                onClick={() => {
-                    if (confirm("Testni yakunlaysizmi?")) handleFinalSubmit();
-                }}
-              >
-                  Submit Exam
-              </Button>
-          )}
-        </div>
-      </footer>
-      {/* FOOTER NAVIGATION (CDI STYLE) */}
+      {/* FOOTER NAVIGATOR */}
       <footer className="h-14 bg-[#e4e9f0] border-t border-slate-300 flex items-center justify-between px-6 shrink-0 z-50">
         <div className="flex gap-1 overflow-x-auto no-scrollbar py-2">
-          {Array.from({ length: 40 }).map((_, i) => {
+          {Array.from({ length: totalQuestions }).map((_, i) => {
             const qNum = i + 1;
             const qId = `q-${qNum}`;
-            const isAnswered = answers.listening[qId] || answers.reading[qId];
+            // Javob borligini aniqlash: listening yoki reading
+            const listeningQuestionsCount = examContent?.listening?.parts?.reduce((acc: number, part: any) => acc + (part.questions?.length || 0), 0) || 0;
+            const isListening = qNum <= listeningQuestionsCount;
+            const isAnswered = isListening 
+              ? answers.listening?.[qId] 
+              : answers.reading?.[qId];
             const isReview = reviewFlags[qId];
-            
+
             return (
               <button
                 key={qNum}

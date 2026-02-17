@@ -24,7 +24,7 @@ export function useExams() {
     queryFn: async ({ signal }) => {
       const res = await fetch(api.exams.list.path, { signal });
       if (!res.ok) {
-        throw new Error(`Imtihonlarni yuklashda xatolik: ${res.status}`);
+        throw new Error(`Imtihonlarni yuklashda xatolik: ${res.status} ${res.statusText}`);
       }
       return res.json();
     },
@@ -40,11 +40,10 @@ export function useExam(id: number | undefined) {
   return useQuery<Exam>({
     queryKey: examKeys.detail(id!),
     queryFn: async ({ signal }) => {
-      // ID mavjudligi enabled orqali kafolatlangan
       const url = buildUrl(api.exams.get.path, { id: id! });
       const res = await fetch(url, { signal });
       if (!res.ok) {
-        throw new Error(`Imtihon ma'lumotlarini olishda xatolik: ${res.status}`);
+        throw new Error(`Imtihon ma'lumotlarini olishda xatolik: ${res.status} ${res.statusText}`);
       }
       return res.json();
     },
@@ -66,7 +65,7 @@ export function useCreateExam() {
         body: JSON.stringify(data),
       });
       if (!res.ok) {
-        throw new Error(`Yangi imtihon yaratib bo‘lmadi: ${res.status}`);
+        throw new Error(`Yangi imtihon yaratib bo‘lmadi: ${res.status} ${res.statusText}`);
       }
       return res.json() as Promise<Exam>;
     },
@@ -92,7 +91,7 @@ export function useUpdateExam() {
         body: JSON.stringify(data),
       });
       if (!res.ok) {
-        throw new Error(`Imtihonni yangilashda xatolik: ${res.status}`);
+        throw new Error(`Imtihonni yangilashda xatolik: ${res.status} ${res.statusText}`);
       }
       return res.json() as Promise<Exam>;
     },
@@ -114,7 +113,7 @@ export function useDeleteExam() {
       const url = buildUrl(api.exams.delete.path, { id });
       const res = await fetch(url, { method: "DELETE" });
       if (!res.ok) {
-        throw new Error(`Imtihonni o‘chirib bo‘lmadi: ${res.status}`);
+        throw new Error(`Imtihonni o‘chirib bo‘lmadi: ${res.status} ${res.statusText}`);
       }
       return id;
     },
@@ -135,7 +134,7 @@ export function useSessions() {
     queryFn: async ({ signal }) => {
       const res = await fetch(api.sessions.list.path, { signal });
       if (!res.ok) {
-        throw new Error(`Sessiyalarni yuklashda xatolik: ${res.status}`);
+        throw new Error(`Sessiyalarni yuklashda xatolik: ${res.status} ${res.statusText}`);
       }
       return res.json();
     },

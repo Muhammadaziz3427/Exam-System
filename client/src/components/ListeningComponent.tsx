@@ -11,7 +11,7 @@ interface ListeningComponentProps {
   onSectionComplete: () => void;
   examContent?: any; 
   content?: any; 
-  answers: any;
+  answers: any; // { [qId: string]: string }
   setAnswers: (answers: any) => void;
 }
 
@@ -93,6 +93,11 @@ export function ListeningComponent({
 
   // Listening savollari kolleksiyasini aniqlash (parts yoki sections)
   const collections = activeContent?.parts || activeContent?.sections || [];
+
+  // Yangi javobni saqlash uchun funksiya
+  const handleAnswerChange = (qId: string, value: string) => {
+    setAnswers({ ...answers, [qId]: value });
+  };
 
   return (
     <div className="h-full flex flex-col bg-white">
@@ -197,10 +202,7 @@ export function ListeningComponent({
                               placeholder="Write your answer..."
                               className="h-10 border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50/30"
                               value={answers[qId] || ""}
-                              onChange={(e) => {
-                                  const newListeningAnswers = { ...answers, [qId]: e.target.value };
-                                  setAnswers(newListeningAnswers);
-                              }}
+                              onChange={(e) => handleAnswerChange(qId, e.target.value)}
                             />
                           </div>
 
