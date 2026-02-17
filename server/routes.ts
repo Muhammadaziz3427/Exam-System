@@ -195,7 +195,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       if (error) {
         console.error("[LOGIN] 3. Supabase xatosi:", error);
-        return res.status(500).json({ message: "Server xatosi" });
+        // Agar ustun topilmasa (Postgres error code '42703' - undefined_column), ehtimol xato yozilgan
+        if (error.code === '42703') {
+           // Ikkinchi urinish: access_code o'rniga accessCode
+           const { data: sessionAlt, error: errorAlt } = await supabase
+            .from("exam_sessions")
+            .select("*")
+            .eq("accessCode", normalizedCode)
+            .maybeSingle();
+           
+           if (!errorAlt && sessionAlt) {
+              // Topildi! Demak bazada accessCode deb nomlangan
+              // Davom etamiz...
+              return handleSessionLogin(sessionAlt, password, res);
+           }
+        }
+        return res.status(500).json({ message: "Server xatosi: " + error.message });
       }
 
       if (!session) {
@@ -203,58 +218,69 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(401).json({ message: "Kirish kodi topilmadi" });
       }
 
-      console.log("[LOGIN] 5. Sessiya topildi:", {
-        id: session.id,
-        status: session.status,
-        is_used: session.is_used,
-        dbPassword: session.password,
-      });
-
-      // Parolni tekshirish (ochiq matn)
-      if (session.password !== password.trim()) {
-        console.log("[LOGIN] 6. Parol mos kelmadi");
-        return res.status(401).json({ message: "Parol noto'g'ri" });
-      }
-
-      console.log("[LOGIN] 7. Parol mos keldi");
-
-      // Sessiya holatini tekshirish
-      if (session.is_used === true) {
-        console.log("[LOGIN] 8. Kod avval ishlatilgan");
-        return res.status(403).json({ message: "Kod ishlatilgan" });
-      }
-
-      if (session.status === "completed") {
-        console.log("[LOGIN] 9. Imtihon yakunlangan");
-        return res.status(403).json({ message: "Imtihon yakunlangan" });
-      }
-
-      // Sessiyani yangilash
-      const { error: updateError } = await supabase
-        .from("exam_sessions")
-        .update({
-          is_used: true,
-          status: "active",
-          start_time: new Date().toISOString(),
-        })
-        .eq("id", session.id);
-
-      if (updateError) {
-        console.error("[LOGIN] 10. Yangilash xatosi:", updateError);
-        return res.status(500).json({ message: "Sessiyani yangilashda xatolik" });
-      }
-
-      console.log("[LOGIN] 11. Muvaffaqiyatli!");
-
-      // Parolni olib tashlab javob qaytarish
-      const { password: _, ...sessionWithoutPassword } = session;
-      res.json({ session: sessionWithoutPassword });
-
+      return handleSessionLogin(session, password, res);
     } catch (error) {
       console.error("[LOGIN] 12. Kutilmagan xatolik:", error);
       res.status(500).json({ message: "Serverda ichki xatolik" });
     }
   });
+
+  // Login mantiqini alohida funksiyaga chiqaramiz (takrorlanmaslik uchun)
+  async function handleSessionLogin(session: any, password: string, res: any) {
+    console.log("[LOGIN] 5. Sessiya topildi:", {
+      id: session.id,
+      status: session.status,
+      is_used: session.is_used || session.isUsed,
+      dbPassword: session.password,
+    });
+
+    const isUsed = session.is_used !== undefined ? session.is_used : session.isUsed;
+
+    // Parolni tekshirish (ochiq matn)
+    if (session.password !== password.trim()) {
+      console.log("[LOGIN] 6. Parol mos kelmadi");
+      return res.status(401).json({ message: "Parol noto'g'ri" });
+    }
+
+    console.log("[LOGIN] 7. Parol mos keldi");
+
+    // Sessiya holatini tekshirish
+    if (isUsed === true) {
+      console.log("[LOGIN] 8. Kod avval ishlatilgan");
+      return res.status(403).json({ message: "Kod ishlatilgan" });
+    }
+
+    if (session.status === "completed") {
+      console.log("[LOGIN] 9. Imtihon yakunlangan");
+      return res.status(403).json({ message: "Imtihon yakunlangan" });
+    }
+
+    // Sessiyani yangilash (ikkala variantni ham yangilaymiz)
+    const updatePayload: any = {
+      status: "active",
+      start_time: new Date().toISOString(),
+      start_at: new Date().toISOString(), // ba'zi sxemalarda start_at bo'lishi mumkin
+    };
+    
+    if (session.is_used !== undefined) updatePayload.is_used = true;
+    if (session.isUsed !== undefined) updatePayload.isUsed = true;
+
+    const { error: updateError } = await supabase
+      .from("exam_sessions")
+      .update(updatePayload)
+      .eq("id", session.id);
+
+    if (updateError) {
+      console.error("[LOGIN] 10. Yangilash xatosi:", updateError);
+      return res.status(500).json({ message: "Sessiyani yangilashda xatolik" });
+    }
+
+    console.log("[LOGIN] 11. Muvaffaqiyatli!");
+
+    // Parolni olib tashlab javob qaytarish
+    const { password: _, ...sessionWithoutPassword } = session;
+    return res.json({ session: sessionWithoutPassword });
+  }
 
   app.post("/api/exams/save-from-json", async (req, res) => {
     try {
@@ -374,26 +400,52 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post(api.sessions.create.path, async (req, res) => {
     try {
       const { examId, assignedTeacherId, ...rest } = req.body;
+      
+      console.log("[SESSION CREATE] Rest payload:", rest);
+
+      const insertData: any = {
+        ...rest,
+        exam_id: Number(examId),
+        examId: Number(examId), // Ikkala variantni ham yuboramiz
+        assigned_teacher_id: assignedTeacherId ? Number(assignedTeacherId) : null,
+        assignedTeacherId: assignedTeacherId ? Number(assignedTeacherId) : null,
+        status: "created",
+        is_used: false,
+        isUsed: false,
+      };
+
+      // Agar password rest ichida bo'lmasa yoki null bo'lsa, xatolik yuz beradi
+      if (!insertData.password) {
+        console.error("[SESSION CREATE] Password is missing!");
+      }
 
       const { data: session, error } = await supabase
         .from("exam_sessions")
-        .insert([
-          {
-            ...rest,
-            exam_id: Number(examId),
-            assigned_teacher_id: assignedTeacherId ? Number(assignedTeacherId) : null,
-            status: "created",
-            is_used: false,
-          },
-        ])
+        .insert([insertData])
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("[SESSION CREATE] Supabase error:", error);
+        // Agar ustun xatosi bo'lsa, CamelCase variantini o'chirib qayta urinish
+        const cleanedData = { ...insertData };
+        delete cleanedData.examId;
+        delete cleanedData.assignedTeacherId;
+        delete cleanedData.isUsed;
+        
+        const { data: retrySession, error: retryError } = await supabase
+          .from("exam_sessions")
+          .insert([cleanedData])
+          .select()
+          .single();
+        
+        if (retryError) throw retryError;
+        return res.status(201).json(retrySession);
+      }
       res.status(201).json(session);
     } catch (error) {
       console.error("Sessiya yaratish xatosi:", error);
-      res.status(400).json({ message: "Sessiya yaratib bo'lmadi" });
+      res.status(400).json({ message: "Sessiya yaratib bo'lmadi: " + (error as any).message });
     }
   });
 
