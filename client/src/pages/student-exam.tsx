@@ -246,11 +246,14 @@ export default function StudentExam() {
         // answered class
         if (isAnswered) {
           btn.classList.add('answered');
-          // Update aria-label or other attributes if needed
-          btn.setAttribute('data-answered', 'true');
+          btn.style.setProperty('background-color', '#28a745', 'important');
+          btn.style.setProperty('color', 'white', 'important');
+          btn.style.setProperty('border-color', '#1e7e34', 'important');
         } else {
           btn.classList.remove('answered');
-          btn.setAttribute('data-answered', 'false');
+          btn.style.backgroundColor = '';
+          btn.style.color = '';
+          btn.style.borderColor = '';
         }
 
         // flag dot

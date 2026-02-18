@@ -237,7 +237,7 @@ export function ListeningComponent({
               {parts.map((part: any, pIdx: number) => (
                 <div
                   key={pIdx}
-                  className={`space-y-6 ${pIdx + 1 === currentPart ? '' : 'hidden'}`}
+                  className="space-y-6"
                   style={{ display: pIdx + 1 === currentPart ? 'block' : 'none' }}
                 >
                   {/* Part header */}
