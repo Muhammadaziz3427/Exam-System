@@ -691,13 +691,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           .eq("session_id", sessionId);
 
         // Writing mavjudligini tekshirish
-        const hasWriting = content?.writing?.tasks?.length > 0;
+        const hasWriting = content?.writing?.tasks?.length > 0 || content?.writing?.questions?.length > 0;
 
         await supabase
           .from("exam_sessions")
           .update({
             status: hasWriting ? "pending_grading" : "completed",
             result_status: "marking",
+            listening_score: listeningScore.toString(),
+            reading_score: readingScore.toString()
           })
           .eq("id", sessionId);
       }
