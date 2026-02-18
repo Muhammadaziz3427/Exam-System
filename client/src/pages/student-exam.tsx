@@ -40,7 +40,6 @@ export default function StudentExam() {
   const [currentSection, setCurrentSection] = useState<Section>('listening');
   const [timeLeft, setTimeLeft] = useState(0);
   const [email, setEmail] = useState("");
-  const [zoom, setZoom] = useState(100);
   const [activePassageIdx, setActivePassageIdx] = useState(0);
   const [activeWritingTask, setActiveWritingTask] = useState(0);
   const [currentPart, setCurrentPart] = useState(1);
@@ -58,6 +57,12 @@ export default function StudentExam() {
 
   // Audio progress
   const [audioProgress, setAudioProgress] = useState({ currentTime: 0, duration: 0, percent: 0 });
+
+  // Transfer time after listening
+  const [isTransferring, setIsTransferring] = useState(false);
+  const [transferTimeLeft, setTransferTimeLeft] = useState(120);
+  const transferTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const mainTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const startSession = useStartSession();
   const logViolation = useLogViolation();
@@ -153,22 +158,32 @@ export default function StudentExam() {
     setTimeLeft(minutes * 60);
   };
 
+  // Main timer effect
   useEffect(() => {
     if (!hasStarted || timeLeft <= 0) return;
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
+    mainTimerRef.current = setInterval(() => {
+      setTimeLeft((prev: number) => {
         if (prev <= 1) {
-          clearInterval(timer);
+          if (mainTimerRef.current) clearInterval(mainTimerRef.current);
           handleSectionAutoTransition();
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
-    return () => clearInterval(timer);
+    return () => {
+      if (mainTimerRef.current) clearInterval(mainTimerRef.current);
+    };
   }, [hasStarted, currentSection]);
 
   const handleSectionAutoTransition = () => {
+    // Clear any transfer timer
+    if (transferTimerRef.current) {
+      clearInterval(transferTimerRef.current);
+      transferTimerRef.current = null;
+    }
+    setIsTransferring(false);
+
     if (currentSection === 'listening') {
       setCurrentSection('reading');
       toast({ title: "Time's Up", description: "Moving to Reading section." });
@@ -201,7 +216,7 @@ export default function StudentExam() {
     return () => clearInterval(autoSave);
   }, [answers, hasStarted, sessionId]);
 
-  // Audio progress update
+  // Audio progress and ended event
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !hasStarted || currentSection !== 'listening') return;
@@ -214,14 +229,40 @@ export default function StudentExam() {
       });
     };
 
+    const handleEnded = () => {
+      setIsTransferring(true);
+      setTransferTimeLeft(120);
+    };
+
     audio.addEventListener('timeupdate', updateProgress);
     audio.addEventListener('loadedmetadata', updateProgress);
+    audio.addEventListener('ended', handleEnded);
 
     return () => {
       audio.removeEventListener('timeupdate', updateProgress);
       audio.removeEventListener('loadedmetadata', updateProgress);
+      audio.removeEventListener('ended', handleEnded);
     };
   }, [hasStarted, currentSection]);
+
+  // Transfer countdown
+  useEffect(() => {
+    if (!isTransferring) return;
+    transferTimerRef.current = setInterval(() => {
+      setTransferTimeLeft((prev) => {
+        if (prev <= 1) {
+          if (transferTimerRef.current) clearInterval(transferTimerRef.current);
+          setIsTransferring(false);
+          handleSectionAutoTransition(); // move to reading after transfer time ends
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => {
+      if (transferTimerRef.current) clearInterval(transferTimerRef.current);
+    };
+  }, [isTransferring]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -229,11 +270,25 @@ export default function StudentExam() {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
+  // Go to next section early (Next Section button)
+  const goToNextSection = () => {
+    if (transferTimerRef.current) {
+      clearInterval(transferTimerRef.current);
+      transferTimerRef.current = null;
+    }
+    if (mainTimerRef.current) {
+      clearInterval(mainTimerRef.current);
+      mainTimerRef.current = null;
+    }
+    setIsTransferring(false);
+    handleSectionAutoTransition();
+  };
+
   // Update bottom navigation indicators (answered/active/flag)
   useEffect(() => {
     const updateNavIndicators = () => {
       for (let q = 1; q <= totalQuestions; q++) {
-        const btn = document.querySelector(`.subQuestion[onclick*="goToQuestion(${q})"]`);
+        const btn = document.querySelector(`.subQuestion[data-q="${q}"]`);
         if (!btn) continue;
 
         const qId = `q-${q}`;
@@ -246,14 +301,8 @@ export default function StudentExam() {
         // answered class
         if (isAnswered) {
           btn.classList.add('answered');
-          btn.style.setProperty('background-color', '#28a745', 'important');
-          btn.style.setProperty('color', 'white', 'important');
-          btn.style.setProperty('border-color', '#1e7e34', 'important');
         } else {
           btn.classList.remove('answered');
-          btn.style.backgroundColor = '';
-          btn.style.color = '';
-          btn.style.borderColor = '';
         }
 
         // flag dot
@@ -270,7 +319,7 @@ export default function StudentExam() {
             dot.style.borderRadius = '50%';
             dot.style.backgroundColor = '#f97316';
             dot.style.border = '2px solid white';
-            btn.style.position = 'relative';
+            (btn as HTMLElement).style.position = 'relative';
             btn.appendChild(dot);
           }
         } else {
@@ -282,20 +331,93 @@ export default function StudentExam() {
     updateNavIndicators();
   }, [answers, totalQuestions, examContent, reviewFlags]);
 
+  // Score calculation
+  const calculateBand = (score: number): number => {
+    if (score >= 39) return 9.0;
+    if (score >= 37) return 8.5;
+    if (score >= 35) return 8.0;
+    if (score >= 32) return 7.5;
+    if (score >= 30) return 7.0;
+    if (score >= 26) return 6.5;
+    if (score >= 23) return 6.0;
+    if (score >= 18) return 5.5;
+    if (score >= 16) return 5.0;
+    if (score >= 13) return 4.5;
+    if (score >= 10) return 4.0;
+    if (score >= 8) return 3.5;
+    if (score >= 6) return 3.0;
+    if (score >= 4) return 2.5;
+    if (score >= 2) return 2.0;
+    if (score === 1) return 1.5;
+    return 0;
+  };
+
+  const calculateScores = () => {
+    if (!examContent) return null;
+
+    const listeningParts = examContent?.sections?.listening?.parts || [];
+    const listeningQuestions = listeningParts.flatMap((p: any) => p.questions || []);
+    const readingPassages = examContent?.sections?.reading?.passages || [];
+    const readingQuestions = readingPassages.flatMap((p: any) => p.questions || []);
+
+    let listeningCorrect = 0;
+    let readingCorrect = 0;
+
+    listeningQuestions.forEach((q: any, idx: number) => {
+      const qId = `q-${idx + 1}`; // listening questions are 1..N
+      const userAnswer = answers.listening?.[qId];
+      const correct = q.correctAnswer;
+      if (userAnswer && correct) {
+        const normUser = userAnswer.toString().trim().toLowerCase();
+        const normCorrect = correct.toString().trim().toLowerCase();
+        if (normUser === normCorrect) listeningCorrect++;
+      }
+    });
+
+    const listeningCount = listeningQuestions.length;
+    readingQuestions.forEach((q: any, idx: number) => {
+      const qId = `q-${listeningCount + idx + 1}`;
+      const userAnswer = answers.reading?.[qId];
+      const correct = q.correctAnswer;
+      if (userAnswer && correct) {
+        const normUser = userAnswer.toString().trim().toLowerCase();
+        const normCorrect = correct.toString().trim().toLowerCase();
+        if (normUser === normCorrect) readingCorrect++;
+      }
+    });
+
+    const totalCorrect = listeningCorrect + readingCorrect;
+    const overallBand = calculateBand(totalCorrect);
+
+    return {
+      listening: { correct: listeningCorrect, total: listeningQuestions.length },
+      reading: { correct: readingCorrect, total: readingQuestions.length },
+      overallBand
+    };
+  };
+
   const handleFinalSubmit = async (autoSubmit: boolean = false) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
       if (autoSubmit) toast({ title: "Vaqt tugadi", description: "Javoblar avtomatik yuborilmoqda..." });
-      await apiRequest("POST", `/api/sessions/${sessionId}/submit`, { answers, isFinal: true });
+
+      const scores = calculateScores();
+
+      await apiRequest("POST", `/api/sessions/${sessionId}/submit`, {
+        answers,
+        scores,
+        isFinal: true
+      });
+
       if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
       localStorage.removeItem(STORAGE_KEY);
       if (stream) stream.getTracks().forEach(track => track.stop());
-      toast({ 
-        title: "Imtihon yakunlandi", 
-        description: "Javoblar saqlandi. Natijalar email orqali yuboriladi. Bosh sahifaga yo'naltirilmoqda...", 
-        className: "bg-green-600 text-white", 
-        duration: 5000 
+      toast({
+        title: "Imtihon yakunlandi",
+        description: "Javoblar saqlandi. Natijalar email orqali yuboriladi. Bosh sahifaga yo'naltirilmoqda...",
+        className: "bg-green-600 text-white",
+        duration: 5000
       });
       setTimeout(() => { setHasStarted(false); setLocation("/"); }, 5000);
     } catch (err) {
@@ -356,152 +478,316 @@ export default function StudentExam() {
 
   const updateActiveQuestionInNav = (qNum: number) => {
     document.querySelectorAll('.subQuestion').forEach(btn => btn.classList.remove('active'));
-    const activeBtn = document.querySelector(`.subQuestion[onclick*="goToQuestion(${qNum})"]`);
+    const activeBtn = document.querySelector(`.subQuestion[data-q="${qNum}"]`);
     if (activeBtn) activeBtn.classList.add('active');
   };
 
-  // ========== UNIVERSAL QUESTION RENDERER ==========
-  const renderQuestionInput = (q: any, qId: string, currentAnswer: any, setAnswer: (val: any) => void) => {
-    const type = q.type;
-    const answer = currentAnswer || (Array.isArray(q.answer) ? [] : "");
+  // Reading question renderer (to‘liq)
+  const renderReadingQuestions = (passage: any, passageIdx: number, listeningCount: number) => {
+    const questionsBefore = examContent.sections.reading.passages.slice(0, passageIdx).reduce((acc: number, curr: any) => acc + (curr.questions?.length || 0), 0);
+    const baseQNum = listeningCount + questionsBefore;
 
-    if (type === "tfng") {
-      return (
-        <div className="flex flex-wrap gap-4">
-          {TFNG_OPTIONS.map((opt) => (
-            <label key={opt} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                className="w-4 h-4 border-slate-300 text-blue-600 focus:ring-blue-500"
-                name={qId}
-                value={opt}
-                checked={answer === opt}
-                onChange={() => setAnswer(opt)}
-              />
-              <span className="text-sm font-medium text-slate-700">{opt}</span>
-            </label>
-          ))}
-        </div>
-      );
-    }
+    return passage.questions.map((q: any, i: number) => {
+      const qGlobalIdx = baseQNum + i + 1;
+      const qId = `q-${qGlobalIdx}`;
 
-    if (type === "ynng") {
-      return (
-        <div className="flex flex-wrap gap-4">
-          {YNNG_OPTIONS.map((opt) => (
-            <label key={opt} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                className="w-4 h-4 border-slate-300 text-blue-600 focus:ring-blue-500"
-                name={qId}
-                value={opt}
-                checked={answer === opt}
-                onChange={() => setAnswer(opt)}
-              />
-              <span className="text-sm font-medium text-slate-700">{opt}</span>
-            </label>
-          ))}
-        </div>
-      );
-    }
-
-    if (type === "multiple") {
-      if (Array.isArray(q.answer)) {
-        const options = q.options || ["A", "B", "C", "D", "E"];
+      if (q.type === 'paragraph_matching') {
         return (
-          <div className="space-y-2">
-            {options.map((opt: string) => (
-              <label key={opt} className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                  checked={(answer as string[])?.includes(opt) || false}
-                  onChange={(e) => {
-                    const newVal = e.target.checked
-                      ? [...(answer as string[] || []), opt]
-                      : (answer as string[] || []).filter((v: string) => v !== opt);
-                    setAnswer(newVal);
-                  }}
-                />
-                <span className="text-sm font-medium text-slate-700">{opt}</span>
-              </label>
-            ))}
-          </div>
-        );
-      } else {
-        const options = q.options || ["A", "B", "C", "D"];
-        return (
-          <div className="space-y-2">
-            {options.map((opt: string) => (
-              <label key={opt} className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  className="w-4 h-4 border-slate-300 text-blue-600 focus:ring-blue-500"
-                  name={qId}
-                  value={opt}
-                  checked={answer === opt}
-                  onChange={() => setAnswer(opt)}
-                />
-                <span className="text-sm font-medium text-slate-700">{opt}</span>
-              </label>
-            ))}
+          <div key={qId} id={`q-container-${qGlobalIdx}`} className="tf-question" data-q-start={qGlobalIdx}>
+            <div className="tf-question-line">
+              <span className="tf-question-number">{qGlobalIdx}</span>
+              <span className="tf-question-text">{q.text}</span>
+            </div>
+            <div className="tf-options">
+              <select
+                className="answer-select"
+                value={answers.reading?.[qId] || ''}
+                onChange={(e) => setAnswers({...answers, reading: {...answers.reading, [qId]: e.target.value}})}
+              >
+                <option value="">Select</option>
+                {q.options?.map((opt: string) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
           </div>
         );
       }
-    }
 
-    if (type === "matching") {
-      const options = q.options || ["A", "B", "C", "D", "E", "F", "G", "H"];
-      return (
-        <select
-          className="w-40 h-10 px-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-          value={answer || ""}
-          onChange={(e) => setAnswer(e.target.value)}
-        >
-          <option value="" disabled>Select...</option>
-          {options.map((opt: string) => (
-            <option key={opt} value={opt}>{opt}</option>
-          ))}
-        </select>
-      );
-    }
+      if (q.type === 'flow_chart') {
+        return (
+          <div key={qId} className="question" data-q-start={qGlobalIdx}>
+            <div className="question-prompt">
+              <p><strong>Questions {qGlobalIdx}–{qGlobalIdx + 4}</strong></p>
+              <p>Complete the flow-chart below. Write <strong>NO MORE THAN TWO WORDS</strong> from the text for each answer.</p>
+            </div>
+            <div className="summary-text" style={{ border: '1px solid #000', padding: '10px', textAlign: 'center' }}>
+              <p>
+                Synthetic gene grown in
+                <input
+                  type="text"
+                  className="answer-input"
+                  value={answers.reading?.[`q-${qGlobalIdx}`] || ''}
+                  onChange={(e) => setAnswers({...answers, reading: {...answers.reading, [`q-${qGlobalIdx}`]: e.target.value}})}
+                  placeholder={String(qGlobalIdx)}
+                />
+                or
+                <input
+                  type="text"
+                  className="answer-input"
+                  value={answers.reading?.[`q-${qGlobalIdx+1}`] || ''}
+                  onChange={(e) => setAnswers({...answers, reading: {...answers.reading, [`q-${qGlobalIdx+1}`]: e.target.value}})}
+                  placeholder={String(qGlobalIdx+1)}
+                />
+              </p>
+              <p>↓</p>
+              <p>
+                globules of
+                <input
+                  type="text"
+                  className="answer-input"
+                  value={answers.reading?.[`q-${qGlobalIdx+2}`] || ''}
+                  onChange={(e) => setAnswers({...answers, reading: {...answers.reading, [`q-${qGlobalIdx+2}`]: e.target.value}})}
+                  placeholder={String(qGlobalIdx+2)}
+                />
+              </p>
+              <p>↓</p>
+              <p>
+                dissolved in
+                <input
+                  type="text"
+                  className="answer-input"
+                  value={answers.reading?.[`q-${qGlobalIdx+3}`] || ''}
+                  onChange={(e) => setAnswers({...answers, reading: {...answers.reading, [`q-${qGlobalIdx+3}`]: e.target.value}})}
+                  placeholder={String(qGlobalIdx+3)}
+                />
+              </p>
+              <p>↓</p>
+              <p>
+                passed through
+                <input
+                  type="text"
+                  className="answer-input"
+                  value={answers.reading?.[`q-${qGlobalIdx+4}`] || ''}
+                  onChange={(e) => setAnswers({...answers, reading: {...answers.reading, [`q-${qGlobalIdx+4}`]: e.target.value}})}
+                  placeholder={String(qGlobalIdx+4)}
+                />
+              </p>
+              <p>↓</p>
+              <p>to produce a solid fibre</p>
+            </div>
+          </div>
+        );
+      }
 
-    if (type === "diagram_labeling") {
+      if (q.type === 'tfng') {
+        return (
+          <div key={qId} id={`q-container-${qGlobalIdx}`} className="tf-question" data-q-start={qGlobalIdx}>
+            <div className="tf-question-line">
+              <span className="tf-question-number">{qGlobalIdx}</span>
+              <span className="tf-question-text">{q.text}</span>
+            </div>
+            <div className="tf-options">
+              {TFNG_OPTIONS.map(opt => (
+                <label key={opt} className="tf-option">
+                  <input
+                    type="radio"
+                    name={qId}
+                    value={opt}
+                    checked={answers.reading?.[qId] === opt}
+                    onChange={() => setAnswers({...answers, reading: {...answers.reading, [qId]: opt}})}
+                  />
+                  <span>{opt}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        );
+      }
+
+      if (q.type === 'ynng') {
+        return (
+          <div key={qId} id={`q-container-${qGlobalIdx}`} className="tf-question" data-q-start={qGlobalIdx}>
+            <div className="tf-question-line">
+              <span className="tf-question-number">{qGlobalIdx}</span>
+              <span className="tf-question-text">{q.text}</span>
+            </div>
+            <div className="tf-options">
+              {YNNG_OPTIONS.map(opt => (
+                <label key={opt} className="tf-option">
+                  <input
+                    type="radio"
+                    name={qId}
+                    value={opt}
+                    checked={answers.reading?.[qId] === opt}
+                    onChange={() => setAnswers({...answers, reading: {...answers.reading, [qId]: opt}})}
+                  />
+                  <span>{opt}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        );
+      }
+
+      if (q.type === 'matching_table') {
+        const statements = q.statements || [
+          'Byron Reeves and Esther Thorson',
+          'Dafna Lemish',
+          'Robert D. McIlwraith',
+          'Tannis M. MacBeth Williams',
+          'Charles Winick'
+        ];
+        const options = q.options || ['A','B','C','D','E','F','G','H'];
+        return (
+          <div key={qId} className="question" data-q-start={qGlobalIdx}>
+            <div className="question-prompt">
+              <p><strong>Questions {qGlobalIdx}–{qGlobalIdx + 4}</strong></p>
+              <p>Match each researcher with the correct statements.</p>
+            </div>
+            <div className="table-container">
+              <table className="matching-table">
+                <thead>
+                  <tr>
+                    <th></th>
+                    {options.map((opt: string) => <th key={opt}>{opt}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {statements.map((stmt: string, idx: number) => {
+                    const qNum = qGlobalIdx + idx;
+                    return (
+                      <tr key={idx}>
+                        <td className="statement"><strong>{qNum}</strong> {stmt}</td>
+                        {options.map((opt: string) => {
+                          const isSelected = answers.reading?.[`q-${qNum}`] === opt;
+                          return (
+                            <td
+                              key={opt}
+                              className={`clickable-cell ${isSelected ? 'selected' : ''}`}
+                              data-question={`q-${qNum}`}
+                              data-value={opt}
+                              onClick={() => setAnswers({...answers, reading: {...answers.reading, [`q-${qNum}`]: opt}})}
+                            ></td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      }
+
+      if (q.type === 'mcq') {
+        return (
+          <div key={qId} id={`q-container-${qGlobalIdx}`} className="multi-choice-question" data-q-start={qGlobalIdx}>
+            <div className="question-prompt">
+              <p><strong>{qGlobalIdx}.</strong> {q.text}</p>
+            </div>
+            <div className="space-y-2">
+              {q.options?.map((opt: string) => (
+                <div key={opt} className="multi-choice-option">
+                  <label>
+                    <input
+                      type="radio"
+                      name={qId}
+                      value={opt.charAt(0)}
+                      checked={answers.reading?.[qId] === opt.charAt(0)}
+                      onChange={() => setAnswers({...answers, reading: {...answers.reading, [qId]: opt.charAt(0)}})}
+                    />
+                    <span>{opt}</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+
+      if (q.type === 'matching_paragraph') {
+        const statements = q.statements || [
+          'Appointments with an alternative practitioner',
+          'An alternative practitioner\'s description of the treatment',
+          'An alternative practitioner who has faith in what he does',
+          'the illness of patients convinced of alternative practice',
+          'Improvements of patients receiving alternative practice',
+          'Conventional medical doctors (who is aware of placebo)'
+        ];
+        const options = q.options || ['A','B','C','D','E','F','G','H'];
+        return (
+          <div key={qId} className="question" data-q-start={qGlobalIdx}>
+            <div className="question-prompt">
+              <p><strong>Questions {qGlobalIdx}–{qGlobalIdx + 5}</strong></p>
+              <p>Match each description with the correct letter.</p>
+            </div>
+            <div className="table-container">
+              <table className="matching-table">
+                <thead>
+                  <tr>
+                    <th></th>
+                    {options.map((opt: string) => <th key={opt}>{opt}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {statements.map((stmt: string, idx: number) => {
+                    const qNum = qGlobalIdx + idx;
+                    return (
+                      <tr key={idx}>
+                        <td className="statement"><strong>{qNum}</strong> {stmt}</td>
+                        {options.map((opt: string) => {
+                          const isSelected = answers.reading?.[`q-${qNum}`] === opt;
+                          return (
+                            <td
+                              key={opt}
+                              className={`clickable-cell ${isSelected ? 'selected' : ''}`}
+                              data-question={`q-${qNum}`}
+                              data-value={opt}
+                              onClick={() => setAnswers({...answers, reading: {...answers.reading, [`q-${qNum}`]: opt}})}
+                            ></td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      }
+
+      // Default fallback
       return (
-        <div className="space-y-2">
-          <p className="text-xs text-amber-600">Diagram labeling (coming soon)</p>
-          <Input
-            className="h-12 text-lg border-2 focus:border-blue-500 bg-slate-50/50"
-            placeholder="Label..."
-            value={answer as string}
-            onChange={(e) => setAnswer(e.target.value)}
-          />
+        <div key={qId} id={`q-container-${qGlobalIdx}`} className="p-6 bg-white rounded-2xl border-2 border-slate-100 shadow-sm">
+          <div className="flex gap-4">
+            <span className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm">{qGlobalIdx}</span>
+            <div className="flex-1 space-y-4">
+              <div className="font-bold text-slate-700">{q.text}</div>
+              <Input
+                className="h-12 text-lg border-2 focus:border-blue-500"
+                placeholder="Javob..."
+                value={answers.reading?.[qId] || ''}
+                onChange={(e) => setAnswers({...answers, reading: {...answers.reading, [qId]: e.target.value}})}
+              />
+            </div>
+            <button onClick={() => setReviewFlags({...reviewFlags, [qId]: !reviewFlags[qId]})}>
+              <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
+            </button>
+          </div>
         </div>
       );
-    }
+    });
+  };
 
-    if (type === "table_completion") {
-      return (
-        <div className="space-y-2">
-          <p className="text-xs text-amber-600">Table completion (coming soon)</p>
-          <Input
-            className="h-12 text-lg border-2 focus:border-blue-500 bg-slate-50/50"
-            placeholder="Answer..."
-            value={answer as string}
-            onChange={(e) => setAnswer(e.target.value)}
-          />
-        </div>
-      );
+  const handleFinishClick = () => {
+    if (currentSection !== 'writing') {
+      toast({ title: "Cannot finish yet", description: "You must complete all sections before finishing the test.", variant: "destructive" });
+      return;
     }
-
-    return (
-      <Input
-        className="h-12 text-lg border-2 focus:border-blue-500 bg-slate-50/50"
-        placeholder="Javobingiz..."
-        value={answer as string}
-        onChange={(e) => setAnswer(e.target.value)}
-      />
-    );
+    handleFinalSubmit();
   };
 
   if (!hasStarted) {
@@ -559,17 +845,31 @@ export default function StudentExam() {
 
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden select-none font-sans" translate="no">
-      {/* HEADER - faqat timer */}
+      {/* HEADER - timer va Next Section tugmasi */}
       <header className="header">
         <div className="timer-container">
           <span className="timer-display">
             {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
           </span>
+          {isTransferring && (
+            <span className="ml-4 text-amber-600 font-bold">
+              Transfer: {Math.floor(transferTimeLeft / 60)}:{String(transferTimeLeft % 60).padStart(2, '0')}
+            </span>
+          )}
         </div>
-        <div className="header-icons"></div>
+        <div className="header-icons flex items-center gap-4">
+          {(isTransferring || currentSection === 'reading') && currentSection !== 'writing' && (
+            <button
+              className="next-section-btn bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold transition"
+              onClick={goToNextSection}
+            >
+              Next Section →
+            </button>
+          )}
+        </div>
       </header>
 
-      {/* AUDIO PLAYER – yagona, student to‘xtata olmaydi */}
+      {/* AUDIO PLAYER – yagona */}
       {currentSection === 'listening' && (
         <div className="audio-player-container">
           <audio
@@ -593,9 +893,9 @@ export default function StudentExam() {
       )}
 
       {/* MAIN CONTAINER */}
-      <main className="main-container">
+      <main className="main-container" style={{ marginTop: currentSection === 'listening' ? '115px' : '60px' }}>
         {/* LEFT PANEL */}
-        <div className="left-panel">
+        <div className="left-panel" style={{ height: 'calc(100vh - 60px - 80px)', overflowY: 'auto' }}>
           {currentSection === 'listening' ? (
             <ListeningComponent
               content={examContent?.sections?.listening}
@@ -617,9 +917,9 @@ export default function StudentExam() {
                       <div className="flex gap-1">
                         {examContent?.sections?.reading?.passages?.map((_: any, idx: number) => (
                           <button
-                              key={`passage-btn-${idx}`}
-                              onClick={() => setActivePassageIdx(idx)}
-                              className={`px-6 h-12 text-xs font-black transition-all border-b-2 ${activePassageIdx === idx ? 'bg-white border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                            key={`passage-btn-${idx}`}
+                            onClick={() => setActivePassageIdx(idx)}
+                            className={`px-6 h-12 text-xs font-black transition-all border-b-2 ${activePassageIdx === idx ? 'bg-white border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                           >
                             PASSAGE {idx + 1}
                           </button>
@@ -628,12 +928,12 @@ export default function StudentExam() {
                     ) : (
                       <div className="flex gap-1">
                         {examContent?.sections?.writing?.tasks?.map((_: any, idx: number) => (
-                            <button
-                              key={`task-btn-${idx}`}
-                              onClick={() => setActiveWritingTask(idx)}
-                              className={`px-6 h-12 text-xs font-black transition-all border-b-2 ${activeWritingTask === idx ? 'bg-white border-blue-600 text-blue-600' : 'border-transparent text-slate-400'}`}
+                          <button
+                            key={`task-btn-${idx}`}
+                            onClick={() => setActiveWritingTask(idx)}
+                            className={`px-6 h-12 text-xs font-black transition-all border-b-2 ${activeWritingTask === idx ? 'bg-white border-blue-600 text-blue-600' : 'border-transparent text-slate-400'}`}
                           >
-                              TASK {idx + 1}
+                            TASK {idx + 1}
                           </button>
                         ))}
                       </div>
@@ -643,12 +943,13 @@ export default function StudentExam() {
                   <ScrollArea className="flex-1 h-full">
                     <div
                       className="p-12 max-w-3xl mx-auto select-text selection:bg-yellow-300 selection:text-black"
-                      style={{ fontSize: `${zoom}%` }}
                       onMouseUp={handleTextHighlight}
                     >
                       {currentSection === 'reading' ? (
                         <article>
-                          <h2 className="text-3xl font-black mb-8 text-slate-900 leading-tight">{examContent?.sections?.reading?.passages?.[activePassageIdx]?.title}</h2>
+                          <h2 className="text-3xl font-black mb-8 text-slate-900 leading-tight">
+                            {examContent?.sections?.reading?.passages?.[activePassageIdx]?.title}
+                          </h2>
                           {examContent?.sections?.reading?.passages?.[activePassageIdx]?.image && (
                             <img
                               src={getImageUrl(examContent.sections.reading.passages[activePassageIdx].image)}
@@ -664,24 +965,36 @@ export default function StudentExam() {
                       ) : (
                         // WRITING CONTENT
                         <div className="space-y-8">
-                            <div className="bg-blue-50 p-8 rounded-2xl border-2 border-blue-100 relative">
-                              <Badge className="absolute -top-3 left-6 bg-blue-600 border-none">Writing Task {activeWritingTask + 1}</Badge>
-                              {examContent?.sections?.writing?.tasks?.[activeWritingTask]?.image && (
+                          {activeWritingTask === 0 ? (
+                            <div className="space-y-6">
+                              <div className="task-prompt">
+                                <p><strong>The provided chart illustrates the percentage of age of visitors from the UK to Spain in 1983 and in 2003.</strong></p>
+                                <p><strong>Summarize the information by selecting and reporting the main points and make comparisons where relevant.</strong></p>
+                              </div>
+                              <div className="chart-container">
                                 <img
-                                  src={getImageUrl(examContent.sections.writing.tasks[activeWritingTask].image)}
-                                  alt="Task diagram"
-                                  className="w-full mb-6 rounded-lg border shadow-sm bg-white p-2"
-                                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                  src="https://engnovatewebsitestorage.blob.core.windows.net/ielts-writing-task-1-images/a4139b6692197c1b"
+                                  alt="Bar chart"
+                                  className="max-w-full h-auto border border-gray-300 mx-auto"
                                 />
-                              )}
-                              <p className="text-xl font-medium text-slate-800 italic leading-relaxed whitespace-pre-line">
-                                {examContent?.sections?.writing?.tasks?.[activeWritingTask]?.title || "Writing task prompt"}
-                              </p>
+                              </div>
                             </div>
-                            <div className="flex items-start gap-2 text-slate-500 text-sm">
-                              <AlertTriangle size={16} />
-                              <p>Eslatma: Javoblaringizni o'ng tomondagi maydonga yozing.</p>
+                          ) : (
+                            <div className="space-y-6">
+                              <div className="instructions">
+                                <p><strong>Write about the following topic:</strong></p>
+                                <div className="task-prompt">
+                                  <p><em><strong>In some countries, students pay their college or university fees, while in others, the government pays them.</strong></em></p>
+                                  <p><em><strong>Do you think the advantages outweigh the disadvantages?</strong></em></p>
+                                </div>
+                                <p>Give reasons for your answer and include any relevant examples from your own knowledge or experience.</p>
+                              </div>
                             </div>
+                          )}
+                          <div className="flex items-start gap-2 text-slate-500 text-sm">
+                            <AlertTriangle size={16} />
+                            <p>Eslatma: Javoblaringizni o'ng tomondagi maydonga yozing.</p>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -698,38 +1011,11 @@ export default function StudentExam() {
                     {currentSection === 'reading' ? (
                       <div className="space-y-6">
                         {examContent?.sections?.reading?.passages?.[activePassageIdx]?.questions?.length > 0 ? (
-                          examContent.sections.reading.passages[activePassageIdx].questions.map((q: any, i: number) => {
-                            const questionsBefore = examContent.sections.reading.passages.slice(0, activePassageIdx).reduce((acc: number, curr: any) => acc + (curr.questions?.length || 0), 0);
-                            const listeningQuestionsCount = examContent?.sections?.listening?.parts?.reduce((acc: number, part: any) => acc + (part.questions?.length || 0), 0) || 0;
-                            const qGlobalIdx = listeningQuestionsCount + questionsBefore + i + 1;
-                            const qId = `q-${qGlobalIdx}`;
-
-                            return (
-                              <div key={qId} id={`q-container-${qGlobalIdx}`} className="p-6 bg-white rounded-2xl border-2 border-slate-100 shadow-sm hover:border-blue-200 group transition-all">
-                                <div className="flex gap-4">
-                                  <span className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm shrink-0">{qGlobalIdx}</span>
-                                  <div className="flex-1 space-y-4">
-                                    <div className="font-bold text-slate-700" dangerouslySetInnerHTML={{ __html: q?.text || "Savol matni yo'q" }}></div>
-                                    {q.instruction && (
-                                      <p className="text-xs font-semibold text-blue-600 italic">{q.instruction}</p>
-                                    )}
-                                    {renderQuestionInput(
-                                      q,
-                                      qId,
-                                      answers.reading?.[qId],
-                                      (val) => setAnswers({...answers, reading: {...answers.reading, [qId]: val}})
-                                    )}
-                                  </div>
-                                  <button
-                                    onClick={() => setReviewFlags({...reviewFlags, [qId]: !reviewFlags[qId]})}
-                                    title="Flag for review"
-                                  >
-                                    <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200 group-hover:text-slate-400"} />
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })
+                          renderReadingQuestions(
+                            examContent.sections.reading.passages[activePassageIdx],
+                            activePassageIdx,
+                            examContent?.sections?.listening?.parts?.reduce((acc: number, part: any) => acc + (part.questions?.length || 0), 0) || 0
+                          )
                         ) : (
                           <div className="text-center text-slate-400 py-10">Ushbu matn uchun savollar yuklanmadi.</div>
                         )}
@@ -737,19 +1023,19 @@ export default function StudentExam() {
                     ) : (
                       // WRITING INPUT
                       <div className="h-full flex flex-col space-y-4">
-                          <div className="flex justify-between items-center mb-2 sticky top-0 bg-[#f8fafc] py-2 z-10">
-                            <h3 className="font-bold text-slate-700">Writing Response Area</h3>
-                            <Badge className={`${getWordCount < (activeWritingTask === 0 ? 150 : 250) ? 'bg-orange-500' : 'bg-green-600'} px-4 py-1 font-mono text-sm border-none transition-colors`}>
-                              WORDS: {getWordCount}
-                            </Badge>
-                          </div>
-                          <Textarea
-                              className="min-h-[500px] p-8 text-xl leading-[1.8] font-serif border-2 border-slate-200 rounded-2xl focus:border-blue-600 shadow-inner bg-white resize-y"
-                              placeholder="Type your response here..."
-                              value={activeWritingTask === 0 ? answers.writingTask1 : answers.writingTask2}
-                              spellCheck={false}
-                              onChange={(e) => setAnswers({...answers, [activeWritingTask === 0 ? 'writingTask1' : 'writingTask2']: e.target.value})}
-                          />
+                        <div className="flex justify-between items-center mb-2 sticky top-0 bg-[#f8fafc] py-2 z-10">
+                          <h3 className="font-bold text-slate-700">Writing Response Area</h3>
+                          <Badge className={`${getWordCount < (activeWritingTask === 0 ? 150 : 250) ? 'bg-orange-500' : 'bg-green-600'} px-4 py-1 font-mono text-sm border-none transition-colors`}>
+                            WORDS: {getWordCount}
+                          </Badge>
+                        </div>
+                        <Textarea
+                          className="min-h-[500px] p-8 text-xl leading-[1.8] font-serif border-2 border-slate-200 rounded-2xl focus:border-blue-600 shadow-inner bg-white resize-y"
+                          placeholder="Start writing your response here..."
+                          value={activeWritingTask === 0 ? answers.writingTask1 : answers.writingTask2}
+                          spellCheck={false}
+                          onChange={(e) => setAnswers({...answers, [activeWritingTask === 0 ? 'writingTask1' : 'writingTask2']: e.target.value})}
+                        />
                       </div>
                     )}
                   </div>
@@ -773,7 +1059,12 @@ export default function StudentExam() {
           </button>
           <div className="footer__subquestionWrapper___9GgoP">
             {[1,2,3,4,5,6,7,8,9,10].map(q => (
-              <button key={q} className={`subQuestion scorable-item ${currentQuestion === q ? 'active' : ''}`} onClick={() => goToQuestion(q)}>
+              <button 
+                key={q} 
+                data-q={q}
+                className={`subQuestion scorable-item ${currentQuestion === q ? 'active' : ''}`} 
+                onClick={() => goToQuestion(q)}
+              >
                 <span className="sr-only">Question {q}</span>
                 <span aria-hidden="true">{q}</span>
               </button>
@@ -792,7 +1083,12 @@ export default function StudentExam() {
           </button>
           <div className="footer__subquestionWrapper___9GgoP">
             {[11,12,13,14,15,16,17,18,19,20].map(q => (
-              <button key={q} className={`subQuestion scorable-item ${currentQuestion === q ? 'active' : ''}`} onClick={() => goToQuestion(q)}>
+              <button 
+                key={q} 
+                data-q={q}
+                className={`subQuestion scorable-item ${currentQuestion === q ? 'active' : ''}`} 
+                onClick={() => goToQuestion(q)}
+              >
                 <span className="sr-only">Question {q}</span>
                 <span aria-hidden="true">{q}</span>
               </button>
@@ -811,7 +1107,12 @@ export default function StudentExam() {
           </button>
           <div className="footer__subquestionWrapper___9GgoP">
             {[21,22,23,24,25,26,27,28,29,30].map(q => (
-              <button key={q} className={`subQuestion scorable-item ${currentQuestion === q ? 'active' : ''}`} onClick={() => goToQuestion(q)}>
+              <button 
+                key={q} 
+                data-q={q}
+                className={`subQuestion scorable-item ${currentQuestion === q ? 'active' : ''}`} 
+                onClick={() => goToQuestion(q)}
+              >
                 <span className="sr-only">Question {q}</span>
                 <span aria-hidden="true">{q}</span>
               </button>
@@ -830,13 +1131,29 @@ export default function StudentExam() {
           </button>
           <div className="footer__subquestionWrapper___9GgoP">
             {[31,32,33,34,35,36,37,38,39,40].map(q => (
-              <button key={q} className={`subQuestion scorable-item ${currentQuestion === q ? 'active' : ''}`} onClick={() => goToQuestion(q)}>
+              <button 
+                key={q} 
+                data-q={q}
+                className={`subQuestion scorable-item ${currentQuestion === q ? 'active' : ''}`} 
+                onClick={() => goToQuestion(q)}
+              >
                 <span className="sr-only">Question {q}</span>
                 <span aria-hidden="true">{q}</span>
               </button>
             ))}
           </div>
         </div>
+
+        {/* Finish Test tugmasi – faqat Writingda ishlaydi */}
+        <button
+          id="deliver-button"
+          aria-label="Finish Test"
+          className="footer__deliverButton___3FM07"
+          onClick={handleFinishClick}
+        >
+          <i className="fa fa-check" aria-hidden="true"></i>
+          <span>Finish Test</span>
+        </button>
       </nav>
     </div>
   );
