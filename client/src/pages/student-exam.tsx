@@ -5,14 +5,8 @@ import { useStartSession, useLogViolation } from "@/hooks/use-sessions";
 import { Button, Textarea, Badge, Input } from "@/components/ui-kit";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import {
-  Clock,
   ShieldCheck,
-  Headphones,
-  BookOpen,
-  PenTool,
   Flag,
-  Minus,
-  Plus,
   Loader2,
   AlertTriangle
 } from "lucide-react";
@@ -25,7 +19,6 @@ type Section = 'listening' | 'reading' | 'writing';
 
 const STORAGE_KEY = "ielts_exam_backup_v1";
 
-// True/False/Not Given va Yes/No/Not Given uchun variantlar
 const TFNG_OPTIONS = ["TRUE", "FALSE", "NOT GIVEN"];
 const YNNG_OPTIONS = ["YES", "NO", "NOT GIVEN"];
 
@@ -41,6 +34,7 @@ export default function StudentExam() {
   const [isLoadingContent, setIsLoadingContent] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
 
   const [currentSection, setCurrentSection] = useState<Section>('listening');
@@ -49,6 +43,8 @@ export default function StudentExam() {
   const [zoom, setZoom] = useState(100);
   const [activePassageIdx, setActivePassageIdx] = useState(0);
   const [activeWritingTask, setActiveWritingTask] = useState(0);
+  const [currentPart, setCurrentPart] = useState(1);
+  const [currentQuestion, setCurrentQuestion] = useState(1);
 
   const [answers, setAnswers] = useState<any>({
     listening: {},
@@ -60,8 +56,19 @@ export default function StudentExam() {
   const [reviewFlags, setReviewFlags] = useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Audio progress
+  const [audioProgress, setAudioProgress] = useState({ currentTime: 0, duration: 0, percent: 0 });
+
   const startSession = useStartSession();
   const logViolation = useLogViolation();
+
+  // Total questions (listening + reading)
+  const totalQuestions = useMemo(() => {
+    if (!examContent) return 40;
+    const listeningCount = examContent?.sections?.listening?.parts?.reduce((acc: number, part: any) => acc + (part.questions?.length || 0), 0) || 0;
+    const readingCount = examContent?.sections?.reading?.passages?.reduce((acc: number, passage: any) => acc + (passage.questions?.length || 0), 0) || 0;
+    return listeningCount + readingCount;
+  }, [examContent]);
 
   const getImageUrl = (path: string) => {
     if (!path) return "";
@@ -72,6 +79,13 @@ export default function StudentExam() {
     const element = document.getElementById(`q-container-${qNum}`);
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      setTimeout(() => {
+        const retryElement = document.getElementById(`q-container-${qNum}`);
+        if (retryElement) {
+          retryElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
     }
   };
 
@@ -187,6 +201,81 @@ export default function StudentExam() {
     return () => clearInterval(autoSave);
   }, [answers, hasStarted, sessionId]);
 
+  // Audio progress update
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !hasStarted || currentSection !== 'listening') return;
+
+    const updateProgress = () => {
+      setAudioProgress({
+        currentTime: audio.currentTime,
+        duration: audio.duration,
+        percent: (audio.currentTime / audio.duration) * 100 || 0,
+      });
+    };
+
+    audio.addEventListener('timeupdate', updateProgress);
+    audio.addEventListener('loadedmetadata', updateProgress);
+
+    return () => {
+      audio.removeEventListener('timeupdate', updateProgress);
+      audio.removeEventListener('loadedmetadata', updateProgress);
+    };
+  }, [hasStarted, currentSection]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  // Update bottom navigation indicators (answered/active/flag)
+  useEffect(() => {
+    const updateNavIndicators = () => {
+      for (let q = 1; q <= totalQuestions; q++) {
+        const btn = document.querySelector(`.subQuestion[onclick*="goToQuestion(${q})"]`);
+        if (!btn) continue;
+
+        const qId = `q-${q}`;
+        const listeningParts = examContent?.sections?.listening?.parts || [];
+        const listeningCount = listeningParts.reduce((acc: number, part: any) => acc + (part.questions?.length || 0), 0);
+        const isListening = q <= listeningCount;
+        const answer = isListening ? answers.listening?.[qId] : answers.reading?.[qId];
+        const isAnswered = answer !== undefined && answer !== null && answer !== '';
+
+        // answered class
+        if (isAnswered) {
+          btn.classList.add('answered');
+        } else {
+          btn.classList.remove('answered');
+        }
+
+        // flag dot
+        const flagDot = btn.querySelector('.flag-dot');
+        if (reviewFlags[qId]) {
+          if (!flagDot) {
+            const dot = document.createElement('span');
+            dot.className = 'flag-dot';
+            dot.style.position = 'absolute';
+            dot.style.top = '-2px';
+            dot.style.right = '-2px';
+            dot.style.width = '8px';
+            dot.style.height = '8px';
+            dot.style.borderRadius = '50%';
+            dot.style.backgroundColor = '#f97316';
+            dot.style.border = '2px solid white';
+            btn.style.position = 'relative';
+            btn.appendChild(dot);
+          }
+        } else {
+          if (flagDot) flagDot.remove();
+        }
+      }
+    };
+
+    updateNavIndicators();
+  }, [answers, totalQuestions, examContent, reviewFlags]);
+
   const handleFinalSubmit = async (autoSubmit: boolean = false) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
@@ -196,8 +285,13 @@ export default function StudentExam() {
       if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
       localStorage.removeItem(STORAGE_KEY);
       if (stream) stream.getTracks().forEach(track => track.stop());
-      toast({ title: "Imtihon yakunlandi", description: "Javoblar saqlandi. Bosh sahifaga yo'naltirilmoqda...", className: "bg-green-600 text-white", duration: 3000 });
-      setTimeout(() => { setHasStarted(false); setLocation("/"); }, 2000);
+      toast({ 
+        title: "Imtihon yakunlandi", 
+        description: "Javoblar saqlandi. Natijalar email orqali yuboriladi. Bosh sahifaga yo'naltirilmoqda...", 
+        className: "bg-green-600 text-white", 
+        duration: 5000 
+      });
+      setTimeout(() => { setHasStarted(false); setLocation("/"); }, 5000);
     } catch (err) {
       setIsSubmitting(false);
       toast({ title: "Xatolik", description: "Javoblarni saqlashda muammo bo'ldi.", variant: "destructive" });
@@ -235,19 +329,36 @@ export default function StudentExam() {
     return text.trim().split(/\s+/).filter((w: string) => w.length > 0).length;
   }, [answers.writingTask1, answers.writingTask2, activeWritingTask]);
 
-  const totalQuestions = useMemo(() => {
-    if (!examContent) return 40;
-    const listeningCount = examContent?.sections?.listening?.parts?.reduce((acc: number, part: any) => acc + (part.questions?.length || 0), 0) || 0;
-    const readingCount = examContent?.sections?.reading?.passages?.reduce((acc: number, passage: any) => acc + (passage.questions?.length || 0), 0) || 0;
-    return listeningCount + readingCount;
-  }, [examContent]);
+  const switchToPart = (part: number) => {
+    setCurrentPart(part);
+    const firstQuestion = (part - 1) * 10 + 1;
+    goToQuestion(firstQuestion);
+  };
+
+  const goToQuestion = (qNum: number) => {
+    setCurrentQuestion(qNum);
+    let targetPart = 1;
+    if (qNum > 10 && qNum <= 20) targetPart = 2;
+    else if (qNum > 20 && qNum <= 30) targetPart = 3;
+    else if (qNum > 30) targetPart = 4;
+    if (targetPart !== currentPart) {
+      setCurrentPart(targetPart);
+    }
+    scrollToQuestion(qNum);
+    updateActiveQuestionInNav(qNum);
+  };
+
+  const updateActiveQuestionInNav = (qNum: number) => {
+    document.querySelectorAll('.subQuestion').forEach(btn => btn.classList.remove('active'));
+    const activeBtn = document.querySelector(`.subQuestion[onclick*="goToQuestion(${qNum})"]`);
+    if (activeBtn) activeBtn.classList.add('active');
+  };
 
   // ========== UNIVERSAL QUESTION RENDERER ==========
   const renderQuestionInput = (q: any, qId: string, currentAnswer: any, setAnswer: (val: any) => void) => {
     const type = q.type;
     const answer = currentAnswer || (Array.isArray(q.answer) ? [] : "");
 
-    // --- TRUE / FALSE / NOT GIVEN ---
     if (type === "tfng") {
       return (
         <div className="flex flex-wrap gap-4">
@@ -268,7 +379,6 @@ export default function StudentExam() {
       );
     }
 
-    // --- YES / NO / NOT GIVEN ---
     if (type === "ynng") {
       return (
         <div className="flex flex-wrap gap-4">
@@ -289,7 +399,6 @@ export default function StudentExam() {
       );
     }
 
-    // --- MULTIPLE CHOICE (single or multi) ---
     if (type === "multiple") {
       if (Array.isArray(q.answer)) {
         const options = q.options || ["A", "B", "C", "D", "E"];
@@ -335,7 +444,6 @@ export default function StudentExam() {
       }
     }
 
-    // --- MATCHING (dropdown) ---
     if (type === "matching") {
       const options = q.options || ["A", "B", "C", "D", "E", "F", "G", "H"];
       return (
@@ -352,7 +460,6 @@ export default function StudentExam() {
       );
     }
 
-    // --- DIAGRAM LABELING (placeholder) ---
     if (type === "diagram_labeling") {
       return (
         <div className="space-y-2">
@@ -367,7 +474,6 @@ export default function StudentExam() {
       );
     }
 
-    // --- TABLE COMPLETION (placeholder) ---
     if (type === "table_completion") {
       return (
         <div className="space-y-2">
@@ -382,7 +488,6 @@ export default function StudentExam() {
       );
     }
 
-    // --- DEFAULT: completion, note, short_answer ---
     return (
       <Input
         className="h-12 text-lg border-2 focus:border-blue-500 bg-slate-50/50"
@@ -448,238 +553,285 @@ export default function StudentExam() {
 
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden select-none font-sans" translate="no">
-      {/* HEADER */}
-      <header className="h-14 bg-[#e4e9f0] text-[#2c3e50] flex items-center justify-between px-6 z-50 shadow-sm shrink-0 border-b border-slate-300">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-[#2c3e50] font-bold text-sm uppercase tracking-tight">
-            {currentSection === 'listening' && <Headphones size={18} className="text-blue-700"/>}
-            {currentSection === 'reading' && <BookOpen size={18} className="text-blue-700"/>}
-            {currentSection === 'writing' && <PenTool size={18} className="text-blue-700"/>}
-            <span className="font-black">IELTS {currentSection}</span>
-          </div>
+      {/* HEADER - faqat timer */}
+      <header className="header">
+        <div className="timer-container">
+          <span className="timer-display">
+            {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+          </span>
         </div>
-
-        <div className="flex items-center gap-8">
-          <div className="flex items-center gap-1 bg-white/50 p-1 rounded-md border border-slate-300">
-            <button onClick={() => setZoom(Math.max(80, zoom - 10))} className="p-1 hover:bg-white rounded transition-colors text-slate-600"><Minus size={14}/></button>
-            <span className="text-xs font-bold w-12 text-center text-slate-700">{zoom}%</span>
-            <button onClick={() => setZoom(Math.min(150, zoom + 10))} className="p-1 hover:bg-white rounded transition-colors text-slate-600"><Plus size={14}/></button>
-          </div>
-
-          <div className={`flex items-center gap-3 px-8 py-1 rounded-md border-2 transition-all duration-300 ${timeLeft < 300 ? 'bg-red-50 border-red-500 text-red-600 animate-pulse' : 'bg-white border-blue-600 text-blue-700'}`}>
-            <Clock size={20} strokeWidth={3} />
-            <span className="font-mono text-2xl font-black tabular-nums">
-              {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700">
-              <ShieldCheck size={18} />
-            </div>
-            <span className="text-[10px] font-bold uppercase text-slate-500 tracking-tighter leading-tight">Secure<br/>Session</span>
-          </div>
-        </div>
-
-        <Button variant="outline" size="sm" className="font-bold px-6 border-slate-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
-            onClick={() => { if(confirm("Tugatmoqchimisiz?")) handleFinalSubmit(); }}>
-          Finish Test
-        </Button>
+        <div className="header-icons"></div>
       </header>
 
-      <main className="flex-1 overflow-hidden relative flex flex-col">
-        {currentSection === 'listening' ? (
-          <ListeningComponent
-            content={examContent?.sections?.listening}
-            audioUrl={examContent?.sections?.listening?.audioUrl}
-            onSectionComplete={() => setCurrentSection('reading')}
-            answers={answers.listening}
-            setAnswers={(val: any) => setAnswers({...answers, listening: val})}
+      {/* AUDIO PLAYER – yagona, student to‘xtata olmaydi */}
+      {currentSection === 'listening' && (
+        <div className="audio-player-container">
+          <audio
+            ref={audioRef}
+            src={examContent?.sections?.listening?.audioUrl}
+            autoPlay
+            preload="auto"
+            style={{ display: 'none' }}
           />
-        ) : (
-          <ResizablePanelGroup direction="horizontal" className="flex-1 h-full">
-            {/* LEFT PANEL: CONTENT (Reading Passage or Writing Task) */}
-            <ResizablePanel defaultSize={45} className="bg-white border-r-4 border-slate-100 min-w-[300px]">
-              <div className="h-full flex flex-col">
-                <div className="h-12 bg-slate-50 border-b flex items-center px-4 overflow-x-auto no-scrollbar shrink-0">
-                  {currentSection === 'reading' ? (
-                    <div className="flex gap-1">
-                      {examContent?.sections?.reading?.passages?.map((_: any, idx: number) => (
-                        <button
-                            key={`passage-btn-${idx}`}
-                            onClick={() => setActivePassageIdx(idx)}
-                            className={`px-6 h-12 text-xs font-black transition-all border-b-2 ${activePassageIdx === idx ? 'bg-white border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-                        >
-                          PASSAGE {idx + 1}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex gap-1">
-                      {examContent?.sections?.writing?.tasks?.map((_: any, idx: number) => (
-                          <button
-                            key={`task-btn-${idx}`}
-                            onClick={() => setActiveWritingTask(idx)}
-                            className={`px-6 h-12 text-xs font-black transition-all border-b-2 ${activeWritingTask === idx ? 'bg-white border-blue-600 text-blue-600' : 'border-transparent text-slate-400'}`}
-                        >
-                            TASK {idx + 1}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+          <div className="progress-container">
+            <span id="current-time">{formatTime(audioProgress.currentTime)}</span>
+            <div className="relative w-full h-1 bg-gray-300 rounded">
+              <div 
+                className="absolute top-0 left-0 h-1 bg-blue-600 rounded"
+                style={{ width: `${audioProgress.percent}%` }}
+              ></div>
+            </div>
+            <span id="total-duration">{formatTime(audioProgress.duration)}</span>
+          </div>
+        </div>
+      )}
 
-                <ScrollArea className="flex-1 h-full">
-                  <div
-                    className="p-12 max-w-3xl mx-auto select-text selection:bg-yellow-300 selection:text-black"
-                    style={{ fontSize: `${zoom}%` }}
-                    onMouseUp={handleTextHighlight}
-                  >
+      {/* MAIN CONTAINER */}
+      <main className="main-container">
+        {/* LEFT PANEL */}
+        <div className="left-panel">
+          {currentSection === 'listening' ? (
+            <ListeningComponent
+              content={examContent?.sections?.listening}
+              audioUrl={examContent?.sections?.listening?.audioUrl}
+              onSectionComplete={() => setCurrentSection('reading')}
+              answers={answers.listening}
+              setAnswers={(val: any) => setAnswers({...answers, listening: val})}
+              currentPart={currentPart}
+              reviewFlags={reviewFlags}
+              setReviewFlags={setReviewFlags}
+            />
+          ) : (
+            <ResizablePanelGroup direction="horizontal" className="flex-1 h-full">
+              {/* LEFT PANEL: CONTENT */}
+              <ResizablePanel defaultSize={45} className="bg-white border-r-4 border-slate-100 min-w-[300px]">
+                <div className="h-full flex flex-col">
+                  <div className="h-12 bg-slate-50 border-b flex items-center px-4 overflow-x-auto no-scrollbar shrink-0">
                     {currentSection === 'reading' ? (
-                      <article>
-                        <h2 className="text-3xl font-black mb-8 text-slate-900 leading-tight">{examContent?.sections?.reading?.passages?.[activePassageIdx]?.title}</h2>
-                        {examContent?.sections?.reading?.passages?.[activePassageIdx]?.image && (
-                          <img
-                            src={getImageUrl(examContent.sections.reading.passages[activePassageIdx].image)}
-                            alt="Visual"
-                            className="w-full mb-6 rounded-lg border shadow-sm"
-                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                          />
-                        )}
-                        <div className="text-xl leading-[1.8] text-slate-800 font-serif whitespace-pre-wrap">
-                          {examContent?.sections?.reading?.passages?.[activePassageIdx]?.content}
-                        </div>
-                      </article>
+                      <div className="flex gap-1">
+                        {examContent?.sections?.reading?.passages?.map((_: any, idx: number) => (
+                          <button
+                              key={`passage-btn-${idx}`}
+                              onClick={() => setActivePassageIdx(idx)}
+                              className={`px-6 h-12 text-xs font-black transition-all border-b-2 ${activePassageIdx === idx ? 'bg-white border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                          >
+                            PASSAGE {idx + 1}
+                          </button>
+                        ))}
+                      </div>
                     ) : (
-                      // WRITING CONTENT
-                      <div className="space-y-8">
-                          <div className="bg-blue-50 p-8 rounded-2xl border-2 border-blue-100 relative">
-                            <Badge className="absolute -top-3 left-6 bg-blue-600 border-none">Writing Task {activeWritingTask + 1}</Badge>
-                            {examContent?.sections?.writing?.tasks?.[activeWritingTask]?.image && (
-                              <img
-                                src={getImageUrl(examContent.sections.writing.tasks[activeWritingTask].image)}
-                                alt="Task diagram"
-                                className="w-full mb-6 rounded-lg border shadow-sm bg-white p-2"
-                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                              />
-                            )}
-                            <p className="text-xl font-medium text-slate-800 italic leading-relaxed whitespace-pre-line">
-                              {examContent?.sections?.writing?.tasks?.[activeWritingTask]?.title || "Writing task prompt"}
-                            </p>
+                      <div className="flex gap-1">
+                        {examContent?.sections?.writing?.tasks?.map((_: any, idx: number) => (
+                            <button
+                              key={`task-btn-${idx}`}
+                              onClick={() => setActiveWritingTask(idx)}
+                              className={`px-6 h-12 text-xs font-black transition-all border-b-2 ${activeWritingTask === idx ? 'bg-white border-blue-600 text-blue-600' : 'border-transparent text-slate-400'}`}
+                          >
+                              TASK {idx + 1}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <ScrollArea className="flex-1 h-full">
+                    <div
+                      className="p-12 max-w-3xl mx-auto select-text selection:bg-yellow-300 selection:text-black"
+                      style={{ fontSize: `${zoom}%` }}
+                      onMouseUp={handleTextHighlight}
+                    >
+                      {currentSection === 'reading' ? (
+                        <article>
+                          <h2 className="text-3xl font-black mb-8 text-slate-900 leading-tight">{examContent?.sections?.reading?.passages?.[activePassageIdx]?.title}</h2>
+                          {examContent?.sections?.reading?.passages?.[activePassageIdx]?.image && (
+                            <img
+                              src={getImageUrl(examContent.sections.reading.passages[activePassageIdx].image)}
+                              alt="Visual"
+                              className="w-full mb-6 rounded-lg border shadow-sm"
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            />
+                          )}
+                          <div className="text-xl leading-[1.8] text-slate-800 font-serif whitespace-pre-wrap">
+                            {examContent?.sections?.reading?.passages?.[activePassageIdx]?.content}
                           </div>
-                          <div className="flex items-start gap-2 text-slate-500 text-sm">
-                            <AlertTriangle size={16} />
-                            <p>Eslatma: Javoblaringizni o'ng tomondagi maydonga yozing.</p>
+                        </article>
+                      ) : (
+                        // WRITING CONTENT
+                        <div className="space-y-8">
+                            <div className="bg-blue-50 p-8 rounded-2xl border-2 border-blue-100 relative">
+                              <Badge className="absolute -top-3 left-6 bg-blue-600 border-none">Writing Task {activeWritingTask + 1}</Badge>
+                              {examContent?.sections?.writing?.tasks?.[activeWritingTask]?.image && (
+                                <img
+                                  src={getImageUrl(examContent.sections.writing.tasks[activeWritingTask].image)}
+                                  alt="Task diagram"
+                                  className="w-full mb-6 rounded-lg border shadow-sm bg-white p-2"
+                                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                />
+                              )}
+                              <p className="text-xl font-medium text-slate-800 italic leading-relaxed whitespace-pre-line">
+                                {examContent?.sections?.writing?.tasks?.[activeWritingTask]?.title || "Writing task prompt"}
+                              </p>
+                            </div>
+                            <div className="flex items-start gap-2 text-slate-500 text-sm">
+                              <AlertTriangle size={16} />
+                              <p>Eslatma: Javoblaringizni o'ng tomondagi maydonga yozing.</p>
+                            </div>
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+              </ResizablePanel>
+
+              <ResizableHandle withHandle className="w-2 hover:bg-blue-500 transition-colors" />
+
+              {/* RIGHT PANEL: QUESTIONS */}
+              <ResizablePanel defaultSize={55} className="bg-[#f8fafc] min-w-[300px]">
+                <ScrollArea className="h-full">
+                  <div className="p-8 md:p-12 max-w-2xl mx-auto pb-32">
+                    {currentSection === 'reading' ? (
+                      <div className="space-y-6">
+                        {examContent?.sections?.reading?.passages?.[activePassageIdx]?.questions?.length > 0 ? (
+                          examContent.sections.reading.passages[activePassageIdx].questions.map((q: any, i: number) => {
+                            const questionsBefore = examContent.sections.reading.passages.slice(0, activePassageIdx).reduce((acc: number, curr: any) => acc + (curr.questions?.length || 0), 0);
+                            const listeningQuestionsCount = examContent?.sections?.listening?.parts?.reduce((acc: number, part: any) => acc + (part.questions?.length || 0), 0) || 0;
+                            const qGlobalIdx = listeningQuestionsCount + questionsBefore + i + 1;
+                            const qId = `q-${qGlobalIdx}`;
+
+                            return (
+                              <div key={qId} id={`q-container-${qGlobalIdx}`} className="p-6 bg-white rounded-2xl border-2 border-slate-100 shadow-sm hover:border-blue-200 group transition-all">
+                                <div className="flex gap-4">
+                                  <span className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm shrink-0">{qGlobalIdx}</span>
+                                  <div className="flex-1 space-y-4">
+                                    <div className="font-bold text-slate-700" dangerouslySetInnerHTML={{ __html: q?.text || "Savol matni yo'q" }}></div>
+                                    {q.instruction && (
+                                      <p className="text-xs font-semibold text-blue-600 italic">{q.instruction}</p>
+                                    )}
+                                    {renderQuestionInput(
+                                      q,
+                                      qId,
+                                      answers.reading?.[qId],
+                                      (val) => setAnswers({...answers, reading: {...answers.reading, [qId]: val}})
+                                    )}
+                                  </div>
+                                  <button
+                                    onClick={() => setReviewFlags({...reviewFlags, [qId]: !reviewFlags[qId]})}
+                                    title="Flag for review"
+                                  >
+                                    <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200 group-hover:text-slate-400"} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="text-center text-slate-400 py-10">Ushbu matn uchun savollar yuklanmadi.</div>
+                        )}
+                      </div>
+                    ) : (
+                      // WRITING INPUT
+                      <div className="h-full flex flex-col space-y-4">
+                          <div className="flex justify-between items-center mb-2 sticky top-0 bg-[#f8fafc] py-2 z-10">
+                            <h3 className="font-bold text-slate-700">Writing Response Area</h3>
+                            <Badge className={`${getWordCount < (activeWritingTask === 0 ? 150 : 250) ? 'bg-orange-500' : 'bg-green-600'} px-4 py-1 font-mono text-sm border-none transition-colors`}>
+                              WORDS: {getWordCount}
+                            </Badge>
                           </div>
+                          <Textarea
+                              className="min-h-[500px] p-8 text-xl leading-[1.8] font-serif border-2 border-slate-200 rounded-2xl focus:border-blue-600 shadow-inner bg-white resize-y"
+                              placeholder="Type your response here..."
+                              value={activeWritingTask === 0 ? answers.writingTask1 : answers.writingTask2}
+                              spellCheck={false}
+                              onChange={(e) => setAnswers({...answers, [activeWritingTask === 0 ? 'writingTask1' : 'writingTask2']: e.target.value})}
+                          />
                       </div>
                     )}
                   </div>
                 </ScrollArea>
-              </div>
-            </ResizablePanel>
-
-            <ResizableHandle withHandle className="w-2 hover:bg-blue-500 transition-colors" />
-
-            {/* RIGHT PANEL: QUESTIONS (Reading Questions or Writing Input) */}
-            <ResizablePanel defaultSize={55} className="bg-[#f8fafc] min-w-[300px]">
-              <ScrollArea className="h-full">
-                <div className="p-8 md:p-12 max-w-2xl mx-auto pb-32">
-                  {currentSection === 'reading' ? (
-                    <div className="space-y-6">
-                      {examContent?.sections?.reading?.passages?.[activePassageIdx]?.questions?.length > 0 ? (
-                        examContent.sections.reading.passages[activePassageIdx].questions.map((q: any, i: number) => {
-                          const questionsBefore = examContent.sections.reading.passages.slice(0, activePassageIdx).reduce((acc: number, curr: any) => acc + (curr.questions?.length || 0), 0);
-                          const listeningQuestionsCount = examContent?.sections?.listening?.parts?.reduce((acc: number, part: any) => acc + (part.questions?.length || 0), 0) || 0;
-                          const qGlobalIdx = listeningQuestionsCount + questionsBefore + i + 1;
-                          const qId = `q-${qGlobalIdx}`;
-
-                          return (
-                            <div key={qId} id={`q-container-${qGlobalIdx}`} className="p-6 bg-white rounded-2xl border-2 border-slate-100 shadow-sm hover:border-blue-200 group transition-all">
-                              <div className="flex gap-4">
-                                <span className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm shrink-0">{qGlobalIdx}</span>
-                                <div className="flex-1 space-y-4">
-                                  <div className="font-bold text-slate-700" dangerouslySetInnerHTML={{ __html: q?.text || "Savol matni yo'q" }}></div>
-                                  {q.instruction && (
-                                    <p className="text-xs font-semibold text-blue-600 italic">{q.instruction}</p>
-                                  )}
-                                  {renderQuestionInput(
-                                    q,
-                                    qId,
-                                    answers.reading?.[qId],
-                                    (val) => setAnswers({...answers, reading: {...answers.reading, [qId]: val}})
-                                  )}
-                                </div>
-                                <button
-                                  onClick={() => setReviewFlags({...reviewFlags, [qId]: !reviewFlags[qId]})}
-                                  title="Flag for review"
-                                >
-                                  <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200 group-hover:text-slate-400"} />
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <div className="text-center text-slate-400 py-10">Ushbu matn uchun savollar yuklanmadi.</div>
-                      )}
-                    </div>
-                  ) : (
-                    // WRITING INPUT
-                    <div className="h-full flex flex-col space-y-4">
-                        <div className="flex justify-between items-center mb-2 sticky top-0 bg-[#f8fafc] py-2 z-10">
-                          <h3 className="font-bold text-slate-700">Writing Response Area</h3>
-                          <Badge className={`${getWordCount < (activeWritingTask === 0 ? 150 : 250) ? 'bg-orange-500' : 'bg-green-600'} px-4 py-1 font-mono text-sm border-none transition-colors`}>
-                            WORDS: {getWordCount}
-                          </Badge>
-                        </div>
-                        <Textarea
-                            className="min-h-[500px] p-8 text-xl leading-[1.8] font-serif border-2 border-slate-200 rounded-2xl focus:border-blue-600 shadow-inner bg-white resize-y"
-                            placeholder="Type your response here..."
-                            value={activeWritingTask === 0 ? answers.writingTask1 : answers.writingTask2}
-                            spellCheck={false}
-                            onChange={(e) => setAnswers({...answers, [activeWritingTask === 0 ? 'writingTask1' : 'writingTask2']: e.target.value})}
-                        />
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        )}
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          )}
+        </div>
       </main>
 
-      {/* FOOTER NAVIGATOR */}
-      <footer className="h-14 bg-[#e4e9f0] border-t border-slate-300 flex items-center justify-between px-6 shrink-0 z-50">
-        <div className="flex gap-1 overflow-x-auto no-scrollbar py-2">
-          {Array.from({ length: totalQuestions }).map((_, i) => {
-            const qNum = i + 1;
-            const qId = `q-${qNum}`;
-            const listeningQuestionsCount = examContent?.sections?.listening?.parts?.reduce((acc: number, part: any) => acc + (part.questions?.length || 0), 0) || 0;
-            const isListening = qNum <= listeningQuestionsCount;
-            const isAnswered = isListening
-              ? answers.listening?.[qId]
-              : answers.reading?.[qId];
-            const isReview = reviewFlags[qId];
-            return (
-              <button
-                key={qNum}
-                onClick={() => scrollToQuestion(qNum)}
-                className={`w-8 h-8 rounded-sm text-[10px] font-bold flex items-center justify-center transition-all border-b-2
-                  ${isReview ? 'bg-orange-500 text-white border-orange-700 shadow-inner' :
-                    isAnswered ? 'bg-blue-700 text-white border-blue-900' :
-                    'bg-white text-slate-600 border-slate-300 hover:border-slate-400'}`}
-              >
-                {qNum}
+      {/* BOTTOM NAVIGATION */}
+      <nav className="nav-row perScorableItem" aria-label="Questions">
+        {/* Part 1 */}
+        <div className={`footer__questionWrapper___1tZ46 multiple ${currentPart === 1 ? 'selected' : ''}`} role="tablist">
+          <button role="tab" className="footer__questionNo___3WNct" onClick={() => switchToPart(1)}>
+            <span>
+              <span aria-hidden="true" className="section-prefix">Part </span>
+              <span className="sectionNr" aria-hidden="true">1</span>
+              <span className="attemptedCount" aria-hidden="true">0 of 10</span>
+            </span>
+          </button>
+          <div className="footer__subquestionWrapper___9GgoP">
+            {[1,2,3,4,5,6,7,8,9,10].map(q => (
+              <button key={q} className={`subQuestion scorable-item ${currentQuestion === q ? 'active' : ''}`} onClick={() => goToQuestion(q)}>
+                <span className="sr-only">Question {q}</span>
+                <span aria-hidden="true">{q}</span>
               </button>
-            );
-          })}
+            ))}
+          </div>
         </div>
-        <div className="flex items-center gap-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">
-          <div className="flex items-center gap-1"><div className="w-3 h-3 bg-blue-700 rounded-sm"/> Answered</div>
-          <div className="flex items-center gap-1"><div className="w-3 h-3 bg-white border border-slate-300 rounded-sm"/> Unanswered</div>
-          <div className="flex items-center gap-1"><div className="w-3 h-3 bg-orange-500 rounded-sm"/> Review</div>
+
+        {/* Part 2 */}
+        <div className={`footer__questionWrapper___1tZ46 multiple ${currentPart === 2 ? 'selected' : ''}`} role="tablist">
+          <button role="tab" className="footer__questionNo___3WNct" onClick={() => switchToPart(2)}>
+            <span>
+              <span aria-hidden="true" className="section-prefix">Part </span>
+              <span className="sectionNr" aria-hidden="true">2</span>
+              <span className="attemptedCount" aria-hidden="true">0 of 10</span>
+            </span>
+          </button>
+          <div className="footer__subquestionWrapper___9GgoP">
+            {[11,12,13,14,15,16,17,18,19,20].map(q => (
+              <button key={q} className={`subQuestion scorable-item ${currentQuestion === q ? 'active' : ''}`} onClick={() => goToQuestion(q)}>
+                <span className="sr-only">Question {q}</span>
+                <span aria-hidden="true">{q}</span>
+              </button>
+            ))}
+          </div>
         </div>
-      </footer>
+
+        {/* Part 3 */}
+        <div className={`footer__questionWrapper___1tZ46 multiple ${currentPart === 3 ? 'selected' : ''}`} role="tablist">
+          <button role="tab" className="footer__questionNo___3WNct" onClick={() => switchToPart(3)}>
+            <span>
+              <span aria-hidden="true" className="section-prefix">Part </span>
+              <span className="sectionNr" aria-hidden="true">3</span>
+              <span className="attemptedCount" aria-hidden="true">0 of 10</span>
+            </span>
+          </button>
+          <div className="footer__subquestionWrapper___9GgoP">
+            {[21,22,23,24,25,26,27,28,29,30].map(q => (
+              <button key={q} className={`subQuestion scorable-item ${currentQuestion === q ? 'active' : ''}`} onClick={() => goToQuestion(q)}>
+                <span className="sr-only">Question {q}</span>
+                <span aria-hidden="true">{q}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Part 4 */}
+        <div className={`footer__questionWrapper___1tZ46 multiple ${currentPart === 4 ? 'selected' : ''}`} role="tablist">
+          <button role="tab" className="footer__questionNo___3WNct" onClick={() => switchToPart(4)}>
+            <span>
+              <span aria-hidden="true" className="section-prefix">Part </span>
+              <span className="sectionNr" aria-hidden="true">4</span>
+              <span className="attemptedCount" aria-hidden="true">0 of 10</span>
+            </span>
+          </button>
+          <div className="footer__subquestionWrapper___9GgoP">
+            {[31,32,33,34,35,36,37,38,39,40].map(q => (
+              <button key={q} className={`subQuestion scorable-item ${currentQuestion === q ? 'active' : ''}`} onClick={() => goToQuestion(q)}>
+                <span className="sr-only">Question {q}</span>
+                <span aria-hidden="true">{q}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </nav>
     </div>
   );
 }
