@@ -527,12 +527,16 @@ export default function AdminExams() {
       } catch {
         throw new Error("Invalid JSON format");
       }
+
+      if (!jsonContent.listening && !jsonContent.reading && !jsonContent.writing) {
+        throw new Error("JSON must contain at least one section: listening, reading, or writing");
+      }
+
       const examData = {
         title,
         content: jsonContent,
-        timeLimit: jsonContent.listening?.duration + jsonContent.reading?.timeLimit + jsonContent.writing?.timeLimit || 150,
-        isPublished: true,
-        created_at: new Date().toISOString(),
+        time_limit: (jsonContent.listening?.duration || 0) + (jsonContent.reading?.timeLimit || 0) + (jsonContent.writing?.timeLimit || 0) || 150,
+        is_published: true,
       };
       const { data, error } = await supabase.from('exams').insert([examData]).select();
       if (error) throw error;
