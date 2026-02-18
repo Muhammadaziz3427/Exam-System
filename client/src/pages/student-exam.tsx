@@ -246,8 +246,11 @@ export default function StudentExam() {
         // answered class
         if (isAnswered) {
           btn.classList.add('answered');
+          // Update aria-label or other attributes if needed
+          btn.setAttribute('data-answered', 'true');
         } else {
           btn.classList.remove('answered');
+          btn.setAttribute('data-answered', 'false');
         }
 
         // flag dot
