@@ -139,6 +139,12 @@ export default function StudentExam() {
     setCurrentPart(part);
     const def = currentPartDefs.find((d: any) => d.partIndex === part);
     if (def) {
+      // Also update active passage/task index
+      if (currentSection === 'reading') {
+        setActivePassageIdx(part - 1);
+      } else if (currentSection === 'writing') {
+        setActiveWritingTask(part - 1);
+      }
       goToQuestion(def.start);
     }
   };
@@ -149,6 +155,11 @@ export default function StudentExam() {
     const def = currentPartDefs.find((d: any) => qNum >= d.start && qNum <= d.end);
     if (def && def.partIndex !== currentPart) {
       setCurrentPart(def.partIndex);
+      if (currentSection === 'reading') {
+        setActivePassageIdx(def.partIndex - 1);
+      } else if (currentSection === 'writing') {
+        setActiveWritingTask(def.partIndex - 1);
+      }
     }
     scrollToQuestion(qNum);
     updateActiveQuestionInNav(qNum);
@@ -305,36 +316,24 @@ export default function StudentExam() {
 
           let isAnswered = false;
           if (currentSection === 'listening') {
-            const answer = answers.listening?.[`q-${q}`] || answers.listening?.[q];
+            const answer = answers.listening?.[q];
             isAnswered = answer !== undefined && answer !== null && answer !== '';
           } else if (currentSection === 'reading') {
-            const answer = answers.reading?.[`q-${q}`] || answers.reading?.[q];
+            const answer = answers.reading?.[q];
             isAnswered = answer !== undefined && answer !== null && answer !== '';
           } else {
             const text = q === 1 ? answers.writingTask1 : answers.writingTask2;
             if (text) {
               const words = text.trim().split(/\s+/).filter((w: string) => w.length > 0).length;
               const minWords = q === 1 ? 150 : 250;
-              isAnswered = words > 0; // Show green if any text is entered
+              isAnswered = words >= minWords;
             }
           }
 
           if (isAnswered) {
             btn.classList.add('answered');
-            (btn as HTMLElement).style.backgroundColor = '#28a745';
-            (btn as HTMLElement).style.color = '#white';
           } else {
             btn.classList.remove('answered');
-            (btn as HTMLElement).style.backgroundColor = '';
-            (btn as HTMLElement).style.color = '';
-          }
-          
-          if (q === currentQuestion) {
-            btn.classList.add('active');
-            (btn as HTMLElement).style.border = '2px solid #333';
-          } else {
-            btn.classList.remove('active');
-            (btn as HTMLElement).style.border = '';
           }
 
           const flagKey = `${currentSection}-${q}`;
@@ -364,14 +363,16 @@ export default function StudentExam() {
         let answered = 0;
         for (let q = def.start; q <= def.end; q++) {
           if (currentSection === 'listening') {
-            const ans = answers.listening?.[`q-${q}`] || answers.listening?.[q];
-            if (ans !== undefined && ans !== '') answered++;
+            if (answers.listening?.[q] !== undefined && answers.listening[q] !== '') answered++;
           } else if (currentSection === 'reading') {
-            const ans = answers.reading?.[`q-${q}`] || answers.reading?.[q];
-            if (ans !== undefined && ans !== '') answered++;
+            if (answers.reading?.[q] !== undefined && answers.reading[q] !== '') answered++;
           } else {
             const text = q === 1 ? answers.writingTask1 : answers.writingTask2;
-            if (text && text.trim().length > 0) answered++;
+            if (text) {
+              const words = text.trim().split(/\s+/).filter((w: string) => w.length > 0).length;
+              const minWords = q === 1 ? 150 : 250;
+              if (words >= minWords) answered++;
+            }
           }
         }
         const wrapper = document.querySelector(`.footer__questionWrapper___1tZ46[data-section="${currentSection}"][data-part-index="${def.partIndex}"]`);
@@ -385,7 +386,7 @@ export default function StudentExam() {
     };
 
     updateNavIndicators();
-  }, [answers, currentSection, currentPartDefs, reviewFlags, currentQuestion]);
+  }, [answers, currentSection, currentPartDefs, reviewFlags]);
 
   // ---------- Score calculation ----------
   const calculateScores = () => {
@@ -406,26 +407,19 @@ export default function StudentExam() {
       }
     });
 
-    readingQuestions.forEach((q: any, idx: number) => {
-      // reading questions global numbers: need to map correctly
-      // we have answers.reading with global numbers, but here we need to know global number for each question
-      // we need to know start index for each passage, but we don't have that here.
-      // For simplicity, we assume that reading questions are stored with global numbers in answers.reading,
-      // and here we need to compute global number based on passage order.
-      // Let's calculate cumulative sum before.
-      // We'll use readingPassages to compute base numbers.
-      let base = 1;
-      for (let p = 0; p < readingPassages.length; p++) {
-        if (p === activePassageIdx) break;
-        base += readingPassages[p]?.questions?.length || 0;
+    let readingGlobalBase = 1;
+    for (let p = 0; p < readingPassages.length; p++) {
+      const passageQuestions = readingPassages[p]?.questions || [];
+      for (let qIdx = 0; qIdx < passageQuestions.length; qIdx++) {
+        const globalNum = readingGlobalBase + qIdx;
+        const userAnswer = answers.reading?.[globalNum];
+        const correct = passageQuestions[qIdx]?.correctAnswer;
+        if (userAnswer && correct) {
+          if (userAnswer.toString().trim().toLowerCase() === correct.toString().trim().toLowerCase()) readingCorrect++;
+        }
       }
-      const globalNum = base + idx;
-      const userAnswer = answers.reading?.[globalNum];
-      const correct = q.correctAnswer;
-      if (userAnswer && correct) {
-        if (userAnswer.toString().trim().toLowerCase() === correct.toString().trim().toLowerCase()) readingCorrect++;
-      }
-    });
+      readingGlobalBase += passageQuestions.length;
+    }
 
     const totalCorrect = listeningCorrect + readingCorrect;
     const overallBand = calculateBand(totalCorrect);
@@ -445,30 +439,22 @@ export default function StudentExam() {
 
       const scores = calculateScores();
 
-      // Submit to backend
       await apiRequest("POST", `/api/sessions/${sessionId}/submit`, {
         answers,
         scores,
         isFinal: true
       });
 
-      // After submission, student should not see the exam anymore
       if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
       localStorage.removeItem(STORAGE_KEY);
       if (stream) stream.getTracks().forEach(track => track.stop());
-      
       toast({
         title: "Imtihon yakunlandi",
-        description: "Javoblaringiz muvaffaqiyatli yuborildi. O'qituvchi tekshirganidan so'ng natijalar email orqali yuboriladi.",
+        description: "Javoblar saqlandi. Natijalar email orqali yuboriladi. Bosh sahifaga yo'naltirilmoqda...",
         className: "bg-green-600 text-white",
         duration: 5000
       });
-      
-      // Redirect to home or a "thank you" page
-      setTimeout(() => { 
-        setHasStarted(false); 
-        setLocation("/"); 
-      }, 5000);
+      setTimeout(() => { setHasStarted(false); setLocation("/"); }, 5000);
     } catch (err) {
       setIsSubmitting(false);
       toast({ title: "Xatolik", description: "Javoblarni saqlashda muammo bo'ldi.", variant: "destructive" });
@@ -735,34 +721,7 @@ export default function StudentExam() {
               {/* LEFT PANEL: CONTENT (passage for reading, task for writing) */}
               <ResizablePanel defaultSize={45} className="bg-white border-r-4 border-slate-100 min-w-[300px]">
                 <div className="h-full flex flex-col">
-                  {/* Reading va Writing uchun part headerlar (HTML dagi kabi) */}
-                  {currentSection === 'reading' && (
-                    <div className="h-12 bg-slate-50 border-b flex items-center px-4 overflow-x-auto no-scrollbar shrink-0">
-                      {readingPassages.map((_: any, idx: number) => (
-                        <button
-                          key={`passage-header-${idx}`}
-                          onClick={() => setActivePassageIdx(idx)}
-                          className={`px-6 h-12 text-xs font-black transition-all border-b-2 ${activePassageIdx === idx ? 'bg-white border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-                        >
-                          PART {idx + 1}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {currentSection === 'writing' && (
-                    <div className="h-12 bg-slate-50 border-b flex items-center px-4 overflow-x-auto no-scrollbar shrink-0">
-                      {writingTasks.map((_: any, idx: number) => (
-                        <button
-                          key={`task-header-${idx}`}
-                          onClick={() => setActiveWritingTask(idx)}
-                          className={`px-6 h-12 text-xs font-black transition-all border-b-2 ${activeWritingTask === idx ? 'bg-white border-blue-600 text-blue-600' : 'border-transparent text-slate-400'}`}
-                        >
-                          TASK {idx + 1}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
+                  {/* No extra tabs at the top - exactly like HTML */}
                   <ScrollArea className="flex-1 h-full">
                     <div
                       className="p-12 max-w-3xl mx-auto select-text selection:bg-yellow-300 selection:text-black"
@@ -1332,7 +1291,7 @@ function ListeningComponent({ content, currentPart, answers = {}, setAnswers, re
   );
 }
 
-// ========== READING QUESTIONS COMPONENT ==========
+// ========== READING QUESTIONS COMPONENT (TAKOMILLASHTIRILGAN) ==========
 function ReadingQuestions({ passage, baseQNum, answers = {}, setAnswers, reviewFlags, setReviewFlags, currentSection }: any) {
   const questions = passage?.questions || [];
 
@@ -1350,7 +1309,7 @@ function ReadingQuestions({ passage, baseQNum, answers = {}, setAnswers, reviewF
       {questions.map((q: any, idx: number) => {
         const globalQNum = baseQNum + idx;
 
-        // Paragraph matching (1-5)
+        // Paragraph matching (1-5) – dropdown
         if (q.type === 'paragraph_matching') {
           return (
             <div key={globalQNum} id={`q-container-${currentSection}-${globalQNum}`} className="tf-question" data-q-start={globalQNum}>
@@ -1374,7 +1333,7 @@ function ReadingQuestions({ passage, baseQNum, answers = {}, setAnswers, reviewF
           );
         }
 
-        // Flow-chart (6-10)
+        // Flow-chart (6-10) – bir nechta input
         if (q.type === 'flow_chart') {
           if (idx === 0) {
             return (
@@ -1446,7 +1405,7 @@ function ReadingQuestions({ passage, baseQNum, answers = {}, setAnswers, reviewF
               </div>
             );
           } else {
-            return null;
+            return null; // faqat birinchi savol butun guruhni render qiladi
           }
         }
 
@@ -1502,7 +1461,7 @@ function ReadingQuestions({ passage, baseQNum, answers = {}, setAnswers, reviewF
           );
         }
 
-        // Matching table (19-23, 27-32)
+        // Matching table (19-23, 27-32) – jadval
         if (q.type === 'matching_table' || q.type === 'matching_paragraph') {
           if (idx === 0) {
             const statements = q.statements || (q.type === 'matching_table'
@@ -1595,23 +1554,40 @@ function ReadingQuestions({ passage, baseQNum, answers = {}, setAnswers, reviewF
           );
         }
 
-        // Default fallback
-        return (
-          <div key={globalQNum} id={`q-container-${currentSection}-${globalQNum}`} className="p-6 bg-white rounded-2xl border-2 border-slate-100 shadow-sm">
-            <div className="flex gap-4">
-              <span className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm">{globalQNum}</span>
-              <div className="flex-1 space-y-4">
-                <div className="font-bold text-slate-700">{q.text}</div>
-                <Input
-                  className="h-12 text-lg border-2 focus:border-blue-500"
+        // Gap fill / sentence completion (masalan, 36-38, 1-3) – oddiy input
+        if (q.type === 'gap_fill' || q.type === 'sentence_completion') {
+          return (
+            <div key={globalQNum} id={`q-container-${currentSection}-${globalQNum}`} className="question" data-q-start={globalQNum}>
+              <div className="question-prompt">
+                <p><strong>{globalQNum}</strong> {q.text}</p>
+              </div>
+              <div className="mt-2">
+                <input
+                  type="text"
+                  className="answer-input"
                   placeholder="Javob..."
                   value={answers[globalQNum] || ''}
                   onChange={(e) => handleAnswerChange(globalQNum, e.target.value)}
                 />
               </div>
-              <button onClick={() => handleFlagToggle(globalQNum)}>
-                <Flag size={18} className={reviewFlags[`${currentSection}-${globalQNum}`] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
-              </button>
+            </div>
+          );
+        }
+
+        // Agar type noma'lum bo'lsa, oddiy input ko'rsatamiz (default fallback)
+        return (
+          <div key={globalQNum} id={`q-container-${currentSection}-${globalQNum}`} className="question" data-q-start={globalQNum}>
+            <div className="question-prompt">
+              <p><strong>{globalQNum}</strong> {q.text}</p>
+            </div>
+            <div className="mt-2">
+              <input
+                type="text"
+                className="answer-input"
+                placeholder="Javob..."
+                value={answers[globalQNum] || ''}
+                onChange={(e) => handleAnswerChange(globalQNum, e.target.value)}
+              />
             </div>
           </div>
         );
