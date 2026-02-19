@@ -305,24 +305,36 @@ export default function StudentExam() {
 
           let isAnswered = false;
           if (currentSection === 'listening') {
-            const answer = answers.listening?.[q];
+            const answer = answers.listening?.[`q-${q}`] || answers.listening?.[q];
             isAnswered = answer !== undefined && answer !== null && answer !== '';
           } else if (currentSection === 'reading') {
-            const answer = answers.reading?.[q];
+            const answer = answers.reading?.[`q-${q}`] || answers.reading?.[q];
             isAnswered = answer !== undefined && answer !== null && answer !== '';
           } else {
             const text = q === 1 ? answers.writingTask1 : answers.writingTask2;
             if (text) {
               const words = text.trim().split(/\s+/).filter((w: string) => w.length > 0).length;
               const minWords = q === 1 ? 150 : 250;
-              isAnswered = words >= minWords;
+              isAnswered = words > 0; // Show green if any text is entered
             }
           }
 
           if (isAnswered) {
             btn.classList.add('answered');
+            (btn as HTMLElement).style.backgroundColor = '#28a745';
+            (btn as HTMLElement).style.color = '#white';
           } else {
             btn.classList.remove('answered');
+            (btn as HTMLElement).style.backgroundColor = '';
+            (btn as HTMLElement).style.color = '';
+          }
+          
+          if (q === currentQuestion) {
+            btn.classList.add('active');
+            (btn as HTMLElement).style.border = '2px solid #333';
+          } else {
+            btn.classList.remove('active');
+            (btn as HTMLElement).style.border = '';
           }
 
           const flagKey = `${currentSection}-${q}`;
@@ -352,16 +364,14 @@ export default function StudentExam() {
         let answered = 0;
         for (let q = def.start; q <= def.end; q++) {
           if (currentSection === 'listening') {
-            if (answers.listening?.[q] !== undefined && answers.listening[q] !== '') answered++;
+            const ans = answers.listening?.[`q-${q}`] || answers.listening?.[q];
+            if (ans !== undefined && ans !== '') answered++;
           } else if (currentSection === 'reading') {
-            if (answers.reading?.[q] !== undefined && answers.reading[q] !== '') answered++;
+            const ans = answers.reading?.[`q-${q}`] || answers.reading?.[q];
+            if (ans !== undefined && ans !== '') answered++;
           } else {
             const text = q === 1 ? answers.writingTask1 : answers.writingTask2;
-            if (text) {
-              const words = text.trim().split(/\s+/).filter((w: string) => w.length > 0).length;
-              const minWords = q === 1 ? 150 : 250;
-              if (words >= minWords) answered++;
-            }
+            if (text && text.trim().length > 0) answered++;
           }
         }
         const wrapper = document.querySelector(`.footer__questionWrapper___1tZ46[data-section="${currentSection}"][data-part-index="${def.partIndex}"]`);
@@ -375,7 +385,7 @@ export default function StudentExam() {
     };
 
     updateNavIndicators();
-  }, [answers, currentSection, currentPartDefs, reviewFlags]);
+  }, [answers, currentSection, currentPartDefs, reviewFlags, currentQuestion]);
 
   // ---------- Score calculation ----------
   const calculateScores = () => {
@@ -435,22 +445,30 @@ export default function StudentExam() {
 
       const scores = calculateScores();
 
+      // Submit to backend
       await apiRequest("POST", `/api/sessions/${sessionId}/submit`, {
         answers,
         scores,
         isFinal: true
       });
 
+      // After submission, student should not see the exam anymore
       if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
       localStorage.removeItem(STORAGE_KEY);
       if (stream) stream.getTracks().forEach(track => track.stop());
+      
       toast({
         title: "Imtihon yakunlandi",
-        description: "Javoblar saqlandi. Natijalar email orqali yuboriladi. Bosh sahifaga yo'naltirilmoqda...",
+        description: "Javoblaringiz muvaffaqiyatli yuborildi. O'qituvchi tekshirganidan so'ng natijalar email orqali yuboriladi.",
         className: "bg-green-600 text-white",
         duration: 5000
       });
-      setTimeout(() => { setHasStarted(false); setLocation("/"); }, 5000);
+      
+      // Redirect to home or a "thank you" page
+      setTimeout(() => { 
+        setHasStarted(false); 
+        setLocation("/"); 
+      }, 5000);
     } catch (err) {
       setIsSubmitting(false);
       toast({ title: "Xatolik", description: "Javoblarni saqlashda muammo bo'ldi.", variant: "destructive" });
