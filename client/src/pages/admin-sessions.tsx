@@ -197,7 +197,6 @@ export default function AdminSessions() {
       await apiRequest("DELETE", `/api/sessions/${id}`);
       toast({ title: "Muvaffaqiyatli o'chirildi", className: "bg-red-500 text-white" });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
-      refetch();
     } catch (err) {
       toast({ title: "Xatolik yuz berdi", variant: "destructive" });
     }
@@ -214,7 +213,6 @@ export default function AdminSessions() {
       await apiRequest("POST", `/api/sessions/${id}/terminate`, {});
       toast({ title: "Sessiya yakunlandi", className: "bg-orange-500 text-white" });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
-      refetch();
     } catch (err) {
       toast({ title: "Xatolik", variant: "destructive" });
     }
@@ -227,7 +225,6 @@ export default function AdminSessions() {
       toast({ title: "Natija talabaga yuborildi", className: "bg-green-600 text-white" });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       setSelectedSubmission(null);
-      refetch();
     } catch (error) {
       toast({ title: "Xatolik", variant: "destructive" });
     } finally {
@@ -261,12 +258,17 @@ export default function AdminSessions() {
   };
 
   // Show errors if any
-  if (sessionsError) {
-    toast({ title: "Sessiyalarni yuklashda xatolik", variant: "destructive" });
-  }
-  if (examsError) {
-    toast({ title: "Examlarni yuklashda xatolik", variant: "destructive" });
-  }
+  useEffect(() => {
+    if (sessionsError) {
+      toast({ title: "Sessiyalarni yuklashda xatolik", variant: "destructive" });
+    }
+  }, [sessionsError, toast]);
+
+  useEffect(() => {
+    if (examsError) {
+      toast({ title: "Examlarni yuklashda xatolik", variant: "destructive" });
+    }
+  }, [examsError, toast]);
 
   // --- TV MODE VIEW ---
   if (isTvMode) {
