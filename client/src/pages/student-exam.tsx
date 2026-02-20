@@ -13,7 +13,7 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { ReadingComponent } from "@/components/ReadingComponent"; // <-- Yangi import
+import { ReadingComponent } from "@/components/ReadingComponent";
 
 type Section = 'listening' | 'reading' | 'writing';
 
@@ -90,13 +90,12 @@ export default function StudentExam() {
   const startSession = useStartSession();
   const logViolation = useLogViolation();
 
-  // ---------- Data preparation ----------
-  const listeningParts = examContent?.sections?.listening?.parts || [];
-  const readingPassages = examContent?.sections?.reading?.passages || [];
-  const writingTasks = examContent?.sections?.writing?.tasks || [];
+  // ---------- Data preparation (to‘g‘ridan-to‘g‘ri examContent dan) ----------
+  const listeningParts = examContent?.listening?.parts || [];
+  const readingPassages = examContent?.reading?.passages || [];
+  const writingTasks = examContent?.writing?.tasks || [];
 
   // For bottom navigation, we need part definitions for each section
-  // Listening: assume each part has 10 questions (or actual from examContent)
   const listeningPartDefs = useMemo(() => {
     const counts = listeningParts.map((p: any) => p.questions?.length || 10);
     let start = 1;
@@ -109,7 +108,6 @@ export default function StudentExam() {
     }));
   }, [listeningParts]);
 
-  // Reading: each passage has its own questions (1-13,14-26,27-40)
   const readingPartDefs = useMemo(() => {
     const counts = readingPassages.map((p: any) => p.questions?.length || 0);
     let start = 1;
@@ -122,13 +120,11 @@ export default function StudentExam() {
     }));
   }, [readingPassages]);
 
-  // Writing: two tasks, each considered one "question" for navigation
   const writingPartDefs = [
     { partIndex: 1, label: "Part 1", start: 1, end: 1, count: 1 },
     { partIndex: 2, label: "Part 2", start: 2, end: 2, count: 1 },
   ];
 
-  // Current part definitions based on section
   const currentPartDefs = useMemo(() => {
     if (currentSection === 'listening') return listeningPartDefs;
     if (currentSection === 'reading') return readingPartDefs;
@@ -140,7 +136,6 @@ export default function StudentExam() {
     setCurrentPart(part);
     const def = currentPartDefs.find((d: any) => d.partIndex === part);
     if (def) {
-      // Also update active passage/task index
       if (currentSection === 'reading') {
         setActivePassageIdx(part - 1);
       } else if (currentSection === 'writing') {
@@ -152,7 +147,6 @@ export default function StudentExam() {
 
   const goToQuestion = (qNum: number) => {
     setCurrentQuestion(qNum);
-    // Find which part contains this question
     const def = currentPartDefs.find((d: any) => qNum >= d.start && qNum <= d.end);
     if (def && def.partIndex !== currentPart) {
       setCurrentPart(def.partIndex);
@@ -193,8 +187,8 @@ export default function StudentExam() {
       setTimeLeft(0);
       return;
     }
-    if (section === 'reading') minutes = content?.sections?.reading?.timeLimit || 60;
-    if (section === 'writing') minutes = content?.sections?.writing?.timeLimit || 60;
+    if (section === 'reading') minutes = content?.reading?.timeLimit || 60;
+    if (section === 'writing') minutes = content?.writing?.timeLimit || 60;
     setTimeLeft(minutes * 60);
   };
 
@@ -202,7 +196,6 @@ export default function StudentExam() {
     if (examContent) setupSectionTimer(currentSection, examContent);
   }, [currentSection, examContent]);
 
-  // Main timer effect for reading and writing only
   useEffect(() => {
     if (!hasStarted || timeLeft <= 0 || currentSection === 'listening') return;
     mainTimerRef.current = setInterval(() => {
@@ -238,7 +231,6 @@ export default function StudentExam() {
     }
   };
 
-  // Audio ended => start transfer
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !hasStarted || currentSection !== 'listening') return;
@@ -267,7 +259,6 @@ export default function StudentExam() {
     };
   }, [hasStarted, currentSection]);
 
-  // Transfer countdown
   useEffect(() => {
     if (!isTransferring) return;
     transferTimerRef.current = setInterval(() => {
@@ -286,7 +277,6 @@ export default function StudentExam() {
     };
   }, [isTransferring]);
 
-  // Early next section
   const goToNextSection = () => {
     if (transferTimerRef.current) {
       clearInterval(transferTimerRef.current);
@@ -402,7 +392,7 @@ export default function StudentExam() {
     listeningQuestions.forEach((q: any, idx: number) => {
       const qNum = idx + 1;
       const userAnswer = answers.listening?.[qNum];
-      const correct = q.correctAnswer;
+      const correct = q.answer; // JSON da 'answer' maydoni
       if (userAnswer && correct) {
         if (userAnswer.toString().trim().toLowerCase() === correct.toString().trim().toLowerCase()) listeningCorrect++;
       }
@@ -414,7 +404,7 @@ export default function StudentExam() {
       for (let qIdx = 0; qIdx < passageQuestions.length; qIdx++) {
         const globalNum = readingGlobalBase + qIdx;
         const userAnswer = answers.reading?.[globalNum];
-        const correct = passageQuestions[qIdx]?.correctAnswer;
+        const correct = passageQuestions[qIdx]?.answer;
         if (userAnswer && correct) {
           if (userAnswer.toString().trim().toLowerCase() === correct.toString().trim().toLowerCase()) readingCorrect++;
         }
@@ -550,14 +540,14 @@ export default function StudentExam() {
     return () => clearInterval(autoSave);
   }, [answers, hasStarted, sessionId]);
 
-  // Word count for writing
   const getWordCount = useMemo(() => {
     const text = activeWritingTask === 0 ? answers.writingTask1 : answers.writingTask2;
     if (!text) return 0;
     return text.trim().split(/\s+/).filter((w: string) => w.length > 0).length;
   }, [answers.writingTask1, answers.writingTask2, activeWritingTask]);
 
-  // ---------- Start screen ----------
+  const baseQNum = readingPartDefs[activePassageIdx]?.start || 1;
+
   const startExamFlow = async () => {
     if (!email.includes("@")) {
       toast({ title: "Email xato", description: "To'g'ri email kiriting", variant: "destructive" });
@@ -638,7 +628,6 @@ export default function StudentExam() {
 
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden select-none font-sans" translate="no">
-      {/* HEADER - timer (faqat reading va writing) va tugmalar */}
       <header className="header">
         <div className="timer-container">
           {currentSection !== 'listening' && (
@@ -680,12 +669,11 @@ export default function StudentExam() {
         </div>
       </header>
 
-      {/* AUDIO PLAYER – faqat listeningda, progress bar ko‘rinadi */}
       {currentSection === 'listening' && (
         <div className="audio-player-container">
           <audio
             ref={audioRef}
-            src={examContent?.sections?.listening?.audioUrl}
+            src={examContent?.listening?.audioUrl}
             autoPlay
             preload="auto"
             style={{ display: 'none' }}
@@ -703,13 +691,11 @@ export default function StudentExam() {
         </div>
       )}
 
-      {/* MAIN CONTAINER */}
       <main className="main-container" style={{ marginTop: currentSection === 'listening' ? '115px' : '60px' }}>
-        {/* LEFT PANEL */}
         <div className="left-panel" style={{ height: 'calc(100vh - 60px - 80px)', overflowY: 'auto' }}>
           {currentSection === 'listening' ? (
             <ListeningComponent
-              content={examContent?.sections?.listening}
+              content={examContent?.listening}  // to‘g‘ridan-to‘g‘ri listening obyekti
               currentPart={currentPart}
               answers={answers.listening}
               setAnswers={(newAnswers: any) => setAnswers({ ...answers, listening: newAnswers })}
@@ -719,10 +705,8 @@ export default function StudentExam() {
             />
           ) : (
             <ResizablePanelGroup direction="horizontal" className="flex-1 h-full">
-              {/* LEFT PANEL: CONTENT (passage for reading, task for writing) */}
               <ResizablePanel defaultSize={45} className="bg-white border-r-4 border-slate-100 min-w-[300px]">
                 <div className="h-full flex flex-col">
-                  {/* No extra tabs at the top - exactly like HTML */}
                   <ScrollArea className="flex-1 h-full">
                     <div
                       className="p-12 max-w-3xl mx-auto select-text selection:bg-yellow-300 selection:text-black"
@@ -730,7 +714,6 @@ export default function StudentExam() {
                     >
                       {currentSection === 'reading' ? (
                         <article>
-                          {/* Reading uchun part header (HTML dagi kabi) */}
                           <div className="part-header mb-4">
                             <p><strong>Part {activePassageIdx + 1}</strong></p>
                             <p>
@@ -754,9 +737,7 @@ export default function StudentExam() {
                           </div>
                         </article>
                       ) : (
-                        // WRITING CONTENT – exact HTML from Writing.html
                         <div className="space-y-8">
-                          {/* Writing uchun part header (HTML dagi kabi) */}
                           <div className="part-header">
                             <p><strong>Part {activeWritingTask + 1}</strong></p>
                             <p>
@@ -804,21 +785,21 @@ export default function StudentExam() {
 
               <ResizableHandle withHandle className="w-2 hover:bg-blue-500 transition-colors" />
 
-              {/* RIGHT PANEL: QUESTIONS */}
               <ResizablePanel defaultSize={55} className="bg-[#f8fafc] min-w-[300px]">
                 <ScrollArea className="h-full">
                   <div className="p-8 md:p-12 max-w-2xl mx-auto pb-32">
                     {currentSection === 'reading' ? (
-              <ReadingComponent
-                                                  passageIdx={activePassageIdx}
-                                                  baseQNum={baseQNum}
-                                                  answers={answers.reading}
-                                                  setAnswers={(newReading: any) => setAnswers({ ...answers, reading: newReading })}
-                                                  reviewFlags={reviewFlags}
-                                                  setReviewFlags={setReviewFlags}
-                                                  currentSection="reading" passage={undefined}              />
+                      <ReadingComponent
+                        passageIdx={activePassageIdx}
+                        baseQNum={baseQNum}
+                        answers={answers.reading}
+                        setAnswers={(newReading: any) => setAnswers({ ...answers, reading: newReading })}
+                        reviewFlags={reviewFlags}
+                        setReviewFlags={setReviewFlags}
+                        currentSection="reading"
+                        passage={undefined}
+                      />
                     ) : (
-                      // WRITING INPUT
                       <div className="h-full flex flex-col space-y-4">
                         <div className="flex justify-between items-center mb-2 sticky top-0 bg-[#f8fafc] py-2 z-10">
                           <h3 className="font-bold text-slate-700">Writing Response Area</h3>
@@ -843,7 +824,6 @@ export default function StudentExam() {
         </div>
       </main>
 
-      {/* BOTTOM NAVIGATION – dinamik */}
       <nav className="nav-row perScorableItem" aria-label="Questions">
         {currentPartDefs.map((def: any) => (
           <div
@@ -881,33 +861,35 @@ export default function StudentExam() {
   );
 }
 
-// ========== LISTENING COMPONENT (avvalgidek) ==========
+// ========== TO‘LIQ DINAMIK LISTENING COMPONENT (oldingi xabardagidek) ==========
 function ListeningComponent({ content, currentPart, answers = {}, setAnswers, reviewFlags, setReviewFlags, currentSection }: any) {
   const parts = content?.parts || [];
 
-  const handleAnswerChange = (qNum: number, value: any) => {
-    setAnswers({ ...answers, [qNum]: value });
+  const handleAnswerChange = (qId: string, value: any, isMulti: boolean = false) => {
+    setAnswers((prev: any) => ({ ...prev, [qId]: value }));
   };
 
-  const handleFlagToggle = (qNum: number) => {
-    const key = `${currentSection}-${qNum}`;
-    setReviewFlags((prev: any) => ({ ...prev, [key]: !prev[key] }));
+  const handleCheckboxChange = (qId: string, option: string, checked: boolean) => {
+    const current = Array.isArray(answers[qId]) ? answers[qId] : [];
+    let newValue;
+    if (checked) {
+      newValue = [...current, option];
+    } else {
+      newValue = current.filter((v: string) => v !== option);
+    }
+    newValue.sort();
+    handleAnswerChange(qId, newValue, true);
   };
 
-  // Drag-drop state for part 3 (27-30)
-  const [dragOptions] = useState([
-    { letter: 'A', text: 'the realistic colours' },
-    { letter: 'B', text: 'the sense of space' },
-    { letter: 'C', text: 'the unusual interpretation of the theme' },
-    { letter: 'D', text: 'the painting technique' },
-    { letter: 'E', text: 'the variety of materials used' },
-    { letter: 'F', text: 'the use of light and shade' }
-  ]);
+  const handleFlagToggle = (qId: string) => {
+    setReviewFlags((prev: Record<string, boolean>) => ({ ...prev, [qId]: !prev[qId] }));
+  };
 
   const [dragOverZone, setDragOverZone] = useState<string | null>(null);
+  const [usedOptions, setUsedOptions] = useState<Set<string>>(new Set());
 
-  const handleDragStart = (e: React.DragEvent, letter: string) => {
-    e.dataTransfer.setData("text/plain", letter);
+  const handleDragStart = (e: React.DragEvent, optionLetter: string) => {
+    e.dataTransfer.setData("text/plain", optionLetter);
     e.currentTarget.classList.add("dragging");
   };
 
@@ -926,361 +908,250 @@ function ListeningComponent({ content, currentPart, answers = {}, setAnswers, re
     e.currentTarget.classList.remove("drag-over");
   };
 
-  const handleDrop = (e: React.DragEvent, qNum: number) => {
+  const handleDrop = (e: React.DragEvent, questionId: string) => {
     e.preventDefault();
-    const letter = e.dataTransfer.getData("text/plain");
-    if (!letter) return;
+    const optionLetter = e.dataTransfer.getData("text/plain");
+    if (!optionLetter) return;
 
-    setAnswers({ ...answers, [qNum]: letter });
+    const existingAnswer = answers[questionId];
+    if (existingAnswer) {
+      const otherZone = Object.keys(answers).find(key => answers[key] === optionLetter);
+      if (otherZone) {
+        setAnswers((prev: any) => ({
+          ...prev,
+          [questionId]: optionLetter,
+          [otherZone]: existingAnswer
+        }));
+      } else {
+        setAnswers((prev: any) => ({ ...prev, [questionId]: optionLetter }));
+      }
+    } else {
+      setAnswers((prev: any) => ({ ...prev, [questionId]: optionLetter }));
+    }
+
     setDragOverZone(null);
     e.currentTarget.classList.remove("drag-over");
   };
 
-  const usedOptions = useMemo(() => {
-    const used = new Set();
-    if (answers) {
-      for (let q = 27; q <= 30; q++) {
-        if (answers[q]) used.add(answers[q]);
+  useEffect(() => {
+    const used = new Set<string>();
+    Object.keys(answers).forEach(key => {
+      if (key.startsWith('q-') && answers[key]) {
+        used.add(answers[key]);
       }
-    }
-    return used;
+    });
+    setUsedOptions(used);
   }, [answers]);
 
-  const renderPart = () => {
-    const partData = parts[currentPart - 1];
-    if (!partData) return null;
+  const getGlobalQuestionNumber = (partIndex: number, questionIndex: number) => {
+    let count = 0;
+    for (let i = 0; i < partIndex; i++) {
+      count += parts[i]?.questions?.length || 0;
+    }
+    return count + questionIndex + 1;
+  };
 
-    if (currentPart === 1) {
-      return (
-        <div className="space-y-4">
-          <div className="border border-black p-6">
-            <p className="text-center font-bold text-2xl mb-6">Music Alive Agency</p>
-            <p className="italic mb-4">Example</p>
-            {[1,2,3,4,5,6,7,8,9,10].map(qNum => {
-              let label = '';
-              if (qNum === 1) label = "Members' details are on a";
-              else if (qNum === 2) label = "Type of music represented: modern music (";
-              else if (qNum === 3) label = "Newsletter comes out once a";
-              else if (qNum === 4) label = "Cost of adult membership: £";
-              else if (qNum === 5) label = "Current number of members:";
-              else if (qNum === 6) label = "Facilities include: rehearsal rooms and a";
-              else if (qNum === 7) label = "There is no charge for";
-              else if (qNum === 8) label = "- a recent";
-              else if (qNum === 9) label = "Address: 707,";
-              else if (qNum === 10) label = "Contact email: music.";
+  const renderQuestion = (q: any, partIndex: number, qIdx: number) => {
+    const qId = q.id || `q-${partIndex + 1}-${qIdx + 1}`;
+    const globalNum = getGlobalQuestionNumber(partIndex, qIdx);
+    const part = parts[partIndex]; // joriy part
 
-              return (
-                <div key={qNum} id={`q-container-${currentSection}-${qNum}`} className="mb-2">
-                  <p>
-                    {label}
+    switch (q.type) {
+      case 'gap_fill':
+        const hasBlank = q.text.includes('_____');
+        return (
+          <div key={qId} id={`q-container-${globalNum}`} className="mb-2">
+            <p>
+              {hasBlank ? (
+                q.text.split('_____').map((part: string, i: number, arr: string[]) => (
+                  <span key={i}>
+                    {part}
+                    {i < arr.length - 1 && (
+                      <input
+                        type="text"
+                        className="answer-input"
+                        placeholder={String(globalNum)}
+                        value={answers[qId] || ''}
+                        onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                      />
+                    )}
+                  </span>
+                ))
+              ) : (
+                <>
+                  {q.text}
+                  <input
+                    type="text"
+                    className="answer-input"
+                    placeholder={String(globalNum)}
+                    value={answers[qId] || ''}
+                    onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                  />
+                </>
+              )}
+            </p>
+          </div>
+        );
+
+      case 'mcq_single':
+        return (
+          <div key={qId} id={`q-container-${globalNum}`} className="space-y-2">
+            <p><strong>{globalNum}.</strong> {q.text}</p>
+            <div className="flex flex-col space-y-1">
+              {q.options?.map((opt: string) => (
+                <label key={opt} className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name={`q-${globalNum}`}
+                    value={opt.charAt(0)}
+                    checked={answers[qId] === opt.charAt(0)}
+                    onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                    className="w-4 h-4"
+                  />
+                  <span>{opt}</span>
+                </label>
+              ))}
+            </div>
+            <button onClick={() => handleFlagToggle(qId)} className="ml-2">
+              <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
+            </button>
+          </div>
+        );
+
+      case 'mcq_multi':
+        return (
+          <div key={qId} id={`q-container-${globalNum}`} className="space-y-2">
+            <p><strong>{globalNum}.</strong> {q.text}</p>
+            <div className="flex flex-col space-y-1">
+              {q.options?.map((opt: string) => {
+                const optionLetter = opt.charAt(0);
+                const isChecked = Array.isArray(answers[qId]) && answers[qId].includes(optionLetter);
+                return (
+                  <label key={opt} className="flex items-center gap-2">
                     <input
-                      type="text"
-                      className="answer-input"
-                      placeholder={String(qNum)}
-                      value={answers[qNum] || ''}
-                      onChange={(e) => handleAnswerChange(qNum, e.target.value)}
+                      type="checkbox"
+                      value={optionLetter}
+                      checked={isChecked}
+                      onChange={(e) => handleCheckboxChange(qId, optionLetter, e.target.checked)}
+                      className="w-4 h-4"
                     />
-                    {qNum === 2 && " and jazz)"}
-                    {qNum === 7 && " advice"}
-                    {qNum === 9 && " Street, Marbury"}
-                    {qNum === 10 && "@bsu.co.uk"}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      );
-    }
-
-    if (currentPart === 2) {
-      return (
-        <div className="space-y-8">
-          <div>
-            <p className="font-bold mb-2">Questions 11-14</p>
-            <p className="mb-4">Choose the correct letter A, B or C.</p>
-            <div className="space-y-4">
-              {[11,12,13,14].map(qNum => {
-                const q = partData.questions?.find((_: any, idx: number) => idx + 11 === qNum) || { text: '', options: ['A', 'B', 'C'] };
-                return (
-                  <div key={qNum} id={`q-container-${currentSection}-${qNum}`} className="space-y-2">
-                    <p><strong>{qNum}</strong> {q.text}</p>
-                    <div className="flex flex-col space-y-1">
-                      {q.options?.map((opt: string) => (
-                        <label key={opt} className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name={`q${qNum}`}
-                            value={opt.charAt(0)}
-                            checked={answers[qNum] === opt.charAt(0)}
-                            onChange={(e) => handleAnswerChange(qNum, e.target.value)}
-                            className="w-4 h-4"
-                          />
-                          <span>{opt}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
+                    <span>{opt}</span>
+                  </label>
                 );
               })}
             </div>
+            <button onClick={() => handleFlagToggle(qId)} className="ml-2">
+              <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
+            </button>
           </div>
+        );
 
-          <div>
-            <p className="font-bold mb-2">Questions 15-20</p>
-            <p className="mb-4">Label the map below. Write the correct letter, A-I, next to questions 15-20.</p>
-            <div className="map-container mb-4">
-              <img
-                src="https://ia600906.us.archive.org/32/items/skrinshot-2025-08-12-202707-copy-copy-copy-copy-copy-copy/Skrinshot%202025-08-12%20202707%20-%20CopyCopyCopyCopyCopyCopy.png"
-                alt="Map"
-                className="w-full max-w-md mx-auto border border-gray-300"
-              />
-            </div>
-            {[15,16,17,18,19,20].map(qNum => (
-              <div key={qNum} id={`q-container-${currentSection}-${qNum}`} className="flex items-center gap-4 mb-2">
-                <span className="font-bold w-8">{qNum}</span>
-                <span className="flex-1">{partData.questions?.find((_: any, idx: number) => idx + 15 === qNum)?.text || ''}</span>
-                <select
-                  className="answer-select w-24"
-                  value={answers[qNum] || ''}
-                  onChange={(e) => handleAnswerChange(qNum, e.target.value)}
-                >
-                  <option value="">Select</option>
-                  {['A','B','C','D','E','F','G','H','I'].map(letter => (
-                    <option key={letter} value={letter}>{letter}</option>
-                  ))}
-                </select>
-                <button onClick={() => handleFlagToggle(qNum)} className="ml-2">
-                  <Flag size={18} className={reviewFlags[`${currentSection}-${qNum}`] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
-    if (currentPart === 3) {
-      return (
-        <div className="space-y-8">
-          <div>
-            <p className="font-bold mb-2">Questions 21-26</p>
-            <p className="mb-4">Choose the correct answer.</p>
-            <div className="space-y-4">
-              {[21,22,23,24,25,26].map(qNum => {
-                const q = partData.questions?.find((_: any, idx: number) => idx + 21 === qNum) || { text: '', options: ['A','B','C'] };
-                return (
-                  <div key={qNum} id={`q-container-${currentSection}-${qNum}`} className="space-y-2">
-                    <p><strong>{qNum}</strong> {q.text}</p>
-                    <div className="flex flex-col space-y-1">
-                      {q.options?.map((opt: string) => (
-                        <label key={opt} className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name={`q${qNum}`}
-                            value={opt.charAt(0)}
-                            checked={answers[qNum] === opt.charAt(0)}
-                            onChange={(e) => handleAnswerChange(qNum, e.target.value)}
-                            className="w-4 h-4"
-                          />
-                          <span>{opt}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <p className="font-bold mb-2">Questions 27-30</p>
-            <p className="mb-4">Which feature do the speakers identify as particularly interesting for each of the following exhibitions they saw?</p>
-            <p>Choose FOUR answers from the box and write the correct letter, <strong>A-F</strong>, next to questions 27-30.</p>
-            <div className="flex gap-8 mt-4">
-              <div className="flex-1 space-y-2">
-                {['On the Water', 'City Life', 'Faces', 'Moods'].map((exhibition, idx) => {
-                  const qNum = 27 + idx;
-                  return (
-                    <div
-                      key={idx}
-                      id={`q-container-${currentSection}-${qNum}`}
-                      className={`flex items-center gap-4 p-2 border-2 border-dashed rounded min-h-[50px] transition-colors ${dragOverZone === `zone-${qNum}` ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
-                      onDragOver={(e) => handleDragOver(e, `zone-${qNum}`)}
-                      onDragLeave={handleDragLeave}
-                      onDrop={(e) => handleDrop(e, qNum)}
-                    >
-                      <span className="font-bold w-8">{qNum}</span>
-                      <span className="flex-1">{exhibition}</span>
-                      <div className="w-24 h-8 flex items-center justify-center bg-gray-50 border rounded">
-                        {answers[qNum] && (
-                          <span className="font-bold text-blue-600">{answers[qNum]}</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="w-64 space-y-2 p-4 bg-gray-50 rounded border">
-                <p className="font-bold text-sm mb-2">Drag options:</p>
-                {dragOptions.map((opt, idx) => {
-                  const isUsed = usedOptions.has(opt.letter);
-                  return (
-                    <div
-                      key={idx}
-                      draggable={!isUsed}
-                      onDragStart={(e) => handleDragStart(e, opt.letter)}
-                      onDragEnd={handleDragEnd}
-                      className={`drag-item p-2 bg-white border rounded cursor-move hover:bg-gray-100 ${isUsed ? 'opacity-30 cursor-not-allowed' : ''}`}
-                      style={{ display: isUsed ? 'none' : 'block' }}
-                    >
-                      <strong>{opt.letter}</strong> {opt.text}
-                    </div>
-                  );
-                })}
+      case 'matching':
+        // Agar part da dragOptions bo'lsa, drag-drop interfeys ko'rsat
+        if (part?.dragOptions) {
+          return (
+            <div
+              key={qId}
+              id={`q-container-${globalNum}`}
+              className={`flex items-center gap-4 p-2 border-2 border-dashed rounded min-h-[50px] transition-colors ${dragOverZone === qId ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+              onDragOver={(e) => handleDragOver(e, qId)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, qId)}
+            >
+              <span className="font-bold w-8">{globalNum}</span>
+              <span className="flex-1">{q.text}</span>
+              <div className="w-24 h-8 flex items-center justify-center bg-gray-50 border rounded">
+                {answers[qId] && <span className="font-bold text-blue-600">{answers[qId]}</span>}
               </div>
             </div>
-          </div>
-        </div>
-      );
-    }
+          );
+        } else {
+          // Fallback – oddiy dropdown (dragOptions bo'lmasa)
+          return (
+            <div key={qId} id={`q-container-${globalNum}`} className="flex items-center gap-4 mb-2">
+              <span className="font-bold w-8">{globalNum}</span>
+              <span className="flex-1">{q.text}</span>
+              <select
+                className="answer-select w-24"
+                value={answers[qId] || ''}
+                onChange={(e) => handleAnswerChange(qId, e.target.value)}
+              >
+                <option value="">Select</option>
+                {q.options?.map((opt: string) => (
+                  <option key={opt} value={opt.charAt(0)}>{opt}</option>
+                ))}
+              </select>
+              <button onClick={() => handleFlagToggle(qId)} className="ml-2">
+                <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
+              </button>
+            </div>
+          );
+        }
 
-    if (currentPart === 4) {
-      return (
-        <div className="space-y-4">
-          <div className="border border-black p-6">
-            <p className="text-center font-bold text-2xl mb-6">The Mangrove Regeneration Project</p>
-            <p><strong>Background:</strong></p>
-            <p><strong>Mangrove forests:</strong></p>
-            <ul className="list-none pl-5 space-y-2">
-              <li id={`q-container-${currentSection}-31`}>
-                • protect coastal areas from
-                <input
-                  type="text"
-                  className="answer-input"
-                  placeholder="31"
-                  value={answers[31] || ''}
-                  onChange={(e) => handleAnswerChange(31, e.target.value)}
-                /> by the sea
-              </li>
-              <li>• are an important habitat for wildlife</li>
-            </ul>
-            <p><strong>Problems:</strong></p>
-            <ul className="list-none pl-5 space-y-2">
-              <li id={`q-container-${currentSection}-32`}>
-                • mangroves had been used by farmers as
-                <input
-                  type="text"
-                  className="answer-input"
-                  placeholder="32"
-                  value={answers[32] || ''}
-                  onChange={(e) => handleAnswerChange(32, e.target.value)}
-                />
-              </li>
-              <li id={`q-container-${currentSection}-33`}>
-                • mangroves were poisoned by the use of
-                <input
-                  type="text"
-                  className="answer-input"
-                  placeholder="33"
-                  value={answers[33] || ''}
-                  onChange={(e) => handleAnswerChange(33, e.target.value)}
-                />
-              </li>
-              <li id={`q-container-${currentSection}-34`}>
-                • local people used the mangroves as a place to put their
-                <input
-                  type="text"
-                  className="answer-input"
-                  placeholder="34"
-                  value={answers[34] || ''}
-                  onChange={(e) => handleAnswerChange(34, e.target.value)}
-                />
-              </li>
-            </ul>
-            <p><strong>Actions taken to protect the mangroves:</strong></p>
-            <ul className="list-none pl-5 space-y-2">
-              <li id={`q-container-${currentSection}-35`}>
-                • a barrier which was made of
-                <input
-                  type="text"
-                  className="answer-input"
-                  placeholder="35"
-                  value={answers[35] || ''}
-                  onChange={(e) => handleAnswerChange(35, e.target.value)}
-                /> was constructed - but it failed
-              </li>
-              <li>• new mangroves had to be grown from seed</li>
-              <li id={`q-container-${currentSection}-36`}>
-                • the seeds of the
-                <input
-                  type="text"
-                  className="answer-input"
-                  placeholder="36"
-                  value={answers[36] || ''}
-                  onChange={(e) => handleAnswerChange(36, e.target.value)}
-                /> mangrove were used
-              </li>
-            </ul>
-            <p><strong>First set of seedlings:</strong></p>
-            <ul className="list-none pl-5 space-y-2">
-              <li id={`q-container-${currentSection}-37`}>
-                • kept in small pots in a
-                <input
-                  type="text"
-                  className="answer-input"
-                  placeholder="37"
-                  value={answers[37] || ''}
-                  onChange={(e) => handleAnswerChange(37, e.target.value)}
-                />
-              </li>
-              <li id={`q-container-${currentSection}-38`}>
-                • Watered with
-                <input
-                  type="text"
-                  className="answer-input"
-                  placeholder="38"
-                  value={answers[38] || ''}
-                  onChange={(e) => handleAnswerChange(38, e.target.value)}
-                /> rain water
-              </li>
-              <li>• planted out on south side of a small island</li>
-              <li id={`q-container-${currentSection}-39`}>
-                • at risk from the large
-                <input
-                  type="text"
-                  className="answer-input"
-                  placeholder="39"
-                  value={answers[39] || ''}
-                  onChange={(e) => handleAnswerChange(39, e.target.value)}
-                /> population
-              </li>
-            </ul>
-            <p><strong>Second set of seedlings:</strong></p>
-            <ul className="list-none pl-5 space-y-2">
-              <li>• planted in the seabed near established mangrove roots</li>
-              <li id={`q-container-${currentSection}-40`}>
-                • the young plants were destroyed in a
-                <input
-                  type="text"
-                  className="answer-input"
-                  placeholder="40"
-                  value={answers[40] || ''}
-                  onChange={(e) => handleAnswerChange(40, e.target.value)}
-                />
-              </li>
-            </ul>
-            <p><strong>Results:</strong> The first set of seedlings was successful</p>
-          </div>
-        </div>
-      );
+      default:
+        return null;
     }
-    return null;
   };
 
   return (
     <div className="h-full flex flex-col bg-white">
-      {renderPart()}
+      {!content ? (
+        <div className="text-center py-12">
+          <p className="text-slate-500">Listening ma'lumotlari topilmadi.</p>
+        </div>
+      ) : (
+        <div className="space-y-12 p-8 pb-32">
+          {parts.map((part: any, pIdx: number) => (
+            <div
+              key={pIdx}
+              className={`space-y-6 ${pIdx + 1 === currentPart ? '' : 'hidden'}`}
+              style={{ display: pIdx + 1 === currentPart ? 'block' : 'none' }}
+            >
+              <div className="border-l-4 border-blue-500 pl-4 py-1 bg-blue-50/50 rounded-r-lg">
+                <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">
+                  {part.title || `Part ${pIdx + 1}`}
+                </h3>
+                {part.instruction && <p className="text-sm text-slate-500">{part.instruction}</p>}
+              </div>
+
+              {part.image && (
+                <div className="my-4">
+                  <img
+                    src={part.image}
+                    alt={`Part ${pIdx + 1}`}
+                    className="max-w-full h-auto rounded-lg border shadow-sm"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-6">
+                {part.questions?.map((q: any, qIdx: number) => renderQuestion(q, pIdx, qIdx))}
+              </div>
+
+              {part.dragOptions && (
+                <div className="w-64 space-y-2 p-4 bg-gray-50 rounded border">
+                  <p className="font-bold text-sm mb-2">Drag options:</p>
+                  {part.dragOptions.map((opt: any, idx: number) => {
+                    const isUsed = usedOptions.has(opt.letter);
+                    return (
+                      <div
+                        key={idx}
+                        draggable={!isUsed}
+                        onDragStart={(e) => handleDragStart(e, opt.letter)}
+                        onDragEnd={handleDragEnd}
+                        className={`drag-item p-2 bg-white border rounded cursor-move hover:bg-gray-100 ${isUsed ? 'opacity-30 cursor-not-allowed' : ''}`}
+                        style={{ display: isUsed ? 'none' : 'block' }}
+                      >
+                        <strong>{opt.letter}</strong> {opt.text}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
