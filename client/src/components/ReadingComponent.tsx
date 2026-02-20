@@ -2,14 +2,13 @@ import React from 'react';
 import { Flag } from 'lucide-react';
 
 interface ReadingComponentProps {
-  passage: any; // passage indeksiga qarab tegishli qismni koʻrsatish uchun, lekin matnlar qattiq kodlangan
-  baseQNum: number; // global savol raqami boshlanishi
+  passageIdx: number; // 0,1,2 – Part 1,2,3
+  baseQNum: number;   // global question number start
   answers: Record<number, any>;
   setAnswers: (answers: any) => void;
   reviewFlags: Record<string, boolean>;
   setReviewFlags: (flags: any) => void;
   currentSection: string;
-  passageIdx: number; // 0,1,2 – Part 1,2,3
 }
 
 const TFNG_OPTIONS = ["TRUE", "FALSE", "NOT GIVEN"];
