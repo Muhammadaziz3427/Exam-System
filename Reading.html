@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IELTS Reading Practice - Spider Silk, TV Addiction, The Power of Nothing</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #34495e;
+            --accent-color: #3498db;
+            --bg-color: #f4f7f6;
+            --text-color: #333;
+            --border-color: #ddd;
+            --header-height: 60px;
+            --nav-height: 50px;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background-color: var(--bg-color);
+        }
+
+        .header {
+            height: var(--header-height);
+            background-color: var(--primary-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 1000;
+            box-sizing: border-box;
+        }
+
+        .timer-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .timer-display {
+            font-size: 1.5rem;
+            font-weight: bold;
+            min-width: 80px;
+        }
+
+        .timer-btn {
+            background: #e74c3c;
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .telegram-link {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .main-container {
+            margin-top: var(--header-height);
+            height: calc(100% - var(--header-height) - var(--nav-height));
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+        }
+
+        .part-header {
+            background: #eee;
+            padding: 10px 20px;
+            border-bottom: 1px solid var(--border-color);
+            font-weight: bold;
+        }
+
+        .panels-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .passage-panel {
+            width: 50%;
+            overflow-y: auto;
+            padding: 20px;
+            background: white;
+            box-sizing: border-box;
+        }
+
+        .resizer {
+            width: 5px;
+            cursor: col-resize;
+            background: #ccc;
+            z-index: 10;
+        }
+
+        .questions-panel {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #fafafa;
+            box-sizing: border-box;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .reading-passage h2 { color: var(--primary-color); }
+        .reading-passage p { line-height: 1.6; margin-bottom: 15px; position: relative; }
+        .paragraph-label { font-weight: bold; margin-right: 10px; }
+
+        .tf-question {
+            background: white;
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+
+        .tf-question-line {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .tf-question-number {
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+
+        .tf-options {
+            display: flex;
+            gap: 15px;
+        }
+
+        .answer-select {
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+
+        .bottom-nav {
+            height: var(--nav-height);
+            background: white;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .part-tabs {
+            display: flex;
+            gap: 5px;
+        }
+
+        .part-tab {
+            padding: 8px 15px;
+            border: 1px solid var(--border-color);
+            background: #f0f0f0;
+            cursor: pointer;
+            border-radius: 4px 4px 0 0;
+        }
+
+        .part-tab.active {
+            background: var(--accent-color);
+            color: white;
+            border-bottom: none;
+        }
+
+        .question-nav {
+            display: flex;
+            gap: 5px;
+            overflow-x: auto;
+            max-width: 50%;
+        }
+
+        .q-btn {
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--border-color);
+            background: white;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .q-btn.answered { background: #dff9fb; }
+        .q-btn.active { border: 2px solid var(--accent-color); font-weight: bold; }
+
+        .nav-arrows {
+            display: flex;
+            gap: 10px;
+        }
+
+        .check-btn {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* Context Menu */
+        #context-menu {
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+            padding: 5px 0;
+            z-index: 2000;
+            display: none;
+        }
+
+        #context-menu div {
+            padding: 8px 20px;
+            cursor: pointer;
+        }
+
+        #context-menu div:hover { background: #eee; }
+
+        .highlight { background-color: yellow; }
+
+        /* Modal */
+        .modal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+        }
+
+        .close-modal {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="timer-container">
+            <span class="timer-display" id="timer">60:00</span>
+            <button class="timer-btn" id="play-pause">Play</button>
+            <button class="timer-btn" id="reset-timer">Reset</button>
+        </div>
+        <a href="https://t.me/+SoPpY9nBi3U0NTE1" target="_blank" class="telegram-link">MINDLESS WRITER</a>
+        <div class="header-icons"></div>
+    </div>
+
+    <div class="main-container">
+        <div id="part-headers">
+            <div class="part-header" id="header-1">Part 1: Spider Silk</div>
+            <div class="part-header hidden" id="header-2">Part 2: TV Addiction</div>
+            <div class="part-header hidden" id="header-3">Part 3: The Power of Nothing</div>
+        </div>
+
+        <div class="panels-container">
+            <div class="passage-panel" id="passage-panel">
+                <div id="passage-1" class="reading-passage">
+                    <h2>Spider Silk</h2>
+                    <p><span class="paragraph-label">A</span> Spider silk is a protein fibre spun by spiders. Spiders use their silk to make webs or other structures, which function as nets to catch other animals, or as nests or cocoons to protect their offspring, or to wrap up prey. They can also use their silk to suspend themselves, to float through the air, or to glide across water.</p>
+                    <p><span class="paragraph-label">B</span> Paragraph B content placeholder for Spider Silk...</p>
+                    <p><span class="paragraph-label">C</span> Paragraph C content placeholder...</p>
+                    <p><span class="paragraph-label">D</span> Paragraph D content placeholder...</p>
+                    <p><span class="paragraph-label">E</span> Paragraph E content placeholder...</p>
+                    <p><span class="paragraph-label">F</span> Paragraph F content placeholder...</p>
+                    <p><span class="paragraph-label">G</span> Paragraph G content placeholder...</p>
+                    <p><span class="paragraph-label">H</span> Paragraph H content placeholder...</p>
+                    <p><span class="paragraph-label">I</span> Paragraph I content placeholder...</p>
+                </div>
+                <div id="passage-2" class="reading-passage hidden">
+                    <h2>TV Addiction</h2>
+                    <p><span class="paragraph-label">A</span> Paragraph A content for TV Addiction...</p>
+                    <p><span class="paragraph-label">B</span> Paragraph B content...</p>
+                    <p><span class="paragraph-label">C</span> Paragraph C content...</p>
+                    <p><span class="paragraph-label">D</span> Paragraph D content...</p>
+                    <p><span class="paragraph-label">E</span> Paragraph E content...</p>
+                    <p><span class="paragraph-label">F</span> Paragraph F content...</p>
+                    <p><span class="paragraph-label">G</span> Paragraph G content...</p>
+                    <p><span class="paragraph-label">H</span> Paragraph H content...</p>
+                    <p><span class="paragraph-label">I</span> Paragraph I content...</p>
+                </div>
+                <div id="passage-3" class="reading-passage hidden">
+                    <h2>The Power of Nothing</h2>
+                    <p><span class="paragraph-label">A</span> Paragraph A content for The Power of Nothing...</p>
+                    <p><span class="paragraph-label">B</span> Paragraph B content...</p>
+                    <p><span class="paragraph-label">C</span> Paragraph C content...</p>
+                    <p><span class="paragraph-label">D</span> Paragraph D content...</p>
+                    <p><span class="paragraph-label">E</span> Paragraph E content...</p>
+                    <p><span class="paragraph-label">F</span> Paragraph F content...</p>
+                    <p><span class="paragraph-label">G</span> Paragraph G content...</p>
+                    <p><span class="paragraph-label">H</span> Paragraph H content...</p>
+                    <p><span class="paragraph-label">I</span> Paragraph I content...</p>
+                    <p><span class="paragraph-label">J</span> Paragraph J content...</p>
+                </div>
+            </div>
+
+            <div class="resizer" id="resizer"></div>
+
+            <div class="questions-panel" id="questions-panel">
+                <div id="questions-1">
+                    <h3>Questions 1–5</h3>
+                    <p>Which paragraph contains the following information?</p>
+                    <div class="tf-question">
+                        <div class="tf-question-line">
+                            <span class="tf-question-number">1</span>
+                            <span class="tf-question-text">a comparison of the ways two materials are used to replace silk-producing glands</span>
+                        </div>
+                        <div class="tf-options">
+                            <select name="q1" class="answer-select" data-question="1">
+                                <option value="">Select</option>
+                                <option value="A">A</option><option value="B">B</option><option value="C">C</option>
+                                <option value="D">D</option><option value="E">E</option><option value="F">F</option>
+                                <option value="G">G</option><option value="H">H</option><option value="I">I</option>
+                            </select>
+                        </div>
+                    </div>
+                    <!-- Repeat for 2-5 -->
+                    <div class="tf-question"><div class="tf-question-line"><span class="tf-question-number">2</span><span>Question 2 text placeholder</span></div><div class="tf-options"><select class="answer-select" data-question="2"><option value="">Select</option><option value="A">A</option><option value="B">B</option></select></div></div>
+                    <div class="tf-question"><div class="tf-question-line"><span class="tf-question-number">3</span><span>Question 3 text placeholder</span></div><div class="tf-options"><select class="answer-select" data-question="3"><option value="">Select</option><option value="A">A</option><option value="B">B</option></select></div></div>
+                    <div class="tf-question"><div class="tf-question-line"><span class="tf-question-number">4</span><span>Question 4 text placeholder</span></div><div class="tf-options"><select class="answer-select" data-question="4"><option value="">Select</option><option value="A">A</option><option value="B">B</option></select></div></div>
+                    <div class="tf-question"><div class="tf-question-line"><span class="tf-question-number">5</span><span>Question 5 text placeholder</span></div><div class="tf-options"><select class="answer-select" data-question="5"><option value="">Select</option><option value="A">A</option><option value="B">B</option></select></div></div>
+                </div>
+
+                <div id="questions-2" class="hidden">
+                    <h3>Questions 14–26</h3>
+                    <p>Questions for TV Addiction...</p>
+                </div>
+
+                <div id="questions-3" class="hidden">
+                    <h3>Questions 27–40</h3>
+                    <p>Questions for The Power of Nothing...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bottom-nav">
+        <div class="part-tabs">
+            <div class="part-tab active" onclick="switchPart(1)">Part 1</div>
+            <div class="part-tab" onclick="switchPart(2)">Part 2</div>
+            <div class="part-tab" onclick="switchPart(3)">Part 3</div>
+        </div>
+        <div class="question-nav" id="q-nav-buttons">
+            <!-- Dynamically generated buttons -->
+        </div>
+        <div class="nav-arrows">
+            <button class="check-btn" id="check-answers">Check Answers</button>
+            <button class="q-btn" onclick="prevPart()">&lt;</button>
+            <button class="q-btn" onclick="nextPart()">&gt;</button>
+        </div>
+    </div>
+
+    <div id="context-menu">
+        <div id="highlight-btn">Highlight</div>
+        <div id="comment-btn">Add Comment</div>
+        <div id="clear-btn">Clear</div>
+    </div>
+
+    <div class="modal" id="results-modal">
+        <div class="modal-content">
+            <h2>Reading Results</h2>
+            <p id="score-display">Your score: 0/40</p>
+            <button class="close-modal" onclick="closeModal()">Close</button>
+        </div>
+    </div>
+
+    <script>
+        // Timer Logic
+        let timeLeft = 3600;
+        let timerId = null;
+        const timerDisplay = document.getElementById('timer');
+
+        function updateTimer() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            if (timeLeft > 0) timeLeft--;
+            else clearInterval(timerId);
+        }
+
+        document.getElementById('play-pause').onclick = function() {
+            if (timerId) {
+                clearInterval(timerId);
+                timerId = null;
+                this.textContent = 'Play';
+            } else {
+                timerId = setInterval(updateTimer, 1000);
+                this.textContent = 'Pause';
+            }
+        };
+
+        document.getElementById('reset-timer').onclick = function() {
+            clearInterval(timerId);
+            timerId = null;
+            timeLeft = 3600;
+            updateTimer();
+            document.getElementById('play-pause').textContent = 'Play';
+        };
+
+        // Resizer Logic
+        const resizer = document.getElementById('resizer');
+        const passagePanel = document.getElementById('passage-panel');
+        const container = document.querySelector('.panels-container');
+
+        resizer.addEventListener('mousedown', (e) => {
+            document.addEventListener('mousemove', resize);
+            document.addEventListener('mouseup', stopResize);
+        });
+
+        function resize(e) {
+            const containerWidth = container.offsetWidth;
+            const newWidth = (e.clientX / containerWidth) * 100;
+            if (newWidth > 20 && newWidth < 80) {
+                passagePanel.style.width = newWidth + '%';
+            }
+        }
+
+        function stopResize() {
+            document.removeEventListener('mousemove', resize);
+        }
+
+        // Navigation Logic
+        let currentPart = 1;
+
+        function switchPart(part) {
+            currentPart = part;
+            // Update Headers
+            document.querySelectorAll('.part-header').forEach(h => h.classList.add('hidden'));
+            document.getElementById(`header-${part}`).classList.remove('hidden');
+            // Update Passages
+            document.querySelectorAll('.reading-passage').forEach(p => p.classList.add('hidden'));
+            document.getElementById(`passage-${part}`).classList.remove('hidden');
+            // Update Questions
+            document.querySelectorAll('.questions-panel > div').forEach(q => q.classList.add('hidden'));
+            document.getElementById(`questions-${part}`).classList.remove('hidden');
+            // Update Tabs
+            document.querySelectorAll('.part-tab').forEach((t, i) => {
+                t.classList.toggle('active', i + 1 === part);
+            });
+        }
+
+        function nextPart() { if (currentPart < 3) switchPart(currentPart + 1); }
+        function prevPart() { if (currentPart > 1) switchPart(currentPart - 1); }
+
+        // Question Nav Buttons
+        const qNav = document.getElementById('q-nav-buttons');
+        for (let i = 1; i <= 40; i++) {
+            const btn = document.createElement('div');
+            btn.className = 'q-btn';
+            btn.textContent = i;
+            btn.onclick = () => {
+                if (i <= 13) switchPart(1);
+                else if (i <= 26) switchPart(2);
+                else switchPart(3);
+            };
+            qNav.appendChild(btn);
+        }
+
+        // Context Menu & Highlighting
+        const contextMenu = document.getElementById('context-menu');
+        passagePanel.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            const selection = window.getSelection();
+            if (selection.toString().length > 0) {
+                contextMenu.style.display = 'block';
+                contextMenu.style.left = e.pageX + 'px';
+                contextMenu.style.top = e.pageY + 'px';
+            }
+        });
+
+        document.addEventListener('click', () => contextMenu.style.display = 'none');
+
+        document.getElementById('highlight-btn').onclick = () => {
+            const selection = window.getSelection();
+            if (selection.rangeCount) {
+                const range = selection.getRangeAt(0);
+                const span = document.createElement('span');
+                span.className = 'highlight';
+                range.surroundContents(span);
+            }
+        };
+
+        // Modal Logic
+        const modal = document.getElementById('results-modal');
+        document.getElementById('check-answers').onclick = () => {
+            modal.style.display = 'flex';
+        };
+        function closeModal() { modal.style.display = 'none'; }
+
+    </script>
+</body>
+</html>
