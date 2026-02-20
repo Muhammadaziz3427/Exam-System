@@ -93,7 +93,12 @@ export class DatabaseStorage implements IStorage {
       start_time: null,
       is_camera_active: false,
       results_released: false,
-      is_used: false
+      is_used: false,
+      // Ensure snake_case fields are populated for Supabase compatibility
+      exam_id: session.examId,
+      student_name: session.studentName,
+      access_code: session.accessCode,
+      assigned_teacher_id: session.assignedTeacherId
     }]).select().single();
     if (error) throw error;
     return data;

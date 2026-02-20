@@ -237,7 +237,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       console.log("[LOGIN] 7. Parol mos keldi");
 
-      if (session.is_used === true) {
+      if (session.is_used === true && session.status !== "active") {
         console.log("[LOGIN] 8. Kod avval ishlatilgan");
         return res.status(403).json({ message: "Bu kod allaqachon ishlatilgan" });
       }
@@ -247,13 +247,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(403).json({ message: "Imtihon yakunlangan" });
       }
 
+      const updatePayload: any = {
+        status: "active",
+        is_used: true,
+      };
+
+      if (!session.startedAt && !session.start_time) {
+        updatePayload.startedAt = new Date().toISOString();
+        updatePayload.start_time = new Date().toISOString();
+      }
+
       const { error: updateError } = await supabase
         .from("exam_sessions")
-        .update({
-          status: "active",
-          startedAt: new Date().toISOString(),
-          is_used: true,
-        })
+        .update(updatePayload)
         .eq("id", session.id);
 
       if (updateError) {
