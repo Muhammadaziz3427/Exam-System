@@ -13,7 +13,7 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { ReadingComponent } from "@/components/ReadingComponent";
+import { ReadingComponent } from "@/components/ReadingComponent"; // <-- Yangi import
 
 type Section = 'listening' | 'reading' | 'writing';
 
@@ -557,9 +557,6 @@ export default function StudentExam() {
     return text.trim().split(/\s+/).filter((w: string) => w.length > 0).length;
   }, [answers.writingTask1, answers.writingTask2, activeWritingTask]);
 
-  // Calculate base question number for the current reading passage
-  const baseQNum = readingPartDefs[activePassageIdx]?.start || 1;
-
   // ---------- Start screen ----------
   const startExamFlow = async () => {
     if (!email.includes("@")) {
@@ -812,16 +809,14 @@ export default function StudentExam() {
                 <ScrollArea className="h-full">
                   <div className="p-8 md:p-12 max-w-2xl mx-auto pb-32">
                     {currentSection === 'reading' ? (
-                      <ReadingComponent
-                        passageIdx={activePassageIdx}
-                        baseQNum={baseQNum}
-                        answers={answers.reading}
-                        setAnswers={(newReading: any) => setAnswers({ ...answers, reading: newReading })}
-                        reviewFlags={reviewFlags}
-                        setReviewFlags={setReviewFlags}
-                        currentSection="reading"
-                        passage={undefined}
-                      />
+              <ReadingComponent
+                                                  passageIdx={activePassageIdx}
+                                                  baseQNum={baseQNum}
+                                                  answers={answers.reading}
+                                                  setAnswers={(newReading: any) => setAnswers({ ...answers, reading: newReading })}
+                                                  reviewFlags={reviewFlags}
+                                                  setReviewFlags={setReviewFlags}
+                                                  currentSection="reading" passage={undefined}              />
                     ) : (
                       // WRITING INPUT
                       <div className="h-full flex flex-col space-y-4">
