@@ -13,6 +13,7 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
+import { ReadingComponent } from "@/components/ReadingComponent"; // <-- Yangi import
 
 type Section = 'listening' | 'reading' | 'writing';
 
@@ -808,21 +809,14 @@ export default function StudentExam() {
                 <ScrollArea className="h-full">
                   <div className="p-8 md:p-12 max-w-2xl mx-auto pb-32">
                     {currentSection === 'reading' ? (
-                      <ReadingQuestions
-                        passage={readingPassages[activePassageIdx]}
-                        baseQNum={(() => {
-                          let sum = 1;
-                          for (let i = 0; i < activePassageIdx; i++) {
-                            sum += readingPassages[i]?.questions?.length || 0;
-                          }
-                          return sum;
-                        })()}
-                        answers={answers.reading}
-                        setAnswers={(newReading: any) => setAnswers({ ...answers, reading: newReading })}
-                        reviewFlags={reviewFlags}
-                        setReviewFlags={setReviewFlags}
-                        currentSection="reading"
-                      />
+              <ReadingComponent
+                                                  passageIdx={activePassageIdx}
+                                                  baseQNum={baseQNum}
+                                                  answers={answers.reading}
+                                                  setAnswers={(newReading: any) => setAnswers({ ...answers, reading: newReading })}
+                                                  reviewFlags={reviewFlags}
+                                                  setReviewFlags={setReviewFlags}
+                                                  currentSection="reading" passage={undefined}              />
                     ) : (
                       // WRITING INPUT
                       <div className="h-full flex flex-col space-y-4">
@@ -887,7 +881,7 @@ export default function StudentExam() {
   );
 }
 
-// ========== LISTENING COMPONENT ==========
+// ========== LISTENING COMPONENT (avvalgidek) ==========
 function ListeningComponent({ content, currentPart, answers = {}, setAnswers, reviewFlags, setReviewFlags, currentSection }: any) {
   const parts = content?.parts || [];
 
@@ -1287,311 +1281,6 @@ function ListeningComponent({ content, currentPart, answers = {}, setAnswers, re
   return (
     <div className="h-full flex flex-col bg-white">
       {renderPart()}
-    </div>
-  );
-}
-
-// ========== READING QUESTIONS COMPONENT (TAKOMILLASHTIRILGAN) ==========
-function ReadingQuestions({ passage, baseQNum, answers = {}, setAnswers, reviewFlags, setReviewFlags, currentSection }: any) {
-  const questions = passage?.questions || [];
-
-  const handleAnswerChange = (globalQNum: number, value: any) => {
-    setAnswers({ ...answers, [globalQNum]: value });
-  };
-
-  const handleFlagToggle = (globalQNum: number) => {
-    const key = `${currentSection}-${globalQNum}`;
-    setReviewFlags((prev: any) => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  return (
-    <div className="space-y-6">
-      {questions.map((q: any, idx: number) => {
-        const globalQNum = baseQNum + idx;
-
-        // Paragraph matching (1-5) – dropdown
-        if (q.type === 'paragraph_matching') {
-          return (
-            <div key={globalQNum} id={`q-container-${currentSection}-${globalQNum}`} className="tf-question" data-q-start={globalQNum}>
-              <div className="tf-question-line">
-                <span className="tf-question-number">{globalQNum}</span>
-                <span className="tf-question-text">{q.text}</span>
-              </div>
-              <div className="tf-options">
-                <select
-                  className="answer-select"
-                  value={answers[globalQNum] || ''}
-                  onChange={(e) => handleAnswerChange(globalQNum, e.target.value)}
-                >
-                  <option value="">Select</option>
-                  {q.options?.map((opt: string) => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          );
-        }
-
-        // Flow-chart (6-10) – bir nechta input
-        if (q.type === 'flow_chart') {
-          if (idx === 0) {
-            return (
-              <div key={globalQNum} className="question" data-q-start={globalQNum}>
-                <div className="question-prompt">
-                  <p><strong>Questions {globalQNum}–{globalQNum + 4}</strong></p>
-                  <p>Complete the flow-chart below. Write <strong>NO MORE THAN TWO WORDS</strong> from the text for each answer.</p>
-                </div>
-                <div className="summary-text" style={{ border: '1px solid #000', padding: '10px', textAlign: 'center' }}>
-                  <p>
-                    Synthetic gene grown in
-                    <input
-                      type="text"
-                      className="answer-input"
-                      autoComplete="off"
-                      value={answers[globalQNum] || ''}
-                      onChange={(e) => handleAnswerChange(globalQNum, e.target.value)}
-                      placeholder={String(globalQNum)}
-                    />
-                    or
-                    <input
-                      type="text"
-                      className="answer-input"
-                      autoComplete="off"
-                      value={answers[globalQNum+1] || ''}
-                      onChange={(e) => handleAnswerChange(globalQNum+1, e.target.value)}
-                      placeholder={String(globalQNum+1)}
-                    />
-                  </p>
-                  <p>↓</p>
-                  <p>
-                    globules of
-                    <input
-                      type="text"
-                      className="answer-input"
-                      autoComplete="off"
-                      value={answers[globalQNum+2] || ''}
-                      onChange={(e) => handleAnswerChange(globalQNum+2, e.target.value)}
-                      placeholder={String(globalQNum+2)}
-                    />
-                  </p>
-                  <p>↓</p>
-                  <p>
-                    dissolved in
-                    <input
-                      type="text"
-                      className="answer-input"
-                      autoComplete="off"
-                      value={answers[globalQNum+3] || ''}
-                      onChange={(e) => handleAnswerChange(globalQNum+3, e.target.value)}
-                      placeholder={String(globalQNum+3)}
-                    />
-                  </p>
-                  <p>↓</p>
-                  <p>
-                    passed through
-                    <input
-                      type="text"
-                      className="answer-input"
-                      autoComplete="off"
-                      value={answers[globalQNum+4] || ''}
-                      onChange={(e) => handleAnswerChange(globalQNum+4, e.target.value)}
-                      placeholder={String(globalQNum+4)}
-                    />
-                  </p>
-                  <p>↓</p>
-                  <p>to produce a solid fibre</p>
-                </div>
-              </div>
-            );
-          } else {
-            return null; // faqat birinchi savol butun guruhni render qiladi
-          }
-        }
-
-        // TRUE/FALSE/NOT GIVEN (11-13, 36-40)
-        if (q.type === 'tfng') {
-          return (
-            <div key={globalQNum} id={`q-container-${currentSection}-${globalQNum}`} className="tf-question" data-q-start={globalQNum}>
-              <div className="tf-question-line">
-                <span className="tf-question-number">{globalQNum}</span>
-                <span className="tf-question-text">{q.text}</span>
-              </div>
-              <div className="tf-options">
-                {TFNG_OPTIONS.map(opt => (
-                  <label key={opt} className="tf-option">
-                    <input
-                      type="radio"
-                      name={`q-${globalQNum}`}
-                      value={opt}
-                      checked={answers[globalQNum] === opt}
-                      onChange={() => handleAnswerChange(globalQNum, opt)}
-                    />
-                    <span>{opt}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          );
-        }
-
-        // YES/NO/NOT GIVEN (14-18)
-        if (q.type === 'ynng') {
-          return (
-            <div key={globalQNum} id={`q-container-${currentSection}-${globalQNum}`} className="tf-question" data-q-start={globalQNum}>
-              <div className="tf-question-line">
-                <span className="tf-question-number">{globalQNum}</span>
-                <span className="tf-question-text">{q.text}</span>
-              </div>
-              <div className="tf-options">
-                {YNNG_OPTIONS.map(opt => (
-                  <label key={opt} className="tf-option">
-                    <input
-                      type="radio"
-                      name={`q-${globalQNum}`}
-                      value={opt}
-                      checked={answers[globalQNum] === opt}
-                      onChange={() => handleAnswerChange(globalQNum, opt)}
-                    />
-                    <span>{opt}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          );
-        }
-
-        // Matching table (19-23, 27-32) – jadval
-        if (q.type === 'matching_table' || q.type === 'matching_paragraph') {
-          if (idx === 0) {
-            const statements = q.statements || (q.type === 'matching_table'
-              ? [
-                  'Byron Reeves and Esther Thorson',
-                  'Dafna Lemish',
-                  'Robert D. McIlwraith',
-                  'Tannis M. MacBeth Williams',
-                  'Charles Winick'
-                ]
-              : [
-                  'Appointments with an alternative practitioner',
-                  'An alternative practitioner\'s description of the treatment',
-                  'An alternative practitioner who has faith in what he does',
-                  'the illness of patients convinced of alternative practice',
-                  'Improvements of patients receiving alternative practice',
-                  'Conventional medical doctors (who is aware of placebo)'
-                ]);
-            const options = q.options || ['A','B','C','D','E','F','G','H'];
-            const numQuestions = statements.length;
-            return (
-              <div key={globalQNum} className="question" data-q-start={globalQNum}>
-                <div className="question-prompt">
-                  <p><strong>Questions {globalQNum}–{globalQNum + numQuestions - 1}</strong></p>
-                  <p>{q.type === 'matching_table' ? 'Match each researcher with the correct statements.' : 'Match each description with the correct letter.'}</p>
-                </div>
-                <div className="table-container">
-                  <table className="matching-table">
-                    <thead>
-                      <tr>
-                        <th></th>
-                        {options.map((opt: string) => <th key={opt}>{opt}</th>)}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {statements.map((stmt: string, stmtIdx: number) => {
-                        const currentGlobalQNum = globalQNum + stmtIdx;
-                        return (
-                          <tr key={stmtIdx}>
-                            <td className="statement"><strong>{currentGlobalQNum}</strong> {stmt}</td>
-                            {options.map((opt: string) => {
-                              const isSelected = answers[currentGlobalQNum] === opt;
-                              return (
-                                <td
-                                  key={opt}
-                                  className={`clickable-cell ${isSelected ? 'selected' : ''}`}
-                                  data-question={`q-${currentGlobalQNum}`}
-                                  data-value={opt}
-                                  onClick={() => handleAnswerChange(currentGlobalQNum, opt)}
-                                ></td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          } else {
-            return null;
-          }
-        }
-
-        // Multiple choice (24-26, 33-35)
-        if (q.type === 'mcq') {
-          return (
-            <div key={globalQNum} id={`q-container-${currentSection}-${globalQNum}`} className="multi-choice-question" data-q-start={globalQNum}>
-              <div className="question-prompt">
-                <p><strong>{globalQNum}.</strong> {q.text}</p>
-              </div>
-              <div className="space-y-2">
-                {q.options?.map((opt: string) => (
-                  <div key={opt} className="multi-choice-option">
-                    <label>
-                      <input
-                        type="radio"
-                        name={`q-${globalQNum}`}
-                        value={opt.charAt(0)}
-                        checked={answers[globalQNum] === opt.charAt(0)}
-                        onChange={() => handleAnswerChange(globalQNum, opt.charAt(0))}
-                      />
-                      <span>{opt}</span>
-                    </label>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        }
-
-        // Gap fill / sentence completion (masalan, 36-38, 1-3) – oddiy input
-        if (q.type === 'gap_fill' || q.type === 'sentence_completion') {
-          return (
-            <div key={globalQNum} id={`q-container-${currentSection}-${globalQNum}`} className="question" data-q-start={globalQNum}>
-              <div className="question-prompt">
-                <p><strong>{globalQNum}</strong> {q.text}</p>
-              </div>
-              <div className="mt-2">
-                <input
-                  type="text"
-                  className="answer-input"
-                  placeholder="Javob..."
-                  value={answers[globalQNum] || ''}
-                  onChange={(e) => handleAnswerChange(globalQNum, e.target.value)}
-                />
-              </div>
-            </div>
-          );
-        }
-
-        // Agar type noma'lum bo'lsa, oddiy input ko'rsatamiz (default fallback)
-        return (
-          <div key={globalQNum} id={`q-container-${currentSection}-${globalQNum}`} className="question" data-q-start={globalQNum}>
-            <div className="question-prompt">
-              <p><strong>{globalQNum}</strong> {q.text}</p>
-            </div>
-            <div className="mt-2">
-              <input
-                type="text"
-                className="answer-input"
-                placeholder="Javob..."
-                value={answers[globalQNum] || ''}
-                onChange={(e) => handleAnswerChange(globalQNum, e.target.value)}
-              />
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }

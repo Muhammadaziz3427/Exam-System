@@ -1,0 +1,50 @@
+**Create an IELTS Reading practice HTML page exactly as described below. The page must be a single, self-contained HTML file with embedded CSS and JavaScript. Follow the structure, class names, and functionality of the provided `Reading.html` file precisely.**
+
+### General Requirements
+- The page must be a complete HTML document (`<!DOCTYPE html>`).
+- All styles must be placed in a `<style>` tag in the `<head>`.
+- All JavaScript must be placed in a `<script>` tag at the end of the `<body>`.
+- The layout must consist of:
+  - A fixed header with a timer (60:00) and a Telegram link (keep it as is).
+  - A main container with two resizable panels: left panel for the reading passage, right panel for the questions.
+  - A resizer handle between the panels (can be dragged to adjust width).
+  - Bottom navigation bar with part tabs (Part 1, Part 2, Part 3) and question number buttons.
+  - Navigation arrows (previous/next) at the bottom right.
+  - A context menu for highlighting and comments (right‑click on text).
+  - A results modal (initially hidden) that appears when the "Check Answers" button is clicked.
+
+### Detailed Structure
+
+#### Header
+- A `<div class="header">` containing:
+  - `<div class="timer-container">` with a `<span class="timer-display">60:00</span>` and two timer control buttons (play/pause and reset).
+  - A Telegram link: `<a href="https://t.me/+SoPpY9nBi3U0NTE1" target="_blank" class="telegram-link">MINDLESS WRITER</a>`.
+  - An empty `<div class="header-icons"></div>`.
+
+#### Main Container
+- `<div class="main-container" id="main-container">`
+  - Inside, three part headers (initially only Part 1 visible, others hidden) with class `part-header`.
+  - `<div class="panels-container">` containing:
+    - Left panel: `<div class="passage-panel" id="passage-panel">` with three passages (each in a `div` with class `reading-passage` and appropriate id). The passages are:
+      - `passage-text-1`: Spider silk (with paragraphs A–I).
+      - `passage-text-2`: TV Addiction (with paragraphs A–I).
+      - `passage-text-3`: The Power of Nothing (with paragraphs A–J).
+      - Only one passage is visible at a time; the others have class `hidden`.
+    - Resizer: `<div class="resizer" id="resizer"></div>`.
+    - Right panel: `<div class="questions-panel" id="questions-panel">` with three question sets (`questions-1`, `questions-2`, `questions-3`). Only one set is visible at a time; the others have class `hidden`.
+
+#### Questions – Exact HTML from the provided file
+- **Questions 1–5** (paragraph matching): each question inside a `div` with class `tf-question`. The structure:
+  ```html
+  <div class="tf-question" data-q-start="1" data-q-end="1">
+    <div class="tf-question-line">
+      <span class="tf-question-number">1</span>
+      <span class="tf-question-text">a comparison of the ways two materials are used to replace silk-producing glands</span>
+    </div>
+    <div class="tf-options">
+      <select name="q1" class="answer-select">
+        <option value="">Select</option>
+        <option value="A">A</option> ... <option value="I">I</option>
+      </select>
+    </div>
+  </div>
