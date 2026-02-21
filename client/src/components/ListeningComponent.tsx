@@ -1,281 +1,487 @@
-import { useEffect, useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Headphones, AlertCircle, Flag } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { Flag } from "lucide-react";
 
-interface ListeningComponentProps {
-  audioUrl: string;
-  onSectionComplete: () => void;
-  examContent?: any;
-  content?: any;
-  answers?: any;
-  setAnswers: (answers: any) => void;
-  currentPart: number;
-  reviewFlags?: Record<string, boolean>;
-  setReviewFlags?: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
-}
+export function ListeningComponent({ content, currentPart, answers = {}, setAnswers, reviewFlags, setReviewFlags, currentSection }: any) {
+  const parts = content?.parts || [];
 
-export function ListeningComponent({
-  audioUrl,
-  onSectionComplete,
-  examContent,
-  content,
-  answers = {},
-  setAnswers,
-  currentPart,
-  reviewFlags = {},
-  setReviewFlags = () => {},
-}: ListeningComponentProps) {
-  const [isTransferring, setIsTransferring] = useState(false);
-  const [transferTimeLeft, setTransferTimeLeft] = useState(120);
-  const [error, setError] = useState<string | null>(null);
-  const [dragOverZone, setDragOverZone] = useState<string | null>(null);
-
-  const listeningData = content || examContent?.listening;
-  const parts = listeningData?.parts || listeningData?.sections || [];
-
-  useEffect(() => {
-    if (isTransferring) {
-      const timer = setInterval(() => {
-        setTransferTimeLeft((prev: number) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            onSectionComplete();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      return () => clearInterval(timer);
-    }
-  }, [isTransferring, onSectionComplete]);
-
-  // Universal answer handler
-  const handleAnswerChange = (qId: string, value: string | string[], isMulti: boolean = false) => {
+  // ========== Answer handlers ==========
+  const handleAnswerChange = (qId: string, value: any) => {
     setAnswers((prev: any) => ({ ...prev, [qId]: value }));
-  };
-
-  // For checkbox multi-select
-  const handleCheckboxChange = (qId: string, option: string, checked: boolean) => {
-    const current = Array.isArray(answers[qId]) ? answers[qId] : [];
-    let newValue;
-    if (checked) {
-      newValue = [...current, option];
-    } else {
-      newValue = current.filter((v: string) => v !== option);
-    }
-    newValue.sort();
-    handleAnswerChange(qId, newValue, true);
   };
 
   const handleFlagToggle = (qId: string) => {
     setReviewFlags((prev: Record<string, boolean>) => ({ ...prev, [qId]: !prev[qId] }));
   };
 
-  // Drag & drop functions (for matching type)
-  const handleDragStart = (e: React.DragEvent, optionLetter: string) => {
-    e.dataTransfer.setData("text/plain", optionLetter);
+  // ========== Drag & Drop state and functions ==========
+  const [draggedItem, setDraggedItem] = useState<any>(null);
+  const [usedOptions, setUsedOptions] = useState<Set<string>>(new Set());
+
+  const handleDragStart = (e: React.DragEvent, opt: any) => {
+    setDraggedItem(opt);
+    e.dataTransfer.setData("text/plain", opt.letter);
     e.currentTarget.classList.add("dragging");
   };
 
   const handleDragEnd = (e: React.DragEvent) => {
     e.currentTarget.classList.remove("dragging");
+    setDraggedItem(null);
   };
 
-  const handleDragOver = (e: React.DragEvent, zoneId: string) => {
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    setDragOverZone(zoneId);
     e.currentTarget.classList.add("drag-over");
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
-    setDragOverZone(null);
     e.currentTarget.classList.remove("drag-over");
   };
 
-  const handleDrop = (e: React.DragEvent, questionId: string) => {
+  const handleDropOnZone = (e: React.DragEvent, qId: string, zoneIndex: number) => {
     e.preventDefault();
-    const optionLetter = e.dataTransfer.getData("text/plain");
-    if (!optionLetter) return;
+    e.currentTarget.classList.remove("drag-over");
+    if (!draggedItem) return;
 
-    const existingAnswer = answers[questionId];
-    if (existingAnswer) {
-      const otherZone = Object.keys(answers).find(key => answers[key] === optionLetter);
+    const optionLetter = draggedItem.letter;
+    const currentAnswer = answers[qId];
+
+    // Agar zonada allaqachon javob bo‘lsa, uni almashtiramiz (swap) yoki qaytaramiz
+    if (currentAnswer) {
+      // Boshqa zona bu variantni ishlatganmi?
+      const otherZone = Object.keys(answers).find(key => answers[key] === optionLetter && key !== qId);
       if (otherZone) {
+        // Swap: ikkala zonaning javoblarini almashtir
         setAnswers((prev: any) => ({
           ...prev,
-          [questionId]: optionLetter,
-          [otherZone]: existingAnswer
+          [qId]: optionLetter,
+          [otherZone]: currentAnswer
         }));
       } else {
-        setAnswers((prev: any) => ({ ...prev, [questionId]: optionLetter }));
+        // Zona to‘ldirilgan, yangi variantni qo‘yamiz
+        setAnswers((prev: any) => ({ ...prev, [qId]: optionLetter }));
       }
     } else {
-      setAnswers((prev: any) => ({ ...prev, [questionId]: optionLetter }));
+      // Zona bo‘sh, variantni joylashtir
+      setAnswers((prev: any) => ({ ...prev, [qId]: optionLetter }));
     }
 
-    setDragOverZone(null);
-    e.currentTarget.classList.remove("drag-over");
+    // Drag tugadi
+    setDraggedItem(null);
   };
 
-  // Helper to compute used options for matching questions
-  const getUsedOptions = (partQuestions: any[]) => {
+  const returnOptionToList = (optLetter: string) => {
+    // Zonadagi variantni o‘chirish va ro‘yxatga qaytarish
+    const qIdToClear = Object.keys(answers).find(key => answers[key] === optLetter);
+    if (qIdToClear) {
+      setAnswers((prev: any) => {
+        const newAnswers = { ...prev };
+        delete newAnswers[qIdToClear];
+        return newAnswers;
+      });
+    }
+  };
+
+  // UsedOptions ni hisoblash
+  useEffect(() => {
     const used = new Set<string>();
-    partQuestions.forEach((q: any) => {
-      if (q.type === 'matching' && answers[q.id]) {
-        used.add(answers[q.id]);
-      }
+    Object.values(answers).forEach((val: any) => {
+      if (typeof val === 'string' && val.length === 1) used.add(val);
     });
-    return used;
+    setUsedOptions(used);
+  }, [answers]);
+
+  // ========== Global question number helper ==========
+  const getGlobalNum = (partIdx: number, qIdx: number) => {
+    let count = 0;
+    for (let i = 0; i < partIdx; i++) {
+      count += parts[i]?.questions?.length || 0;
+    }
+    return count + qIdx + 1;
   };
 
-  // Render a single question based on its type
-  const renderQuestion = (q: any, partIndex: number, qIdx: number) => {
-    const qId = q.id || `q-${partIndex + 1}-${qIdx + 1}`;
-    const globalNum = (() => {
-      let count = 0;
-      for (let i = 0; i < partIndex; i++) {
-        count += parts[i]?.questions?.length || 0;
-      }
-      return count + qIdx + 1;
-    })();
+  // ========== Render functions for each part ==========
 
-    switch (q.type) {
-      case 'gap_fill':
-        return (
-          <div key={qId} id={`q-container-${globalNum}`} className="mb-2">
-            <p>
-              {q.text.split('_____').map((part: string, i: number, arr: string[]) => (
-                <span key={i}>
-                  {part}
-                  {i < arr.length - 1 && (
-                    <input
-                      type="text"
-                      className="answer-input"
-                      placeholder={String(globalNum)}
-                      value={answers[qId] || ''}
-                      onChange={(e) => handleAnswerChange(qId, e.target.value)}
-                    />
-                  )}
-                </span>
-              ))}
-            </p>
+  // Part 1: Music Alive Agency form (gap_fill)
+  const renderPart1 = (part: any, pIdx: number) => {
+    const questions = part.questions || [];
+    return (
+      <div key="part1" className="space-y-4">
+        <div className="border border-black p-6">
+          <p className="text-center font-bold text-2xl mb-6">Music Alive Agency</p>
+          <p className="italic mb-4">Example</p>
+          {questions.map((q: any, qIdx: number) => {
+            const qId = q.id || `q-${pIdx + 1}-${qIdx + 1}`;
+            const globalNum = getGlobalNum(pIdx, qIdx);
+            const parts = q.text.split('_____');
+            return (
+              <div key={qId} id={`q-container-${globalNum}`} className="mb-2">
+                <p>
+                  {parts.map((part: string, i: number) => (
+                    <span key={i}>
+                      {part}
+                      {i < parts.length - 1 && (
+                        <input
+                          type="text"
+                          className="answer-input"
+                          placeholder={String(globalNum)}
+                          value={answers[qId] || ''}
+                          onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                        />
+                      )}
+                    </span>
+                  ))}
+                </p>
+                <button onClick={() => handleFlagToggle(qId)} className="ml-2">
+                  <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // Part 2: Radio 11-14 + Map dropdown 15-20
+  const renderPart2 = (part: any, pIdx: number) => {
+    const questions = part.questions || [];
+    const radioQuestions = questions.slice(0, 4);  // 11-14
+    const mapQuestions = questions.slice(4);       // 15-20
+
+    return (
+      <div key="part2" className="space-y-8">
+        {/* 11-14 Radio */}
+        <div>
+          <p className="font-bold mb-2">Questions 11-14</p>
+          <p className="mb-4">Choose the correct letter A, B or C.</p>
+          <div className="space-y-4">
+            {radioQuestions.map((q: any, qIdx: number) => {
+              const qId = q.id || `q-${pIdx + 1}-${qIdx}`;
+              const globalNum = getGlobalNum(pIdx, qIdx);
+              return (
+                <div key={qId} id={`q-container-${globalNum}`} className="space-y-2">
+                  <p><strong>{globalNum}.</strong> {q.text}</p>
+                  <div className="flex flex-col space-y-1">
+                    {q.options?.map((opt: string) => (
+                      <label key={opt} className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name={`q-${globalNum}`}
+                          value={opt.charAt(0)}
+                          checked={answers[qId] === opt.charAt(0)}
+                          onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                          className="w-4 h-4"
+                        />
+                        <span>{opt}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <button onClick={() => handleFlagToggle(qId)} className="ml-2">
+                    <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
-        );
+        </div>
 
-      case 'mcq_single':
-        return (
-          <div key={qId} id={`q-container-${globalNum}`} className="space-y-2">
-            <p><strong>{globalNum}.</strong> {q.text}</p>
-            <div className="flex flex-col space-y-1">
-              {q.options?.map((opt: string) => (
-                <label key={opt} className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name={`q-${globalNum}`}
-                    value={opt.charAt(0)}
-                    checked={answers[qId] === opt.charAt(0)}
-                    onChange={(e) => handleAnswerChange(qId, e.target.value)}
-                    className="w-4 h-4"
-                  />
-                  <span>{opt}</span>
-                </label>
-              ))}
-            </div>
-            <button onClick={() => handleFlagToggle(qId)} className="ml-2">
-              <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
-            </button>
+        {/* Map and dropdowns 15-20 */}
+        <div>
+          <p className="font-bold mb-2">Questions 15-20</p>
+          <p className="mb-4">Label the map below. Write the correct letter, A-I, next to questions 15-20.</p>
+          <div className="map-container mb-4">
+            <img
+              src={part.image || "https://ia600906.us.archive.org/32/items/skrinshot-2025-08-12-202707-copy-copy-copy-copy-copy-copy/Skrinshot%202025-08-12%20202707%20-%20CopyCopyCopyCopyCopyCopy.png"}
+              alt="Map"
+              className="w-full max-w-md mx-auto border border-gray-300"
+            />
           </div>
-        );
+          {mapQuestions.map((q: any, qIdx: number) => {
+            const globalNum = getGlobalNum(pIdx, qIdx + 4);
+            const qId = q.id || `q-${pIdx + 1}-${qIdx + 4}`;
+            return (
+              <div key={qId} id={`q-container-${globalNum}`} className="flex items-center gap-4 mb-2">
+                <span className="font-bold w-8">{globalNum}</span>
+                <span className="flex-1">{q.text}</span>
+                <select
+                  className="answer-select w-24"
+                  value={answers[qId] || ''}
+                  onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                >
+                  <option value="">Select</option>
+                  {['A','B','C','D','E','F','G','H','I'].map(letter => (
+                    <option key={letter} value={letter}>{letter}</option>
+                  ))}
+                </select>
+                <button onClick={() => handleFlagToggle(qId)} className="ml-2">
+                  <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
 
-      case 'mcq_multi':
-        return (
-          <div key={qId} id={`q-container-${globalNum}`} className="space-y-2">
-            <p><strong>{globalNum}.</strong> {q.text}</p>
-            <div className="flex flex-col space-y-1">
-              {q.options?.map((opt: string) => {
-                const optionLetter = opt.charAt(0);
-                const isChecked = Array.isArray(answers[qId]) && answers[qId].includes(optionLetter);
+  // Part 3: Radio 21-26 + Drag-drop 27-30
+  const renderPart3 = (part: any, pIdx: number) => {
+    const questions = part.questions || [];
+    const radioQuestions = questions.slice(0, 6);  // 21-26
+    const dragQuestions = questions.slice(6);       // 27-30 (matching)
+    const dragOptions = part.dragOptions || [];
+
+    return (
+      <div key="part3" className="space-y-8">
+        {/* 21-26 Radio */}
+        <div>
+          <p className="font-bold mb-2">Questions 21-26</p>
+          <p className="mb-4">Choose the correct answer.</p>
+          <div className="space-y-4">
+            {radioQuestions.map((q: any, qIdx: number) => {
+              const qId = q.id || `q-${pIdx + 1}-${qIdx}`;
+              const globalNum = getGlobalNum(pIdx, qIdx);
+              return (
+                <div key={qId} id={`q-container-${globalNum}`} className="space-y-2">
+                  <p><strong>{globalNum}.</strong> {q.text}</p>
+                  <div className="flex flex-col space-y-1">
+                    {q.options?.map((opt: string) => (
+                      <label key={opt} className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name={`q-${globalNum}`}
+                          value={opt.charAt(0)}
+                          checked={answers[qId] === opt.charAt(0)}
+                          onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                          className="w-4 h-4"
+                        />
+                        <span>{opt}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <button onClick={() => handleFlagToggle(qId)} className="ml-2">
+                    <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 27-30 Drag-drop */}
+        <div>
+          <p className="font-bold mb-2">Questions 27-30</p>
+          <p className="mb-4">Which feature do the speakers identify as particularly interesting for each of the following exhibitions they saw?</p>
+          <p>Choose FOUR answers from the box and write the correct letter, <strong>A-F</strong>, next to questions 27-30.</p>
+          <div className="flex gap-8 mt-4">
+            <div className="flex-1 space-y-2">
+              {dragQuestions.map((q: any, qIdx: number) => {
+                const globalNum = getGlobalNum(pIdx, qIdx + 6);
+                const qId = q.id || `q-${pIdx + 1}-${qIdx + 6}`;
                 return (
-                  <label key={opt} className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      value={optionLetter}
-                      checked={isChecked}
-                      onChange={(e) => handleCheckboxChange(qId, optionLetter, e.target.checked)}
-                      className="w-4 h-4"
-                    />
-                    <span>{opt}</span>
-                  </label>
+                  <div
+                    key={qId}
+                    id={`q-container-${globalNum}`}
+                    className={`flex items-center gap-4 p-2 border-2 border-dashed rounded min-h-[50px] transition-colors ${answers[qId] ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDropOnZone(e, qId, qIdx)}
+                  >
+                    <span className="font-bold w-8">{globalNum}</span>
+                    <span className="flex-1">{q.text}</span>
+                    <div className="w-24 h-8 flex items-center justify-center bg-gray-50 border rounded">
+                      {answers[qId] && <span className="font-bold text-blue-600">{answers[qId]}</span>}
+                    </div>
+                  </div>
                 );
               })}
             </div>
-            <button onClick={() => handleFlagToggle(qId)} className="ml-2">
-              <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
-            </button>
+            <div className="w-64 space-y-2 p-4 bg-gray-50 rounded border">
+              <p className="font-bold text-sm mb-2">Drag options:</p>
+              {dragOptions.map((opt: any, idx: number) => {
+                const isUsed = usedOptions.has(opt.letter);
+                return (
+                  <div
+                    key={idx}
+                    draggable={!isUsed}
+                    onDragStart={(e) => handleDragStart(e, opt)}
+                    onDragEnd={handleDragEnd}
+                    className={`drag-item p-2 bg-white border rounded cursor-move hover:bg-gray-100 ${isUsed ? 'opacity-30 cursor-not-allowed' : ''}`}
+                    style={{ display: isUsed ? 'none' : 'block' }}
+                  >
+                    <strong>{opt.letter}</strong> {opt.text}
+                  </div>
+                );
+              })}
+              {/* Click handler to return option from zone to list */}
+              {dragQuestions.map((q: any, qIdx: number) => {
+                const qId = q.id || `q-${pIdx + 1}-${qIdx + 6}`;
+                if (answers[qId]) {
+                  return (
+                    <div key={`return-${qId}`} className="text-xs text-blue-600 mt-1 cursor-pointer" onClick={() => returnOptionToList(answers[qId])}>
+                      ↻ Return {answers[qId]}
+                    </div>
+                  );
+                }
+                return null;
+              })}
+            </div>
           </div>
-        );
-
-      case 'matching':
-        // For matching, we assume q.options is the list of draggable options,
-        // and q.targets is the list of target descriptions (e.g., exhibition names).
-        // If not provided, fallback to simple dropdown.
-        if (q.targets && q.options) {
-          const usedOptions = getUsedOptions(parts[partIndex]?.questions || []);
-          return (
-            <div key={qId} id={`q-container-${globalNum}`} className="flex items-center gap-4 p-2 border-2 border-dashed rounded min-h-[50px] transition-colors"
-                 onDragOver={(e) => handleDragOver(e, qId)}
-                 onDragLeave={handleDragLeave}
-                 onDrop={(e) => handleDrop(e, qId)}>
-              <span className="font-bold w-8">{globalNum}</span>
-              <span className="flex-1">{q.targets[qIdx] || q.text}</span>
-              <div className="w-24 h-8 flex items-center justify-center bg-gray-50 border rounded">
-                {answers[qId] && <span className="font-bold text-blue-600">{answers[qId]}</span>}
-              </div>
-            </div>
-          );
-        } else {
-          // Fallback to select dropdown if no drag-drop info
-          return (
-            <div key={qId} id={`q-container-${globalNum}`} className="flex items-center gap-4 mb-2">
-              <span className="font-bold w-8">{globalNum}</span>
-              <span className="flex-1">{q.text}</span>
-              <select
-                className="answer-select w-24"
-                value={answers[qId] || ''}
-                onChange={(e) => handleAnswerChange(qId, e.target.value)}
-              >
-                <option value="">Select</option>
-                {q.options?.map((opt: string) => (
-                  <option key={opt} value={opt.charAt(0)}>{opt}</option>
-                ))}
-              </select>
-              <button onClick={() => handleFlagToggle(qId)} className="ml-2">
-                <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
-              </button>
-            </div>
-          );
-        }
-
-      default:
-        return null;
-    }
+        </div>
+      </div>
+    );
   };
 
+  // Part 4: Bullet list with gap_fill
+  const renderPart4 = (part: any, pIdx: number) => {
+    const questions = part.questions || [];
+    return (
+      <div key="part4" className="space-y-4">
+        <div className="border border-black p-6">
+          <p className="text-center font-bold text-2xl mb-6">The Mangrove Regeneration Project</p>
+          <p><strong>Background:</strong></p>
+          <p><strong>Mangrove forests:</strong></p>
+          <ul className="list-none pl-5 space-y-2">
+            {questions.slice(0,2).map((q: any, qIdx: number) => {
+              const globalNum = getGlobalNum(pIdx, qIdx);
+              const qId = q.id || `q-${pIdx + 1}-${qIdx}`;
+              const parts = q.text.split('_____');
+              return (
+                <li key={qId} id={`q-container-${globalNum}`}>
+                  • {parts.map((part: string, i: number) => (
+                    <span key={i}>
+                      {part}
+                      {i < parts.length - 1 && (
+                        <input
+                          type="text"
+                          className="answer-input"
+                          placeholder={String(globalNum)}
+                          value={answers[qId] || ''}
+                          onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                        />
+                      )}
+                    </span>
+                  ))}
+                </li>
+              );
+            })}
+            <li>• are an important habitat for wildlife</li>
+          </ul>
+          <p><strong>Problems:</strong></p>
+          <ul className="list-none pl-5 space-y-2">
+            {questions.slice(2,5).map((q: any, idx: number) => {
+              const globalNum = getGlobalNum(pIdx, idx + 2);
+              const qId = q.id || `q-${pIdx + 1}-${idx + 2}`;
+              const parts = q.text.split('_____');
+              return (
+                <li key={qId} id={`q-container-${globalNum}`}>
+                  • {parts.map((part: string, i: number) => (
+                    <span key={i}>
+                      {part}
+                      {i < parts.length - 1 && (
+                        <input
+                          type="text"
+                          className="answer-input"
+                          placeholder={String(globalNum)}
+                          value={answers[qId] || ''}
+                          onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                        />
+                      )}
+                    </span>
+                  ))}
+                </li>
+              );
+            })}
+          </ul>
+          <p><strong>Actions taken to protect the mangroves:</strong></p>
+          <ul className="list-none pl-5 space-y-2">
+            {questions.slice(5,8).map((q: any, idx: number) => {
+              const globalNum = getGlobalNum(pIdx, idx + 5);
+              const qId = q.id || `q-${pIdx + 1}-${idx + 5}`;
+              const parts = q.text.split('_____');
+              return (
+                <li key={qId} id={`q-container-${globalNum}`}>
+                  • {parts.map((part: string, i: number) => (
+                    <span key={i}>
+                      {part}
+                      {i < parts.length - 1 && (
+                        <input
+                          type="text"
+                          className="answer-input"
+                          placeholder={String(globalNum)}
+                          value={answers[qId] || ''}
+                          onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                        />
+                      )}
+                    </span>
+                  ))}
+                </li>
+              );
+            })}
+            <li>• new mangroves had to be grown from seed</li>
+          </ul>
+          <p><strong>First set of seedlings:</strong></p>
+          <ul className="list-none pl-5 space-y-2">
+            {questions.slice(8,12).map((q: any, idx: number) => {
+              const globalNum = getGlobalNum(pIdx, idx + 8);
+              const qId = q.id || `q-${pIdx + 1}-${idx + 8}`;
+              const parts = q.text.split('_____');
+              return (
+                <li key={qId} id={`q-container-${globalNum}`}>
+                  • {parts.map((part: string, i: number) => (
+                    <span key={i}>
+                      {part}
+                      {i < parts.length - 1 && (
+                        <input
+                          type="text"
+                          className="answer-input"
+                          placeholder={String(globalNum)}
+                          value={answers[qId] || ''}
+                          onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                        />
+                      )}
+                    </span>
+                  ))}
+                </li>
+              );
+            })}
+          </ul>
+          <p><strong>Second set of seedlings:</strong></p>
+          <ul className="list-none pl-5 space-y-2">
+            {questions.slice(12,13).map((q: any, idx: number) => {
+              const globalNum = getGlobalNum(pIdx, idx + 12);
+              const qId = q.id || `q-${pIdx + 1}-${idx + 12}`;
+              const parts = q.text.split('_____');
+              return (
+                <li key={qId} id={`q-container-${globalNum}`}>
+                  • {parts.map((part: string, i: number) => (
+                    <span key={i}>
+                      {part}
+                      {i < parts.length - 1 && (
+                        <input
+                          type="text"
+                          className="answer-input"
+                          placeholder={String(globalNum)}
+                          value={answers[qId] || ''}
+                          onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                        />
+                      )}
+                    </span>
+                  ))}
+                </li>
+              );
+            })}
+          </ul>
+          <p><strong>Results:</strong> The first set of seedlings was successful</p>
+        </div>
+      </div>
+    );
+  };
+
+  // ========== Main render ==========
   return (
     <div className="h-full flex flex-col bg-white">
-      {isTransferring && (
-        <div className="w-full bg-amber-50 p-2 text-center text-sm font-medium">
-          Transfer Time: {Math.floor(transferTimeLeft / 60)}:{String(transferTimeLeft % 60).padStart(2, '0')}
-        </div>
-      )}
-
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm flex items-center gap-2">
-          <AlertCircle size={16} /> {error}
-        </div>
-      )}
-
-      {!listeningData ? (
+      {!content ? (
         <div className="text-center py-12">
           <p className="text-slate-500">Listening ma'lumotlari topilmadi.</p>
         </div>
@@ -288,53 +494,16 @@ export function ListeningComponent({
               style={{ display: pIdx + 1 === currentPart ? 'block' : 'none' }}
             >
               {/* Part header */}
-              <div className="border-l-4 border-blue-500 pl-4 py-1 bg-blue-50/50 rounded-r-lg">
-                <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">
-                  {part.title || `Part ${pIdx + 1}`}
-                </h3>
-                {part.instruction && (
-                  <p className="text-sm text-slate-500">{part.instruction}</p>
-                )}
+              <div className="part-header">
+                <p><strong>Part {pIdx + 1}</strong></p>
+                <p>Listen and answer questions {pIdx === 0 ? '1–10' : pIdx === 1 ? '11–20' : pIdx === 2 ? '21–30' : '31–40'}.</p>
               </div>
 
-              {/* Part image (for maps, diagrams) */}
-              {part.image && (
-                <div className="my-4">
-                  <img
-                    src={part.image}
-                    alt={`Part ${pIdx + 1} visual`}
-                    className="max-w-full h-auto rounded-lg border shadow-sm"
-                  />
-                </div>
-              )}
-
-              {/* Questions */}
-              <div className="space-y-6">
-                {part.questions?.map((q: any, qIdx: number) => renderQuestion(q, pIdx, qIdx))}
-              </div>
-
-              {/* If part has its own draggable options box (for matching across multiple questions) */}
-              {part.dragOptions && (
-                <div className="w-64 space-y-2 p-4 bg-gray-50 rounded border">
-                  <p className="font-bold text-sm mb-2">Drag options:</p>
-                  {part.dragOptions.map((opt: any, idx: number) => {
-                    const used = getUsedOptions(part.questions);
-                    const isUsed = used.has(opt.letter);
-                    return (
-                      <div
-                        key={idx}
-                        draggable={!isUsed}
-                        onDragStart={(e) => handleDragStart(e, opt.letter)}
-                        onDragEnd={handleDragEnd}
-                        className={`drag-item p-2 bg-white border rounded cursor-move hover:bg-gray-100 ${isUsed ? 'opacity-30 cursor-not-allowed' : ''}`}
-                        style={{ display: isUsed ? 'none' : 'block' }}
-                      >
-                        <strong>{opt.letter}</strong> {opt.text}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              {/* Render specific part */}
+              {pIdx === 0 && renderPart1(part, pIdx)}
+              {pIdx === 1 && renderPart2(part, pIdx)}
+              {pIdx === 2 && renderPart3(part, pIdx)}
+              {pIdx === 3 && renderPart4(part, pIdx)}
             </div>
           ))}
         </div>
