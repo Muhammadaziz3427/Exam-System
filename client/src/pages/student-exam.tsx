@@ -8,19 +8,21 @@ import {
   ShieldCheck,
   Flag,
   Loader2,
-  AlertTriangle,
-  Headphones
+  AlertTriangle
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { ReadingComponent } from "@/components/ReadingComponent";
-import { ListeningComponent } from "@/components/ListeningComponent";
 
 type Section = 'listening' | 'reading' | 'writing';
 
 const STORAGE_KEY = "ielts_exam_backup_v1";
 
+const TFNG_OPTIONS = ["TRUE", "FALSE", "NOT GIVEN"];
+const YNNG_OPTIONS = ["YES", "NO", "NOT GIVEN"];
+
+// IELTS band conversion
 const calculateBand = (score: number): number => {
   if (score >= 39) return 9.0;
   if (score >= 37) return 8.5;
@@ -89,33 +91,25 @@ export default function StudentExam() {
   const listeningPartDefs = useMemo(() => {
     const counts = listeningParts.map((p: any) => p.questions?.length || 10);
     let start = 1;
-    return counts.map((count: number, idx: number) => {
-      const def = {
-        partIndex: idx + 1,
-        label: `Part ${idx + 1}`,
-        start,
-        end: start + count - 1,
-        count,
-      };
-      start += count;
-      return def;
-    });
+    return counts.map((count: number, idx: number) => ({
+      partIndex: idx + 1,
+      label: `Part ${idx + 1}`,
+      start,
+      end: start + count - 1,
+      count,
+    }));
   }, [listeningParts]);
 
   const readingPartDefs = useMemo(() => {
     const counts = readingPassages.map((p: any) => p.questions?.length || 0);
     let start = 1;
-    return counts.map((count: number, idx: number) => {
-      const def = {
-        partIndex: idx + 1,
-        label: `Part ${idx + 1}`,
-        start,
-        end: start + count - 1,
-        count,
-      };
-      start += count;
-      return def;
-    });
+    return counts.map((count: number, idx: number) => ({
+      partIndex: idx + 1,
+      label: `Part ${idx + 1}`,
+      start,
+      end: start + count - 1,
+      count,
+    }));
   }, [readingPassages]);
 
   const writingPartDefs = [
@@ -302,10 +296,7 @@ export default function StudentExam() {
 
           let isAnswered = false;
           if (currentSection === 'listening') {
-            const partIndex = def.partIndex - 1;
-            const qIdxInSection = q - def.start;
-            const qId = examContent?.listening?.parts?.[partIndex]?.questions?.[qIdxInSection]?.id || `q-${def.partIndex}-${qIdxInSection + 1}`;
-            const answer = answers.listening?.[qId];
+            const answer = answers.listening?.[q];
             isAnswered = answer !== undefined && answer !== null && answer !== '';
           } else if (currentSection === 'reading') {
             const answer = answers.reading?.[q];
@@ -352,10 +343,7 @@ export default function StudentExam() {
         let answered = 0;
         for (let q = def.start; q <= def.end; q++) {
           if (currentSection === 'listening') {
-            const partIndex = def.partIndex - 1;
-            const qIdxInSection = q - def.start;
-            const qId = examContent?.listening?.parts?.[partIndex]?.questions?.[qIdxInSection]?.id || `q-${def.partIndex}-${qIdxInSection + 1}`;
-            if (answers.listening?.[qId] !== undefined && answers.listening[qId] !== '') answered++;
+            if (answers.listening?.[q] !== undefined && answers.listening[q] !== '') answered++;
           } else if (currentSection === 'reading') {
             if (answers.reading?.[q] !== undefined && answers.reading[q] !== '') answered++;
           } else {
@@ -378,7 +366,7 @@ export default function StudentExam() {
     };
 
     updateNavIndicators();
-  }, [answers, currentSection, currentPartDefs, reviewFlags, examContent]);
+  }, [answers, currentSection, currentPartDefs, reviewFlags]);
 
   const calculateScores = () => {
     if (!examContent) return null;
@@ -389,15 +377,13 @@ export default function StudentExam() {
     let listeningCorrect = 0;
     let readingCorrect = 0;
 
-    listeningParts.forEach((part: any, pIdx: number) => {
-      part.questions?.forEach((q: any, qIdx: number) => {
-        const qId = q.id || `q-${pIdx + 1}-${qIdx + 1}`;
-        const userAnswer = answers.listening?.[qId];
-        const correct = q.answer;
-        if (userAnswer && correct) {
-          if (userAnswer.toString().trim().toLowerCase() === correct.toString().trim().toLowerCase()) listeningCorrect++;
-        }
-      });
+    listeningQuestions.forEach((q: any, idx: number) => {
+      const qNum = idx + 1;
+      const userAnswer = answers.listening?.[qNum];
+      const correct = q.answer;
+      if (userAnswer && correct) {
+        if (userAnswer.toString().trim().toLowerCase() === correct.toString().trim().toLowerCase()) listeningCorrect++;
+      }
     });
 
     let readingGlobalBase = 1;
@@ -628,139 +614,162 @@ export default function StudentExam() {
 
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden select-none font-sans" translate="no">
-      <header className="header bg-white border-b px-6 h-[60px] flex items-center justify-between sticky top-0 z-50">
+      <header className="header">
         <div className="timer-container">
           {currentSection !== 'listening' && (
-            <div className="flex items-center gap-3">
-              <div className={`px-4 py-1.5 rounded-full font-black text-lg ${timeLeft < 300 ? 'bg-red-50 text-red-600 animate-pulse' : 'bg-slate-100 text-slate-700'}`}>
-                {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
-              </div>
-            </div>
+            <span className="timer-display">
+              {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+            </span>
+          )}
+          {isTransferring && (
+            <span className="ml-4 text-amber-600 font-bold">
+              Transfer: {Math.floor(transferTimeLeft / 60)}:{String(transferTimeLeft % 60).padStart(2, '0')}
+            </span>
           )}
         </div>
-        <div className="flex items-center gap-4">
-          <Badge variant="secondary" className="px-3 py-1 bg-blue-50 text-blue-700 border-blue-100 uppercase tracking-widest text-[10px] font-black">
-            {currentSection}
-          </Badge>
-          <div className="h-8 w-[1px] bg-slate-200 mx-2" />
-          <Button
-            size="sm"
-            variant={currentSection === 'writing' ? 'default' : 'outline'}
-            className="font-bold"
-            onClick={currentSection === 'writing' ? handleFinishClick : goToNextSection}
-          >
-            {currentSection === 'writing' ? 'Finish Exam' : 'Next Section'}
-          </Button>
+        <div className="header-icons flex items-center gap-4">
+          {currentSection === 'listening' && isTransferring && (
+            <button
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold transition"
+              onClick={goToNextSection}
+            >
+              Next →
+            </button>
+          )}
+          {currentSection === 'reading' && (
+            <button
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold transition"
+              onClick={goToNextSection}
+            >
+              Next →
+            </button>
+          )}
+          {currentSection === 'writing' && (
+            <button
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-bold transition"
+              onClick={handleFinishClick}
+            >
+              Finish Exam
+            </button>
+          )}
         </div>
       </header>
 
-      <main className="main-container bg-[#f4f7f9] flex-1 overflow-hidden" style={{ marginTop: '0' }}>
-        <div className="h-full w-full">
-          {currentSection === 'listening' ? (
-            <div className="h-full flex flex-col">
-              <div className="flex items-center justify-between px-8 py-4 bg-white border-b shadow-sm">
-                <div className="flex items-center gap-6">
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <Headphones size={20} className="text-blue-600" />
-                    <span className="text-sm font-black uppercase tracking-wider">Listening Audio</span>
-                  </div>
-                  <audio 
-                    ref={audioRef} 
-                    src={getImageUrl(examContent?.listening?.audioUrl)} 
-                    className="h-10 accent-blue-600"
-                    controls
-                  />
-                </div>
-                {isTransferring && (
-                  <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 animate-pulse">
-                    <AlertTriangle size={18} />
-                    <span className="text-sm font-black">TRANSFER TIME: {formatTime(transferTimeLeft)}</span>
-                  </div>
-                )}
-              </div>
-              <ScrollArea className="flex-1 bg-[#f4f7f9]">
-                <div className="max-w-4xl mx-auto py-10 px-6">
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div className="bg-slate-50 border-b p-4 flex items-center justify-between">
-                      <Badge variant="outline" className="bg-white text-blue-700 border-blue-200 font-black px-3 py-1">
-                        PART {currentPart} OF {listeningParts.length}
-                      </Badge>
-                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">IELTS Computer Delivered</div>
-                    </div>
-                    <ListeningComponent
-                      content={examContent?.listening}
-                      currentPart={currentPart}
-                      answers={answers.listening}
-                      setAnswers={(newAnswers: any) => setAnswers((prev: any) => ({ ...prev, listening: newAnswers }))}
-                      reviewFlags={reviewFlags}
-                      setReviewFlags={setReviewFlags}
-                    />
-                  </div>
-                </div>
-              </ScrollArea>
+      {currentSection === 'listening' && (
+        <div className="audio-player-container">
+          <audio
+            ref={audioRef}
+            src={examContent?.listening?.audioUrl}
+            autoPlay
+            preload="auto"
+            style={{ display: 'none' }}
+          />
+          <div className="progress-container">
+            <span id="current-time">{formatTime(audioProgress.currentTime)}</span>
+            <div className="relative w-full h-1 bg-gray-300 rounded">
+              <div 
+                className="absolute top-0 left-0 h-1 bg-blue-600 rounded"
+                style={{ width: `${audioProgress.percent}%` }}
+              ></div>
             </div>
+            <span id="total-duration">{formatTime(audioProgress.duration)}</span>
+          </div>
+        </div>
+      )}
+
+      <main className="main-container" style={{ marginTop: currentSection === 'listening' ? '115px' : '60px' }}>
+        <div className="left-panel" style={{ height: 'calc(100vh - 60px - 80px)', overflowY: 'auto' }}>
+          {currentSection === 'listening' ? (
+            <ListeningComponent
+              content={examContent?.listening}
+              currentPart={currentPart}
+              answers={answers.listening}
+              setAnswers={(newAnswers: any) => setAnswers({ ...answers, listening: newAnswers })}
+              reviewFlags={reviewFlags}
+              setReviewFlags={setReviewFlags}
+              currentSection="listening"
+            />
           ) : (
-            <ResizablePanelGroup direction="horizontal" className="h-full">
-              <ResizablePanel defaultSize={45} className="bg-white border-r border-slate-200 min-w-[300px]">
-                <ScrollArea className="h-full">
-                  <div className="p-12 max-w-3xl mx-auto select-text selection:bg-yellow-300 selection:text-black" onMouseUp={handleTextHighlight}>
-                    {currentSection === 'reading' ? (
-                      <article>
-                        <div className="mb-6 pb-6 border-b">
-                          <p className="text-blue-600 font-black text-sm uppercase tracking-widest mb-1">Reading Passage {activePassageIdx + 1}</p>
-                          <h2 className="text-3xl font-black text-slate-900 leading-tight">
+            <ResizablePanelGroup direction="horizontal" className="flex-1 h-full">
+              <ResizablePanel defaultSize={45} className="bg-white border-r-4 border-slate-100 min-w-[300px]">
+                <div className="h-full flex flex-col">
+                  <ScrollArea className="flex-1 h-full">
+                    <div
+                      className="p-12 max-w-3xl mx-auto select-text selection:bg-yellow-300 selection:text-black"
+                      onMouseUp={handleTextHighlight}
+                    >
+                      {currentSection === 'reading' ? (
+                        <article>
+                          <div className="part-header mb-4">
+                            <p><strong>Part {activePassageIdx + 1}</strong></p>
+                            <p>
+                              Read the text and answer questions{' '}
+                              {activePassageIdx === 0 ? '1-13' : activePassageIdx === 1 ? '14-26' : '27-40'}.
+                            </p>
+                          </div>
+                          <h2 className="text-3xl font-black mb-8 text-slate-900 leading-tight">
                             {readingPassages[activePassageIdx]?.title}
                           </h2>
-                        </div>
-                        {readingPassages[activePassageIdx]?.image && (
-                          <div className="mb-8 rounded-2xl overflow-hidden border shadow-lg ring-8 ring-slate-50">
-                            <img src={getImageUrl(readingPassages[activePassageIdx].image)} alt="Visual" className="w-full h-auto" />
+                          {readingPassages[activePassageIdx]?.image && (
+                            <img
+                              src={getImageUrl(readingPassages[activePassageIdx].image)}
+                              alt="Visual"
+                              className="w-full mb-6 rounded-lg border shadow-sm"
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            />
+                          )}
+                          <div className="text-xl leading-[1.8] text-slate-800 font-serif whitespace-pre-wrap">
+                            {readingPassages[activePassageIdx]?.content}
                           </div>
-                        )}
-                        <div className="text-xl leading-[1.8] text-slate-800 font-serif whitespace-pre-wrap">
-                          {readingPassages[activePassageIdx]?.content}
-                        </div>
-                      </article>
-                    ) : (
-                      <div className="space-y-8">
-                        <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200">
-                          <p className="text-blue-600 font-black text-sm uppercase tracking-widest mb-2">Writing Task {activeWritingTask + 1}</p>
-                          <p className="text-slate-600 font-bold italic">
-                            {activeWritingTask === 0
-                              ? "You should spend about 20 minutes on this task. Write at least 150 words."
-                              : "You should spend about 40 minutes on this task. Write at least 250 words."}
-                          </p>
-                        </div>
-                        
-                        {writingTasks[activeWritingTask]?.prompt ? (
-                          <div className="prose prose-slate max-w-none prose-xl font-serif text-slate-800" 
-                               dangerouslySetInnerHTML={{ __html: writingTasks[activeWritingTask].prompt }} />
-                        ) : (
-                          <div className="text-xl font-serif text-slate-800 leading-relaxed">
-                            {activeWritingTask === 0 ? (
-                              <div className="space-y-6">
+                        </article>
+                      ) : (
+                        <div className="space-y-8">
+                          <div className="part-header">
+                            <p><strong>Part {activeWritingTask + 1}</strong></p>
+                            <p>
+                              {activeWritingTask === 0
+                                ? "You should spend about 20 minutes on this task. Write at least 150 words."
+                                : "You should spend about 40 minutes on this task. Write at least 250 words."}
+                            </p>
+                          </div>
+                          {activeWritingTask === 0 ? (
+                            <div className="space-y-6">
+                              <div className="task-prompt">
                                 <p><strong>The provided chart illustrates the percentage of age of visitors from the UK to Spain in 1983 and in 2003.</strong></p>
                                 <p><strong>Summarize the information by selecting and reporting the main points and make comparisons where relevant.</strong></p>
-                                <img src="https://engnovatewebsitestorage.blob.core.windows.net/ielts-writing-task-1-images/a4139b6692197c1b" alt="Bar chart" className="max-w-full h-auto border rounded-xl shadow-sm" />
                               </div>
-                            ) : (
-                              <div className="space-y-6">
+                              <div className="chart-container">
+                                <img
+                                  src="https://engnovatewebsitestorage.blob.core.windows.net/ielts-writing-task-1-images/a4139b6692197c1b"
+                                  alt="Bar chart"
+                                  className="max-w-full h-auto border border-gray-300 mx-auto"
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-6">
+                              <div className="instructions">
                                 <p><strong>Write about the following topic:</strong></p>
-                                <div className="p-6 bg-white border-2 border-blue-100 rounded-2xl shadow-sm italic font-bold">
-                                  In some countries, students pay their college or university fees, while in others, the government pays them. Do you think the advantages outweigh the disadvantages?
+                                <div className="task-prompt">
+                                  <p><em><strong>In some countries, students pay their college or university fees, while in others, the government pays them.</strong></em></p>
+                                  <p><em><strong>Do you think the advantages outweigh the disadvantages?</strong></em></p>
                                 </div>
                                 <p>Give reasons for your answer and include any relevant examples from your own knowledge or experience.</p>
                               </div>
-                            )}
+                            </div>
+                          )}
+                          <div className="flex items-start gap-2 text-slate-500 text-sm">
+                            <AlertTriangle size={16} />
+                            <p>Eslatma: Javoblaringizni o'ng tomondagi maydonga yozing.</p>
                           </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </ScrollArea>
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
               </ResizablePanel>
 
-              <ResizableHandle withHandle className="w-2 hover:bg-blue-500 transition-colors z-50" />
+              <ResizableHandle withHandle className="w-2 hover:bg-blue-500 transition-colors" />
 
               <ResizablePanel defaultSize={55} className="bg-[#f8fafc] min-w-[300px]">
                 <ScrollArea className="h-full">
@@ -770,25 +779,25 @@ export default function StudentExam() {
                         passage={readingPassages[activePassageIdx]}
                         baseQNum={baseQNum}
                         answers={answers.reading}
-                        setAnswers={(newReading) => setAnswers((prev: any) => ({ ...prev, reading: newReading }))}
+                        setAnswers={(newReading) => setAnswers({ ...answers, reading: newReading })}
                         reviewFlags={reviewFlags}
                         setReviewFlags={setReviewFlags}
                         currentSection="reading"
                       />
                     ) : (
-                      <div className="h-full flex flex-col space-y-6">
-                        <div className="flex justify-between items-center sticky top-0 bg-[#f8fafc]/80 backdrop-blur-sm py-4 z-10 border-b">
-                          <h3 className="font-black text-slate-800 uppercase tracking-wider text-sm">Response Area</h3>
-                          <Badge className={`${getWordCount < (activeWritingTask === 0 ? 150 : 250) ? 'bg-orange-500' : 'bg-green-600'} px-4 py-1.5 font-mono text-xs border-none shadow-sm transition-all`}>
+                      <div className="h-full flex flex-col space-y-4">
+                        <div className="flex justify-between items-center mb-2 sticky top-0 bg-[#f8fafc] py-2 z-10">
+                          <h3 className="font-bold text-slate-700">Writing Response Area</h3>
+                          <Badge className={`${getWordCount < (activeWritingTask === 0 ? 150 : 250) ? 'bg-orange-500' : 'bg-green-600'} px-4 py-1 font-mono text-sm border-none transition-colors`}>
                             WORDS: {getWordCount}
                           </Badge>
                         </div>
                         <Textarea
-                          className="min-h-[600px] p-10 text-xl leading-[1.8] font-serif border-2 border-slate-200 rounded-3xl focus:border-blue-600 shadow-inner bg-white resize-none transition-all outline-none"
-                          placeholder="Type your response here..."
+                          className="min-h-[500px] p-8 text-xl leading-[1.8] font-serif border-2 border-slate-200 rounded-2xl focus:border-blue-600 shadow-inner bg-white resize-y"
+                          placeholder="Start writing your response here..."
                           value={activeWritingTask === 0 ? answers.writingTask1 : answers.writingTask2}
                           spellCheck={false}
-                          onChange={(e) => setAnswers((prev: any) => ({...prev, [activeWritingTask === 0 ? 'writingTask1' : 'writingTask2']: e.target.value}))}
+                          onChange={(e) => setAnswers({...answers, [activeWritingTask === 0 ? 'writingTask1' : 'writingTask2']: e.target.value})}
                         />
                       </div>
                     )}
@@ -800,34 +809,332 @@ export default function StudentExam() {
         </div>
       </main>
 
-      <nav className="nav-row bg-white border-t flex items-center h-[80px] px-4 overflow-x-auto gap-4" aria-label="Questions">
+      <nav className="nav-row perScorableItem" aria-label="Questions">
         {currentPartDefs.map((def: any) => (
           <div
             key={def.partIndex}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${currentPart === def.partIndex ? 'bg-blue-50 ring-1 ring-blue-100 shadow-sm' : 'hover:bg-slate-50'}`}
+            className={`footer__questionWrapper___1tZ46 multiple ${currentPart === def.partIndex ? 'selected' : ''}`}
+            role="tablist"
             data-section={currentSection}
             data-part-index={def.partIndex}
           >
-            <button className="flex flex-col items-start min-w-[80px]" onClick={() => switchToPart(def.partIndex)}>
-              <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Part {def.partIndex}</span>
-              <span className="attemptedCount text-xs text-slate-400 font-bold">0 of {def.count}</span>
+            <button role="tab" className="footer__questionNo___3WNct" onClick={() => switchToPart(def.partIndex)}>
+              <span>
+                <span aria-hidden="true" className="section-prefix">Part </span>
+                <span className="sectionNr" aria-hidden="true">{def.partIndex}</span>
+                <span className="attemptedCount" aria-hidden="true">0 of {def.count}</span>
+              </span>
             </button>
-            <div className="flex gap-1.5">
+            <div className="footer__subquestionWrapper___9GgoP">
               {Array.from({ length: def.end - def.start + 1 }, (_, i) => def.start + i).map((q: number) => (
                 <button
                   key={q}
                   data-section={currentSection}
                   data-q={q}
-                  className={`subQuestion w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black transition-all border-2 ${currentQuestion === q ? 'bg-slate-900 border-slate-900 text-white shadow-md transform -translate-y-0.5' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-400'}`}
+                  className={`subQuestion scorable-item ${currentQuestion === q ? 'active' : ''}`}
                   onClick={() => goToQuestion(q)}
                 >
-                  {q}
+                  <span className="sr-only">Question {q}</span>
+                  <span aria-hidden="true">{q}</span>
                 </button>
               ))}
             </div>
           </div>
         ))}
       </nav>
+    </div>
+  );
+}
+
+// ========== TO‘LIQ DINAMIK LISTENING COMPONENT ==========
+function ListeningComponent({ content, currentPart, answers = {}, setAnswers, reviewFlags, setReviewFlags, currentSection }: any) {
+  const parts = content?.parts || [];
+
+  const handleAnswerChange = (qId: string, value: any, isMulti: boolean = false) => {
+    setAnswers((prev: any) => ({ ...prev, [qId]: value }));
+  };
+
+  const handleCheckboxChange = (qId: string, option: string, checked: boolean) => {
+    const current = Array.isArray(answers[qId]) ? answers[qId] : [];
+    let newValue;
+    if (checked) {
+      newValue = [...current, option];
+    } else {
+      newValue = current.filter((v: string) => v !== option);
+    }
+    newValue.sort();
+    handleAnswerChange(qId, newValue, true);
+  };
+
+  const handleFlagToggle = (qId: string) => {
+    setReviewFlags((prev: Record<string, boolean>) => ({ ...prev, [qId]: !prev[qId] }));
+  };
+
+  const [dragOverZone, setDragOverZone] = useState<string | null>(null);
+  const [usedOptions, setUsedOptions] = useState<Set<string>>(new Set());
+
+  const handleDragStart = (e: React.DragEvent, optionLetter: string) => {
+    e.dataTransfer.setData("text/plain", optionLetter);
+    e.currentTarget.classList.add("dragging");
+  };
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    e.currentTarget.classList.remove("dragging");
+  };
+
+  const handleDragOver = (e: React.DragEvent, zoneId: string) => {
+    e.preventDefault();
+    setDragOverZone(zoneId);
+    e.currentTarget.classList.add("drag-over");
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    setDragOverZone(null);
+    e.currentTarget.classList.remove("drag-over");
+  };
+
+  const handleDrop = (e: React.DragEvent, questionId: string) => {
+    e.preventDefault();
+    const optionLetter = e.dataTransfer.getData("text/plain");
+    if (!optionLetter) return;
+
+    const existingAnswer = answers[questionId];
+    if (existingAnswer) {
+      const otherZone = Object.keys(answers).find(key => answers[key] === optionLetter);
+      if (otherZone) {
+        setAnswers((prev: any) => ({
+          ...prev,
+          [questionId]: optionLetter,
+          [otherZone]: existingAnswer
+        }));
+      } else {
+        setAnswers((prev: any) => ({ ...prev, [questionId]: optionLetter }));
+      }
+    } else {
+      setAnswers((prev: any) => ({ ...prev, [questionId]: optionLetter }));
+    }
+
+    setDragOverZone(null);
+    e.currentTarget.classList.remove("drag-over");
+  };
+
+  useEffect(() => {
+    const used = new Set<string>();
+    Object.keys(answers).forEach(key => {
+      if (key.startsWith('q-') && answers[key]) {
+        used.add(answers[key]);
+      }
+    });
+    setUsedOptions(used);
+  }, [answers]);
+
+  const getGlobalQuestionNumber = (partIndex: number, questionIndex: number) => {
+    let count = 0;
+    for (let i = 0; i < partIndex; i++) {
+      count += parts[i]?.questions?.length || 0;
+    }
+    return count + questionIndex + 1;
+  };
+
+  const renderQuestion = (q: any, partIndex: number, qIdx: number) => {
+    const qId = q.id || `q-${partIndex + 1}-${qIdx + 1}`;
+    const globalNum = getGlobalQuestionNumber(partIndex, qIdx);
+    const part = parts[partIndex];
+
+    switch (q.type) {
+      case 'gap_fill':
+        const hasBlank = q.text.includes('_____');
+        return (
+          <div key={qId} id={`q-container-${globalNum}`} className="mb-2">
+            <p>
+              {hasBlank ? (
+                q.text.split('_____').map((part: string, i: number, arr: string[]) => (
+                  <span key={i}>
+                    {part}
+                    {i < arr.length - 1 && (
+                      <input
+                        type="text"
+                        className="answer-input"
+                        placeholder={String(globalNum)}
+                        value={answers[qId] || ''}
+                        onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                      />
+                    )}
+                  </span>
+                ))
+              ) : (
+                <>
+                  {q.text}
+                  <input
+                    type="text"
+                    className="answer-input"
+                    placeholder={String(globalNum)}
+                    value={answers[qId] || ''}
+                    onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                  />
+                </>
+              )}
+            </p>
+          </div>
+        );
+
+      case 'mcq_single':
+        return (
+          <div key={qId} id={`q-container-${globalNum}`} className="space-y-2">
+            <p><strong>{globalNum}.</strong> {q.text}</p>
+            <div className="flex flex-col space-y-1">
+              {q.options?.map((opt: string) => (
+                <label key={opt} className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name={`q-${globalNum}`}
+                    value={opt.charAt(0)}
+                    checked={answers[qId] === opt.charAt(0)}
+                    onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                    className="w-4 h-4"
+                  />
+                  <span>{opt}</span>
+                </label>
+              ))}
+            </div>
+            <button onClick={() => handleFlagToggle(qId)} className="ml-2">
+              <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
+            </button>
+          </div>
+        );
+
+      case 'mcq_multi':
+        return (
+          <div key={qId} id={`q-container-${globalNum}`} className="space-y-2">
+            <p><strong>{globalNum}.</strong> {q.text}</p>
+            <div className="flex flex-col space-y-1">
+              {q.options?.map((opt: string) => {
+                const optionLetter = opt.charAt(0);
+                const isChecked = Array.isArray(answers[qId]) && answers[qId].includes(optionLetter);
+                return (
+                  <label key={opt} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      value={optionLetter}
+                      checked={isChecked}
+                      onChange={(e) => handleCheckboxChange(qId, optionLetter, e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                    <span>{opt}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <button onClick={() => handleFlagToggle(qId)} className="ml-2">
+              <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
+            </button>
+          </div>
+        );
+
+      case 'matching':
+        if (part?.dragOptions) {
+          return (
+            <div
+              key={qId}
+              id={`q-container-${globalNum}`}
+              className={`flex items-center gap-4 p-2 border-2 border-dashed rounded min-h-[50px] transition-colors ${dragOverZone === qId ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+              onDragOver={(e) => handleDragOver(e, qId)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, qId)}
+            >
+              <span className="font-bold w-8">{globalNum}</span>
+              <span className="flex-1">{q.text}</span>
+              <div className="w-24 h-8 flex items-center justify-center bg-gray-50 border rounded">
+                {answers[qId] && <span className="font-bold text-blue-600">{answers[qId]}</span>}
+              </div>
+            </div>
+          );
+        } else {
+          return (
+            <div key={qId} id={`q-container-${globalNum}`} className="flex items-center gap-4 mb-2">
+              <span className="font-bold w-8">{globalNum}</span>
+              <span className="flex-1">{q.text}</span>
+              <select
+                className="answer-select w-24"
+                value={answers[qId] || ''}
+                onChange={(e) => handleAnswerChange(qId, e.target.value)}
+              >
+                <option value="">Select</option>
+                {q.options?.map((opt: string) => (
+                  <option key={opt} value={opt.charAt(0)}>{opt}</option>
+                ))}
+              </select>
+              <button onClick={() => handleFlagToggle(qId)} className="ml-2">
+                <Flag size={18} className={reviewFlags[qId] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
+              </button>
+            </div>
+          );
+        }
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="h-full flex flex-col bg-white">
+      {!content ? (
+        <div className="text-center py-12">
+          <p className="text-slate-500">Listening ma'lumotlari topilmadi.</p>
+        </div>
+      ) : (
+        <div className="space-y-12 p-8 pb-32">
+          {parts.map((part: any, pIdx: number) => (
+            <div
+              key={pIdx}
+              className={`space-y-6 ${pIdx + 1 === currentPart ? '' : 'hidden'}`}
+              style={{ display: pIdx + 1 === currentPart ? 'block' : 'none' }}
+            >
+              <div className="border-l-4 border-blue-500 pl-4 py-1 bg-blue-50/50 rounded-r-lg">
+                <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">
+                  {part.title || `Part ${pIdx + 1}`}
+                </h3>
+                {part.instruction && <p className="text-sm text-slate-500">{part.instruction}</p>}
+              </div>
+
+              {part.image && (
+                <div className="my-4">
+                  <img
+                    src={part.image}
+                    alt={`Part ${pIdx + 1}`}
+                    className="max-w-full h-auto rounded-lg border shadow-sm"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-6">
+                {part.questions?.map((q: any, qIdx: number) => renderQuestion(q, pIdx, qIdx))}
+              </div>
+
+              {part.dragOptions && (
+                <div className="w-64 space-y-2 p-4 bg-gray-50 rounded border">
+                  <p className="font-bold text-sm mb-2">Drag options:</p>
+                  {part.dragOptions.map((opt: any, idx: number) => {
+                    const isUsed = usedOptions.has(opt.letter);
+                    return (
+                      <div
+                        key={idx}
+                        draggable={!isUsed}
+                        onDragStart={(e) => handleDragStart(e, opt.letter)}
+                        onDragEnd={handleDragEnd}
+                        className={`drag-item p-2 bg-white border rounded cursor-move hover:bg-gray-100 ${isUsed ? 'opacity-30 cursor-not-allowed' : ''}`}
+                        style={{ display: isUsed ? 'none' : 'block' }}
+                      >
+                        <strong>{opt.letter}</strong> {opt.text}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
