@@ -677,19 +677,63 @@ export default function StudentExam() {
         </div>
       )}
 
-      <main className="main-container" style={{ marginTop: currentSection === 'listening' ? '115px' : '60px' }}>
-        <div className="left-panel" style={{ height: 'calc(100vh - 60px - 80px)', overflowY: 'auto' }}>
-          {currentSection === 'listening' ? (
-            <ListeningComponent
-              content={examContent?.listening}
-              currentPart={currentPart}
-              answers={answers.listening}
-              setAnswers={(newAnswers: any) => setAnswers({ ...answers, listening: newAnswers })}
-              reviewFlags={reviewFlags}
-              setReviewFlags={setReviewFlags}
-              currentSection="listening"
-            />
-          ) : (
+          {/* Main Content Area */}
+          <ResizablePanel defaultSize={75} minSize={30}>
+            <div className="h-full bg-[#f4f7f9] relative overflow-hidden flex flex-col">
+              {/* Audio Controls Bar - IELTS CDI style */}
+              {currentSection === 'listening' && (
+                <div className="flex items-center justify-between px-6 py-3 border-b bg-white shadow-sm sticky top-0 z-10">
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <Headphones size={20} className="text-blue-600" />
+                      <span className="text-sm font-bold uppercase tracking-wider">Listening Audio</span>
+                    </div>
+                    <audio 
+                      ref={audioRef} 
+                      src={getImageUrl(examContent?.listening?.audioUrl)} 
+                      className="h-8 accent-blue-600"
+                      controls
+                    />
+                  </div>
+                  {isTransferring && (
+                    <div className="flex items-center gap-2 px-4 py-1.5 bg-amber-50 border border-amber-200 rounded-full text-amber-700 animate-pulse">
+                      <AlertTriangle size={16} />
+                      <span className="text-sm font-black">TRANSFER TIME: {formatTime(transferTimeLeft)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <ScrollArea className="flex-1">
+                <div className="max-w-4xl mx-auto py-10 px-6">
+                  {currentSection === 'listening' ? (
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                      <div className="bg-slate-50 border-b p-4 flex items-center justify-between">
+                        <Badge variant="outline" className="bg-white text-blue-700 border-blue-200 font-black px-3 py-1">
+                          PART {currentPart} OF {listeningParts.length}
+                        </Badge>
+                        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">IELTS Computer Delivered</div>
+                      </div>
+                      
+                      <div className="p-0">
+                        <ListeningComponent
+                          audioUrl={examContent?.listening?.audioUrl}
+                          onSectionComplete={goToNextSection}
+                          content={examContent?.listening}
+                          answers={answers.listening}
+                          setAnswers={(newListeningAnswers) => setAnswers((prev: any) => ({
+                            ...prev,
+                            listening: typeof newListeningAnswers === 'function' 
+                              ? newListeningAnswers(prev.listening)
+                              : newListeningAnswers
+                          }))}
+                          currentPart={currentPart}
+                          reviewFlags={reviewFlags}
+                          setReviewFlags={setReviewFlags}
+                        />
+                      </div>
+                    </div>
+                  ) : currentSection === 'reading' ? (
             <ResizablePanelGroup direction="horizontal" className="flex-1 h-full">
               <ResizablePanel defaultSize={45} className="bg-white border-r-4 border-slate-100 min-w-[300px]">
                 <div className="h-full flex flex-col">
