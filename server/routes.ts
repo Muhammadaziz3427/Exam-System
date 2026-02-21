@@ -161,7 +161,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(401).json({ message: "Xato login yoki parol" });
       }
 
-      if (user.password !== password) {
+      // Check for password or Password field
+      const dbPassword = user.password || (user as any).Password;
+      if (dbPassword !== password) {
         return res.status(401).json({ message: "Xato login yoki parol" });
       }
 
@@ -188,7 +190,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { data: session, error } = await supabase
         .from("exam_sessions")
         .select("*")
-        .eq("accessCode", normalizedCode)
+        .eq("access_code", normalizedCode)
         .maybeSingle();
 
       if (error) {
@@ -269,7 +271,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       console.log("[LOGIN] 11. Muvaffaqiyatli!");
 
-      const { password: _, ...sessionWithoutPassword } = session;
+      // Use a robust way to exclude sensitive fields
+      const { password: _, Password: __, pass: ___, ...sessionWithoutPassword } = session;
       return res.json({ session: sessionWithoutPassword });
 
     } catch (error) {
