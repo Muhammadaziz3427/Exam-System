@@ -1,10 +1,60 @@
-function ListeningComponent({ content, currentPart, answers = {}, setAnswers, reviewFlags, setReviewFlags, currentSection }: any) {
-  const parts = content?.parts || [];
+import { useEffect, useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Headphones, AlertCircle, Flag } from "lucide-react";
 
-  const handleAnswerChange = (qId: string, value: any, isMulti: boolean = false) => {
+interface ListeningComponentProps {
+  audioUrl: string;
+  onSectionComplete: () => void;
+  examContent?: any;
+  content?: any;
+  answers?: any;
+  setAnswers: (answers: any) => void;
+  currentPart: number;
+  reviewFlags?: Record<string, boolean>;
+  setReviewFlags?: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+}
+
+export function ListeningComponent({
+  audioUrl,
+  onSectionComplete,
+  examContent,
+  content,
+  answers = {},
+  setAnswers,
+  currentPart,
+  reviewFlags = {},
+  setReviewFlags = () => {},
+}: ListeningComponentProps) {
+  const [isTransferring, setIsTransferring] = useState(false);
+  const [transferTimeLeft, setTransferTimeLeft] = useState(120);
+  const [error, setError] = useState<string | null>(null);
+  const [dragOverZone, setDragOverZone] = useState<string | null>(null);
+
+  const listeningData = content || examContent?.listening;
+  const parts = listeningData?.parts || listeningData?.sections || [];
+
+  useEffect(() => {
+    if (isTransferring) {
+      const timer = setInterval(() => {
+        setTransferTimeLeft((prev: number) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            onSectionComplete();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [isTransferring, onSectionComplete]);
+
+  // Universal answer handler
+  const handleAnswerChange = (qId: string, value: string | string[], isMulti: boolean = false) => {
     setAnswers((prev: any) => ({ ...prev, [qId]: value }));
   };
 
+  // For checkbox multi-select
   const handleCheckboxChange = (qId: string, option: string, checked: boolean) => {
     const current = Array.isArray(answers[qId]) ? answers[qId] : [];
     let newValue;
@@ -21,9 +71,7 @@ function ListeningComponent({ content, currentPart, answers = {}, setAnswers, re
     setReviewFlags((prev: Record<string, boolean>) => ({ ...prev, [qId]: !prev[qId] }));
   };
 
-  const [dragOverZone, setDragOverZone] = useState<string | null>(null);
-  const [usedOptions, setUsedOptions] = useState<Set<string>>(new Set());
-
+  // Drag & drop functions (for matching type)
   const handleDragStart = (e: React.DragEvent, optionLetter: string) => {
     e.dataTransfer.setData("text/plain", optionLetter);
     e.currentTarget.classList.add("dragging");
@@ -69,61 +117,47 @@ function ListeningComponent({ content, currentPart, answers = {}, setAnswers, re
     e.currentTarget.classList.remove("drag-over");
   };
 
-  useEffect(() => {
+  // Helper to compute used options for matching questions
+  const getUsedOptions = (partQuestions: any[]) => {
     const used = new Set<string>();
-    Object.keys(answers).forEach(key => {
-      if (key.startsWith('q-') && answers[key]) {
-        used.add(answers[key]);
+    partQuestions.forEach((q: any) => {
+      if (q.type === 'matching' && answers[q.id]) {
+        used.add(answers[q.id]);
       }
     });
-    setUsedOptions(used);
-  }, [answers]);
-
-  const getGlobalQuestionNumber = (partIndex: number, questionIndex: number) => {
-    let count = 0;
-    for (let i = 0; i < partIndex; i++) {
-      count += parts[i]?.questions?.length || 0;
-    }
-    return count + questionIndex + 1;
+    return used;
   };
 
+  // Render a single question based on its type
   const renderQuestion = (q: any, partIndex: number, qIdx: number) => {
     const qId = q.id || `q-${partIndex + 1}-${qIdx + 1}`;
-    const globalNum = getGlobalQuestionNumber(partIndex, qIdx);
+    const globalNum = (() => {
+      let count = 0;
+      for (let i = 0; i < partIndex; i++) {
+        count += parts[i]?.questions?.length || 0;
+      }
+      return count + qIdx + 1;
+    })();
 
     switch (q.type) {
       case 'gap_fill':
-        const hasBlank = q.text.includes('_____');
         return (
           <div key={qId} id={`q-container-${globalNum}`} className="mb-2">
             <p>
-              {hasBlank ? (
-                q.text.split('_____').map((part: string, i: number, arr: string[]) => (
-                  <span key={i}>
-                    {part}
-                    {i < arr.length - 1 && (
-                      <input
-                        type="text"
-                        className="answer-input"
-                        placeholder={String(globalNum)}
-                        value={answers[qId] || ''}
-                        onChange={(e) => handleAnswerChange(qId, e.target.value)}
-                      />
-                    )}
-                  </span>
-                ))
-              ) : (
-                <>
-                  {q.text}
-                  <input
-                    type="text"
-                    className="answer-input"
-                    placeholder={String(globalNum)}
-                    value={answers[qId] || ''}
-                    onChange={(e) => handleAnswerChange(qId, e.target.value)}
-                  />
-                </>
-              )}
+              {q.text.split('_____').map((part: string, i: number, arr: string[]) => (
+                <span key={i}>
+                  {part}
+                  {i < arr.length - 1 && (
+                    <input
+                      type="text"
+                      className="answer-input"
+                      placeholder={String(globalNum)}
+                      value={answers[qId] || ''}
+                      onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                    />
+                  )}
+                </span>
+              ))}
             </p>
           </div>
         );
@@ -182,25 +216,25 @@ function ListeningComponent({ content, currentPart, answers = {}, setAnswers, re
         );
 
       case 'matching':
-        if (q.targets) {
-          const targetText = q.targets[qIdx] || q.text;
+        // For matching, we assume q.options is the list of draggable options,
+        // and q.targets is the list of target descriptions (e.g., exhibition names).
+        // If not provided, fallback to simple dropdown.
+        if (q.targets && q.options) {
+          const usedOptions = getUsedOptions(parts[partIndex]?.questions || []);
           return (
-            <div
-              key={qId}
-              id={`q-container-${globalNum}`}
-              className={`flex items-center gap-4 p-2 border-2 border-dashed rounded min-h-[50px] transition-colors ${dragOverZone === qId ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
-              onDragOver={(e) => handleDragOver(e, qId)}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, qId)}
-            >
+            <div key={qId} id={`q-container-${globalNum}`} className="flex items-center gap-4 p-2 border-2 border-dashed rounded min-h-[50px] transition-colors"
+                 onDragOver={(e) => handleDragOver(e, qId)}
+                 onDragLeave={handleDragLeave}
+                 onDrop={(e) => handleDrop(e, qId)}>
               <span className="font-bold w-8">{globalNum}</span>
-              <span className="flex-1">{targetText}</span>
+              <span className="flex-1">{q.targets[qIdx] || q.text}</span>
               <div className="w-24 h-8 flex items-center justify-center bg-gray-50 border rounded">
                 {answers[qId] && <span className="font-bold text-blue-600">{answers[qId]}</span>}
               </div>
             </div>
           );
         } else {
+          // Fallback to select dropdown if no drag-drop info
           return (
             <div key={qId} id={`q-container-${globalNum}`} className="flex items-center gap-4 mb-2">
               <span className="font-bold w-8">{globalNum}</span>
@@ -229,7 +263,19 @@ function ListeningComponent({ content, currentPart, answers = {}, setAnswers, re
 
   return (
     <div className="h-full flex flex-col bg-white">
-      {!content ? (
+      {isTransferring && (
+        <div className="w-full bg-amber-50 p-2 text-center text-sm font-medium">
+          Transfer Time: {Math.floor(transferTimeLeft / 60)}:{String(transferTimeLeft % 60).padStart(2, '0')}
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm flex items-center gap-2">
+          <AlertCircle size={16} /> {error}
+        </div>
+      )}
+
+      {!listeningData ? (
         <div className="text-center py-12">
           <p className="text-slate-500">Listening ma'lumotlari topilmadi.</p>
         </div>
@@ -241,32 +287,39 @@ function ListeningComponent({ content, currentPart, answers = {}, setAnswers, re
               className={`space-y-6 ${pIdx + 1 === currentPart ? '' : 'hidden'}`}
               style={{ display: pIdx + 1 === currentPart ? 'block' : 'none' }}
             >
+              {/* Part header */}
               <div className="border-l-4 border-blue-500 pl-4 py-1 bg-blue-50/50 rounded-r-lg">
                 <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">
                   {part.title || `Part ${pIdx + 1}`}
                 </h3>
-                {part.instruction && <p className="text-sm text-slate-500">{part.instruction}</p>}
+                {part.instruction && (
+                  <p className="text-sm text-slate-500">{part.instruction}</p>
+                )}
               </div>
 
+              {/* Part image (for maps, diagrams) */}
               {part.image && (
                 <div className="my-4">
                   <img
                     src={part.image}
-                    alt={`Part ${pIdx + 1}`}
+                    alt={`Part ${pIdx + 1} visual`}
                     className="max-w-full h-auto rounded-lg border shadow-sm"
                   />
                 </div>
               )}
 
+              {/* Questions */}
               <div className="space-y-6">
                 {part.questions?.map((q: any, qIdx: number) => renderQuestion(q, pIdx, qIdx))}
               </div>
 
+              {/* If part has its own draggable options box (for matching across multiple questions) */}
               {part.dragOptions && (
                 <div className="w-64 space-y-2 p-4 bg-gray-50 rounded border">
                   <p className="font-bold text-sm mb-2">Drag options:</p>
                   {part.dragOptions.map((opt: any, idx: number) => {
-                    const isUsed = usedOptions.has(opt.letter);
+                    const used = getUsedOptions(part.questions);
+                    const isUsed = used.has(opt.letter);
                     return (
                       <div
                         key={idx}

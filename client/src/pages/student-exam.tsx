@@ -61,12 +61,11 @@ export default function StudentExam() {
   const [currentSection, setCurrentSection] = useState<Section>('listening');
   const [timeLeft, setTimeLeft] = useState(0);
   const [email, setEmail] = useState("");
-  const [activePassageIdx, setActivePassageIdx] = useState(0); // for reading passages (0-based)
-  const [activeWritingTask, setActiveWritingTask] = useState(0); // 0 for Task 1, 1 for Task 2
-  const [currentPart, setCurrentPart] = useState(1); // part index within current section (1-based)
-  const [currentQuestion, setCurrentQuestion] = useState(1); // global question number (1-40)
+  const [activePassageIdx, setActivePassageIdx] = useState(0);
+  const [activeWritingTask, setActiveWritingTask] = useState(0);
+  const [currentPart, setCurrentPart] = useState(1);
+  const [currentQuestion, setCurrentQuestion] = useState(1);
 
-  // Answers store: listening: { [globalQNum: number]: any }, reading: { [globalQNum: number]: any }, writingTask1, writingTask2
   const [answers, setAnswers] = useState<any>({
     listening: {},
     reading: {},
@@ -74,14 +73,9 @@ export default function StudentExam() {
     writingTask2: ""
   });
 
-  const [reviewFlags, setReviewFlags] = useState<Record<string, boolean>>({}); // flags for listening and reading questions, key: `${section}-${globalQNum}`
-
+  const [reviewFlags, setReviewFlags] = useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Audio progress
   const [audioProgress, setAudioProgress] = useState({ currentTime: 0, duration: 0, percent: 0 });
-
-  // Transfer time after listening
   const [isTransferring, setIsTransferring] = useState(false);
   const [transferTimeLeft, setTransferTimeLeft] = useState(120);
   const transferTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -90,12 +84,10 @@ export default function StudentExam() {
   const startSession = useStartSession();
   const logViolation = useLogViolation();
 
-  // ---------- Data preparation (to‘g‘ridan-to‘g‘ri examContent dan) ----------
   const listeningParts = examContent?.listening?.parts || [];
   const readingPassages = examContent?.reading?.passages || [];
   const writingTasks = examContent?.writing?.tasks || [];
 
-  // For bottom navigation, we need part definitions for each section
   const listeningPartDefs = useMemo(() => {
     const counts = listeningParts.map((p: any) => p.questions?.length || 10);
     let start = 1;
@@ -131,7 +123,6 @@ export default function StudentExam() {
     return writingPartDefs;
   }, [currentSection, listeningPartDefs, readingPartDefs]);
 
-  // ---------- Navigation helpers ----------
   const switchToPart = (part: number) => {
     setCurrentPart(part);
     const def = currentPartDefs.find((d: any) => d.partIndex === part);
@@ -180,7 +171,6 @@ export default function StudentExam() {
     if (activeBtn) activeBtn.classList.add('active');
   };
 
-  // ---------- Timer logic ----------
   const setupSectionTimer = (section: Section, content: any) => {
     let minutes = 0;
     if (section === 'listening') {
@@ -296,7 +286,6 @@ export default function StudentExam() {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  // ---------- Bottom navigation indicator update ----------
   useEffect(() => {
     const updateNavIndicators = () => {
       const partDefs = currentPartDefs;
@@ -379,7 +368,6 @@ export default function StudentExam() {
     updateNavIndicators();
   }, [answers, currentSection, currentPartDefs, reviewFlags]);
 
-  // ---------- Score calculation ----------
   const calculateScores = () => {
     if (!examContent) return null;
 
@@ -392,7 +380,7 @@ export default function StudentExam() {
     listeningQuestions.forEach((q: any, idx: number) => {
       const qNum = idx + 1;
       const userAnswer = answers.listening?.[qNum];
-      const correct = q.answer; // JSON da 'answer' maydoni
+      const correct = q.answer;
       if (userAnswer && correct) {
         if (userAnswer.toString().trim().toLowerCase() === correct.toString().trim().toLowerCase()) listeningCorrect++;
       }
@@ -460,7 +448,6 @@ export default function StudentExam() {
     handleFinalSubmit();
   };
 
-  // ---------- Helper functions ----------
   const getImageUrl = (path: string) => {
     if (!path) return "";
     return path.startsWith('http') ? path : `/uploads/${path}`;
@@ -522,7 +509,6 @@ export default function StudentExam() {
     };
   }, [hasStarted, sessionId, logViolation, toast]);
 
-  // Auto-save
   const lastSavedAnswers = useRef(JSON.stringify(answers));
 
   useEffect(() => {
@@ -695,7 +681,7 @@ export default function StudentExam() {
         <div className="left-panel" style={{ height: 'calc(100vh - 60px - 80px)', overflowY: 'auto' }}>
           {currentSection === 'listening' ? (
             <ListeningComponent
-              content={examContent?.listening}  // to‘g‘ridan-to‘g‘ri listening obyekti
+              content={examContent?.listening}
               currentPart={currentPart}
               answers={answers.listening}
               setAnswers={(newAnswers: any) => setAnswers({ ...answers, listening: newAnswers })}
@@ -790,14 +776,13 @@ export default function StudentExam() {
                   <div className="p-8 md:p-12 max-w-2xl mx-auto pb-32">
                     {currentSection === 'reading' ? (
                       <ReadingComponent
-                        passageIdx={activePassageIdx}
+                        passage={readingPassages[activePassageIdx]}
                         baseQNum={baseQNum}
                         answers={answers.reading}
-                        setAnswers={(newReading: any) => setAnswers({ ...answers, reading: newReading })}
+                        setAnswers={(newReading) => setAnswers({ ...answers, reading: newReading })}
                         reviewFlags={reviewFlags}
                         setReviewFlags={setReviewFlags}
                         currentSection="reading"
-                        passage={undefined}
                       />
                     ) : (
                       <div className="h-full flex flex-col space-y-4">
@@ -861,7 +846,7 @@ export default function StudentExam() {
   );
 }
 
-// ========== TO‘LIQ DINAMIK LISTENING COMPONENT (oldingi xabardagidek) ==========
+// ========== TO‘LIQ DINAMIK LISTENING COMPONENT ==========
 function ListeningComponent({ content, currentPart, answers = {}, setAnswers, reviewFlags, setReviewFlags, currentSection }: any) {
   const parts = content?.parts || [];
 
@@ -954,7 +939,7 @@ function ListeningComponent({ content, currentPart, answers = {}, setAnswers, re
   const renderQuestion = (q: any, partIndex: number, qIdx: number) => {
     const qId = q.id || `q-${partIndex + 1}-${qIdx + 1}`;
     const globalNum = getGlobalQuestionNumber(partIndex, qIdx);
-    const part = parts[partIndex]; // joriy part
+    const part = parts[partIndex];
 
     switch (q.type) {
       case 'gap_fill':
@@ -1047,7 +1032,6 @@ function ListeningComponent({ content, currentPart, answers = {}, setAnswers, re
         );
 
       case 'matching':
-        // Agar part da dragOptions bo'lsa, drag-drop interfeys ko'rsat
         if (part?.dragOptions) {
           return (
             <div
@@ -1066,7 +1050,6 @@ function ListeningComponent({ content, currentPart, answers = {}, setAnswers, re
             </div>
           );
         } else {
-          // Fallback – oddiy dropdown (dragOptions bo'lmasa)
           return (
             <div key={qId} id={`q-container-${globalNum}`} className="flex items-center gap-4 mb-2">
               <span className="font-bold w-8">{globalNum}</span>
