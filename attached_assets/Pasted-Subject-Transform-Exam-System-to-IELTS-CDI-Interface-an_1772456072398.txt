@@ -1,0 +1,60 @@
+Subject: Transform Exam System to IELTS CDI Interface and Logic
+
+Context: I have a full mock exam system built with React (Vite) and Tailwind CSS. I need to redesign the exam-taking interface to exactly match the IELTS Computer-Delivered (CDI) style and implement a specific session flow.
+
+1. Core UI Architecture:
+
+Header: Fixed top bar (height: 60px). Show "IELTS Listening/Reading/Writing", a central Timer, and "Help/Hide" buttons.
+
+Footer (Nav-Row): Fixed bottom bar (height: 80px). Display question numbers (1-40) as clickable circles. Colors: Current = Blue, Answered = Grey/Dark, Unanswered = White with border.
+
+Main Layout: >     * Listening: Single column, scrollable question area.
+
+Reading/Writing: Split-pane layout (50/50). Left side is the Passage/Task (independently scrollable), right side is the Questions/Editor.
+
+2. Exam Flow Logic:
+
+Listening to Reading: When "Check Answer" (in HTML) or "Next Session" button is clicked at the end of Listening (Part 4), transition the UI state to Reading Part 1.
+
+Reading to Writing: When the timer ends or "Next Session" is clicked after Reading Part 3, transition to Writing Task 1.
+
+Writing to Finish: The final button in Writing must be "Finish Exam".
+
+3. Data Handling & Submission:
+
+Mock Data: Use a JSON structure to load the full mock (Passages, Audio URLs, Question types).
+
+Submission: On "Finish Exam", gather all answers from all 3 sections. Send the payload to the backend API endpoint (/api/test-results/submit).
+
+Privacy Rule: Ensure the Student frontend does not display the score or results after submission. Redirect them to a "Test Completed" landing page. Results must only be accessible via Admin and Teacher dashboards.
+
+4. Specific Interactions (Mimic HTML behavior):
+
+Reading: Implement "Clickable Cells" for table-type questions where clicking a cell highlights it and saves the value.
+
+Writing: Implement a real-time Word Counter below the textarea.
+
+Listening: Handle Drag-and-Drop options and Radio button selections with immediate "answered" status update in the footer.
+
+5. Styling Constraints:
+
+Background: White (#ffffff).
+
+Primary Blue: #2b78c5 (for active elements).
+
+Border/Dividers: #e0e0e0.
+
+Fonts: Arial, sans-serif.
+
+Do not change the existing backend tree structure, only focus on client/src/pages/ExamPage and related UI components.
+
+Task: Start by creating the ExamLayout component that handles these 3 modes and implement the session transition logic.
+
+Tahlil natijasida sizga tavsiyalar:
+JSON Formati: Mock testlaringizni yaratishda Listening uchun audio_url, Reading uchun passages[] va savollar uchun type (multiple_choice, drag_drop, table_cell) maydonlari bo'lishiga ishonch hosil qiling.
+
+Admin Paneli: Replit Agent natijalarni yuborganida, backenddagi test-results modelida isReviewed: false flagini qo'shib ketishni ayting. Shunda o'qituvchi yozma ishlarni (Writing) tekshirishi oson bo'ladi.
+
+Avtomatik O'tish: Reading tugashi bilan Writingga o'tayotganda localStorageni tozalashni yoki holatni (state) yangilashni unutmang, shunda xotira yuklanib qolmaydi.
+
+Yana biror narsani o'zgartirishimiz kerakmi yoki Replitga ushbu promptni kiritishga tayyormisiz?
