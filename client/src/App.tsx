@@ -15,8 +15,9 @@ import TeacherDashboard from "@/pages/teacher-dashboard";
 import StudentExam from "@/pages/student-exam";
 import AdminExamEditor from "@/pages/admin-exam-editor"; 
 import NotFound from "@/pages/not-found";
+
+// YANGI QOSHILGAN SAHIFA
 import AIExamBuilder from "@/pages/AIExamBuilder"; 
-import TestCompleted from "@/pages/TestCompleted";
 
 function Router() {
   return (
@@ -27,6 +28,7 @@ function Router() {
         <SidebarProvider><AdminDashboard /></SidebarProvider>
       </Route>
 
+      {/* YANGI ROUTE: AI orqali test tuzish */}
       <Route path="/admin/ai-builder">
         <SidebarProvider><AIExamBuilder /></SidebarProvider>
       </Route>
@@ -52,7 +54,6 @@ function Router() {
       </Route>
 
       <Route path="/exam/:id" component={StudentExam} />
-      <Route path="/test-completed" component={TestCompleted} />
       <Route component={NotFound} />
     </Switch>
   );
