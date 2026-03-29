@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { GraduationCap, ShieldCheck, Loader2, Trophy, FileText } from "lucide-react";
+import { GraduationCap, ShieldCheck, Loader2, Trophy } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 
 export default function AuthPage() {
@@ -74,12 +74,6 @@ export default function AuthPage() {
               </div>
 
               <div className="pt-4 flex flex-col gap-3">
-                <Link href={`/student/detailed-results/${session.id}`}>
-                  <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold h-12 rounded-xl">
-                    <FileText className="mr-2 h-5 w-5" />
-                    View Performance Breakdown
-                  </Button>
-                </Link>
                 <Button 
                   variant="ghost" 
                   className="text-slate-400 hover:text-slate-600 text-xs"
