@@ -741,66 +741,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         .from("violations")
         .select("*")
         .eq("session_id", Number(req.params.id))
-        .order("timestamp", { ascending: true });
+        .order("created_at", { ascending: true });
 
       if (error) throw error;
       res.json(data || []);
     } catch (error) {
       console.error("Violations olishda xatolik:", error);
       res.json([]);
-    }
-  });
-
-  // All violations (for admin monitoring)
-  app.get("/api/violations", async (_req, res) => {
-    try {
-      const { data, error } = await supabase
-        .from("violations")
-        .select("*")
-        .order("timestamp", { ascending: false });
-      if (error) throw error;
-      res.json(data || []);
-    } catch (error) {
-      console.error("All violations olishda xatolik:", error);
-      res.json([]);
-    }
-  });
-
-  // Logout
-  app.post(api.auth.logout.path, (_req, res) => {
-    res.json({ message: "Logged out" });
-  });
-
-  // Terminate session
-  app.post(api.sessions.terminate.path, async (req, res) => {
-    try {
-      const { data: session, error } = await supabase
-        .from("exam_sessions")
-        .update({ status: "completed", result_status: "marking" })
-        .eq("id", Number(req.params.id))
-        .select()
-        .single();
-
-      if (error) throw error;
-      if (!session) return res.status(404).json({ message: "Sessiya topilmadi" });
-      res.json({ message: "Sessiya majburiy yakunlandi" });
-    } catch (error) {
-      console.error("Terminate xatosi:", error);
-      res.status(500).json({ message: "Sessiyani yakunlashda xatolik" });
-    }
-  });
-
-  // Delete session
-  app.delete("/api/sessions/:id", async (req, res) => {
-    try {
-      const id = Number(req.params.id);
-      await supabase.from("submissions").delete().eq("session_id", id);
-      await supabase.from("violations").delete().eq("session_id", id);
-      await supabase.from("exam_sessions").delete().eq("id", id);
-      res.sendStatus(204);
-    } catch (error) {
-      console.error("Delete session xatosi:", error);
-      res.status(500).json({ message: "Sessiyani o'chirishda xatolik" });
     }
   });
 
