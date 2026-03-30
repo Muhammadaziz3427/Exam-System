@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 
-export function ListeningComponent({ content, currentPart, answers = {}, setAnswers, currentSection }: any) {
+export function ListeningComponent({ content, currentPart, answers = {}, setAnswers }: any) {
   const parts = content?.parts || [];
 
-  const handleAnswerChange = (qId: string, value: any) => {
-    setAnswers((prev: any) => ({ ...prev, [qId]: value }));
+  const handleAnswerChange = (globalNum: number, value: any) => {
+    setAnswers((prev: any) => ({ ...prev, [globalNum]: value }));
   };
 
   // Drag & Drop state and functions (for Part 3)
@@ -31,37 +31,37 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
     e.currentTarget.classList.remove("drag-over");
   };
 
-  const handleDropOnZone = (e: React.DragEvent, qId: string) => {
+  const handleDropOnZone = (e: React.DragEvent, globalNum: number) => {
     e.preventDefault();
     e.currentTarget.classList.remove("drag-over");
     if (!draggedItem) return;
 
     const optionLetter = draggedItem.letter;
-    const currentAnswer = answers[qId];
+    const currentAnswer = answers[globalNum];
 
     if (currentAnswer) {
-      const otherZone = Object.keys(answers).find(key => answers[key] === optionLetter && key !== qId);
+      const otherZone = Object.keys(answers).find(key => answers[Number(key)] === optionLetter && Number(key) !== globalNum);
       if (otherZone) {
         setAnswers((prev: any) => ({
           ...prev,
-          [qId]: optionLetter,
-          [otherZone]: currentAnswer
+          [globalNum]: optionLetter,
+          [Number(otherZone)]: currentAnswer
         }));
       } else {
-        setAnswers((prev: any) => ({ ...prev, [qId]: optionLetter }));
+        setAnswers((prev: any) => ({ ...prev, [globalNum]: optionLetter }));
       }
     } else {
-      setAnswers((prev: any) => ({ ...prev, [qId]: optionLetter }));
+      setAnswers((prev: any) => ({ ...prev, [globalNum]: optionLetter }));
     }
     setDraggedItem(null);
   };
 
   const returnOptionToList = (optLetter: string) => {
-    const qIdToClear = Object.keys(answers).find(key => answers[key] === optLetter);
-    if (qIdToClear) {
+    const globalNum = Object.keys(answers).find(key => answers[Number(key)] === optLetter);
+    if (globalNum) {
       setAnswers((prev: any) => {
         const newAnswers = { ...prev };
-        delete newAnswers[qIdToClear];
+        delete newAnswers[Number(globalNum)];
         return newAnswers;
       });
     }
@@ -83,7 +83,7 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
     return count + qIdx + 1;
   };
 
-  // ========== Part 1 (exact HTML structure) ==========
+  // ---------- Part 1 ----------
   const renderPart1 = (part: any, pIdx: number) => {
     const questions = part.questions || [];
     return (
@@ -97,25 +97,22 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
           <p className="centered-title">Music Alive Agency</p>
           <p style={{ fontStyle: 'italic', marginBottom: '15px' }}>Example</p>
           <p><strong>Contact person:</strong> Jim Granley</p>
-
           {questions.map((q: any, qIdx: number) => {
-            const qId = q.id || `q-${pIdx + 1}-${qIdx + 1}`;
             const globalNum = getGlobalNum(pIdx, qIdx);
             const parts = q.text.split('_____');
-
             return (
-              <div key={qId} id={`q-container-${globalNum}`} style={{ marginBottom: '8px' }}>
-                <p style={{ margin: 0, display: 'inline', alignItems: 'center' }}>
+              <div key={globalNum} id={`q-container-${globalNum}`} style={{ marginBottom: '8px' }}>
+                <p>
                   {parts.map((part: string, i: number) => (
-                    <span key={i} style={{ display: 'inline', alignItems: 'center' }}>
+                    <span key={i}>
                       {part}
                       {i < parts.length - 1 && (
                         <input
                           type="text"
                           className="answer-input"
                           placeholder={String(globalNum)}
-                          value={answers[qId] || ''}
-                          onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                          value={answers[globalNum] || ''}
+                          onChange={(e) => handleAnswerChange(globalNum, e.target.value)}
                           style={{ margin: '0 4px' }}
                         />
                       )}
@@ -130,7 +127,7 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
     );
   };
 
-  // ========== Part 2 (exact HTML structure) ==========
+  // ---------- Part 2 ----------
   const renderPart2 = (part: any, pIdx: number) => {
     const questions = part.questions || [];
     const radioQ = questions.slice(0, 4); // 11-14
@@ -138,7 +135,6 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
 
     return (
       <div className="questions-container">
-        {/* 11-14 */}
         <div className="question">
           <div className="question-prompt">
             <p><strong>Questions 11-14</strong></p>
@@ -148,9 +144,8 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
           <div className="single-choice-container">
             {radioQ.map((q: any, qIdx: number) => {
               const globalNum = getGlobalNum(pIdx, qIdx);
-              const qId = q.id || `q-${pIdx + 1}-${qIdx}`;
               return (
-                <div key={qId} className="single-choice" id={`q-container-${globalNum}`} style={{ marginBottom: '15px' }}>
+                <div key={globalNum} className="single-choice" id={`q-container-${globalNum}`} style={{ marginBottom: '15px' }}>
                   <p><strong>{globalNum}</strong> {q.text}</p>
                   {q.options?.map((opt: string) => (
                     <label key={opt} style={{ display: 'block', marginLeft: '20px' }}>
@@ -158,8 +153,8 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
                         type="radio"
                         name={`q-${globalNum}`}
                         value={opt.charAt(0)}
-                        checked={answers[qId] === opt.charAt(0)}
-                        onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                        checked={answers[globalNum] === opt.charAt(0)}
+                        onChange={(e) => handleAnswerChange(globalNum, e.target.value)}
                       />&nbsp;&nbsp;{opt}
                     </label>
                   ))}
@@ -169,7 +164,6 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
           </div>
         </div>
 
-        {/* 15-20 with map */}
         <div className="question">
           <div className="question-prompt">
             <p><strong>Questions 15-20</strong></p>
@@ -187,14 +181,13 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
           <div className="questions-container">
             {mapQ.map((q: any, qIdx: number) => {
               const globalNum = getGlobalNum(pIdx, qIdx + 4);
-              const qId = q.id || `q-${pIdx + 1}-${qIdx + 4}`;
               return (
-                <div key={qId} className="matching-question-item" id={`q-container-${globalNum}`} style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+                <div key={globalNum} className="matching-question-item" id={`q-container-${globalNum}`} style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
                   <span className="question-text" style={{ marginRight: '10px', width: '200px' }}><strong>{globalNum}</strong> {q.text}</span>
                   <select
                     className="answer-select"
-                    value={answers[qId] || ''}
-                    onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                    value={answers[globalNum] || ''}
+                    onChange={(e) => handleAnswerChange(globalNum, e.target.value)}
                     style={{ width: '80px' }}
                   >
                     <option value="">Select...</option>
@@ -211,7 +204,7 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
     );
   };
 
-  // ========== Part 3 (exact HTML structure) ==========
+  // ---------- Part 3 ----------
   const renderPart3 = (part: any, pIdx: number) => {
     const questions = part.questions || [];
     const radioQ = questions.slice(0, 6); // 21-26
@@ -220,7 +213,6 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
 
     return (
       <div className="questions-container">
-        {/* 21-26 */}
         <div className="question">
           <div className="question-prompt">
             <p><strong>Questions 21-26</strong></p>
@@ -230,9 +222,8 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
           <div className="single-choice-container">
             {radioQ.map((q: any, qIdx: number) => {
               const globalNum = getGlobalNum(pIdx, qIdx);
-              const qId = q.id || `q-${pIdx + 1}-${qIdx}`;
               return (
-                <div key={qId} className="single-choice" id={`q-container-${globalNum}`} style={{ marginBottom: '15px' }}>
+                <div key={globalNum} className="single-choice" id={`q-container-${globalNum}`} style={{ marginBottom: '15px' }}>
                   <p><strong>{globalNum}</strong> {q.text}</p>
                   {q.options?.map((opt: string) => (
                     <label key={opt} style={{ display: 'block', marginLeft: '20px' }}>
@@ -240,8 +231,8 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
                         type="radio"
                         name={`q-${globalNum}`}
                         value={opt.charAt(0)}
-                        checked={answers[qId] === opt.charAt(0)}
-                        onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                        checked={answers[globalNum] === opt.charAt(0)}
+                        onChange={(e) => handleAnswerChange(globalNum, e.target.value)}
                       />&nbsp;&nbsp;{opt}
                     </label>
                   ))}
@@ -251,7 +242,6 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
           </div>
         </div>
 
-        {/* 27-30 Drag-drop */}
         <div className="question">
           <div className="question-prompt">
             <p><strong>Questions 27-30</strong></p>
@@ -262,21 +252,20 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
             <div className="questions-container" style={{ flex: 1 }}>
               {dragQ.map((q: any, qIdx: number) => {
                 const globalNum = getGlobalNum(pIdx, qIdx + 6);
-                const qId = q.id || `q-${pIdx + 1}-${qIdx + 6}`;
                 return (
-                  <div key={qId} className="matching-question-item" style={{ marginBottom: '10px' }}>
+                  <div key={globalNum} className="matching-question-item" style={{ marginBottom: '10px' }}>
                     <div className="question-line" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <span className="question-text" style={{ flex: 1 }}>{q.text}</span>
                       <div
-                        className={`summary-drop-zone ${answers[qId] ? 'filled' : ''}`}
+                        className={`summary-drop-zone ${answers[globalNum] ? 'filled' : ''}`}
                         data-question={`q${globalNum}`}
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
-                        onDrop={(e) => handleDropOnZone(e, qId)}
+                        onDrop={(e) => handleDropOnZone(e, globalNum)}
                         style={{ border: '2px dashed #ccc', padding: '4px 8px', minWidth: '80px', textAlign: 'center', cursor: 'pointer' }}
                       >
                         <span>{globalNum}</span>
-                        {answers[qId] && <span className="font-bold text-blue-600 ml-1">{answers[qId]}</span>}
+                        {answers[globalNum] && <span className="font-bold text-blue-600 ml-1">{answers[globalNum]}</span>}
                       </div>
                     </div>
                   </div>
@@ -310,11 +299,11 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
                 );
               })}
               {dragQ.map((q: any, qIdx: number) => {
-                const qId = q.id || `q-${pIdx + 1}-${qIdx + 6}`;
-                if (answers[qId]) {
+                const globalNum = getGlobalNum(pIdx, qIdx + 6);
+                if (answers[globalNum]) {
                   return (
-                    <div key={`return-${qId}`} style={{ fontSize: '12px', color: '#2563eb', marginTop: '5px', cursor: 'pointer' }} onClick={() => returnOptionToList(answers[qId])}>
-                      ↻ Return {answers[qId]}
+                    <div key={`return-${globalNum}`} style={{ fontSize: '12px', color: '#2563eb', marginTop: '5px', cursor: 'pointer' }} onClick={() => returnOptionToList(answers[globalNum])}>
+                      ↻ Return {answers[globalNum]}
                     </div>
                   );
                 }
@@ -327,7 +316,7 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
     );
   };
 
-  // ========== Part 4 (exact HTML structure) ==========
+  // ---------- Part 4 ----------
   const renderPart4 = (part: any, pIdx: number) => {
     const questions = part.questions || [];
     return (
@@ -344,10 +333,9 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
           <ul style={{ listStyleType: 'none', paddingLeft: '20px' }}>
             {questions.slice(0,1).map((q: any, idx: number) => {
               const globalNum = getGlobalNum(pIdx, idx);
-              const qId = q.id || `q-${pIdx + 1}-${idx}`;
               const parts = q.text.split('_____');
               return (
-                <li key={qId} id={`q-container-${globalNum}`} style={{ marginBottom: '5px' }}>
+                <li key={globalNum} id={`q-container-${globalNum}`} style={{ marginBottom: '5px' }}>
                   •&nbsp;&nbsp; protect coastal areas from 
                   {parts.map((part: string, i: number) => (
                     <span key={i}>
@@ -357,8 +345,8 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
                           type="text"
                           className="answer-input"
                           placeholder={String(globalNum)}
-                          value={answers[qId] || ''}
-                          onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                          value={answers[globalNum] || ''}
+                          onChange={(e) => handleAnswerChange(globalNum, e.target.value)}
                           style={{ margin: '0 4px' }}
                         />
                       )}
@@ -374,10 +362,9 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
           <ul style={{ listStyleType: 'none', paddingLeft: '20px' }}>
             {questions.slice(1,4).map((q: any, idx: number) => {
               const globalNum = getGlobalNum(pIdx, idx + 1);
-              const qId = q.id || `q-${pIdx + 1}-${idx + 1}`;
               const parts = q.text.split('_____');
               return (
-                <li key={qId} id={`q-container-${globalNum}`} style={{ marginBottom: '5px' }}>
+                <li key={globalNum} id={`q-container-${globalNum}`} style={{ marginBottom: '5px' }}>
                   •&nbsp;&nbsp;
                   {parts.map((part: string, i: number) => (
                     <span key={i}>
@@ -387,8 +374,8 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
                           type="text"
                           className="answer-input"
                           placeholder={String(globalNum)}
-                          value={answers[qId] || ''}
-                          onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                          value={answers[globalNum] || ''}
+                          onChange={(e) => handleAnswerChange(globalNum, e.target.value)}
                           style={{ margin: '0 4px' }}
                         />
                       )}
@@ -402,10 +389,9 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
           <ul style={{ listStyleType: 'none', paddingLeft: '20px' }}>
             {questions.slice(4,6).map((q: any, idx: number) => {
               const globalNum = getGlobalNum(pIdx, idx + 4);
-              const qId = q.id || `q-${pIdx + 1}-${idx + 4}`;
               const parts = q.text.split('_____');
               return (
-                <li key={qId} id={`q-container-${globalNum}`} style={{ marginBottom: '5px' }}>
+                <li key={globalNum} id={`q-container-${globalNum}`} style={{ marginBottom: '5px' }}>
                   •&nbsp;&nbsp;
                   {parts.map((part: string, i: number) => (
                     <span key={i}>
@@ -415,8 +401,8 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
                           type="text"
                           className="answer-input"
                           placeholder={String(globalNum)}
-                          value={answers[qId] || ''}
-                          onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                          value={answers[globalNum] || ''}
+                          onChange={(e) => handleAnswerChange(globalNum, e.target.value)}
                           style={{ margin: '0 4px' }}
                         />
                       )}
@@ -431,10 +417,9 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
           <ul style={{ listStyleType: 'none', paddingLeft: '20px' }}>
             {questions.slice(6,10).map((q: any, idx: number) => {
               const globalNum = getGlobalNum(pIdx, idx + 6);
-              const qId = q.id || `q-${pIdx + 1}-${idx + 6}`;
               const parts = q.text.split('_____');
               return (
-                <li key={qId} id={`q-container-${globalNum}`} style={{ marginBottom: '5px' }}>
+                <li key={globalNum} id={`q-container-${globalNum}`} style={{ marginBottom: '5px' }}>
                   •&nbsp;&nbsp;
                   {parts.map((part: string, i: number) => (
                     <span key={i}>
@@ -444,8 +429,8 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
                           type="text"
                           className="answer-input"
                           placeholder={String(globalNum)}
-                          value={answers[qId] || ''}
-                          onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                          value={answers[globalNum] || ''}
+                          onChange={(e) => handleAnswerChange(globalNum, e.target.value)}
                           style={{ margin: '0 4px' }}
                         />
                       )}
@@ -459,10 +444,9 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
           <ul style={{ listStyleType: 'none', paddingLeft: '20px' }}>
             {questions.slice(10,11).map((q: any, idx: number) => {
               const globalNum = getGlobalNum(pIdx, idx + 10);
-              const qId = q.id || `q-${pIdx + 1}-${idx + 10}`;
               const parts = q.text.split('_____');
               return (
-                <li key={qId} id={`q-container-${globalNum}`} style={{ marginBottom: '5px' }}>
+                <li key={globalNum} id={`q-container-${globalNum}`} style={{ marginBottom: '5px' }}>
                   •&nbsp;&nbsp;
                   {parts.map((part: string, i: number) => (
                     <span key={i}>
@@ -472,8 +456,8 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
                           type="text"
                           className="answer-input"
                           placeholder={String(globalNum)}
-                          value={answers[qId] || ''}
-                          onChange={(e) => handleAnswerChange(qId, e.target.value)}
+                          value={answers[globalNum] || ''}
+                          onChange={(e) => handleAnswerChange(globalNum, e.target.value)}
                           style={{ margin: '0 4px' }}
                         />
                       )}

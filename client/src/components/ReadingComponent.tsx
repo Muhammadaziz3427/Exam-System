@@ -36,6 +36,7 @@ export function ReadingComponent({
     setReviewFlags((prev: any) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  // ========== GAP FILL ==========
   const renderGapFill = (q: any, globalNum: number) => {
     const hasBlank = q.text.includes('_____');
     return (
@@ -81,6 +82,7 @@ export function ReadingComponent({
     );
   };
 
+  // ========== MCQ SINGLE ==========
   const renderMcqSingle = (q: any, globalNum: number) => {
     return (
       <div key={globalNum} id={`q-container-${currentSection}-${globalNum}`} className="multi-choice-question" data-q-start={globalNum}>
@@ -114,6 +116,7 @@ export function ReadingComponent({
     );
   };
 
+  // ========== TRUE/FALSE/NOT GIVEN & YES/NO/NOT GIVEN ==========
   const renderTfng = (q: any, globalNum: number) => {
     const options = q.type === 'tfng' ? TFNG_OPTIONS : YNNG_OPTIONS;
     return (
@@ -143,6 +146,7 @@ export function ReadingComponent({
     );
   };
 
+  // ========== MATCHING HEADINGS (dropdown) ==========
   const renderMatchingHeadings = (q: any, globalNum: number) => {
     const options = q.options || q.headingList || [];
     return (
@@ -170,6 +174,7 @@ export function ReadingComponent({
     );
   };
 
+  // ========== MATCHING FEATURES TABLE ==========
   const renderMatchingFeaturesTable = (questions: any[], startNum: number) => {
     const options = questions[0]?.options || [];
     if (options.length === 0) return null;
@@ -184,7 +189,7 @@ export function ReadingComponent({
                 <th key={opt}>{opt.charAt(0)}</th>
               ))}
             </tr>
-          </thead>
+            </thead>
           <tbody>
             {questions.map((q, idx) => {
               const globalNum = startNum + idx;
@@ -203,7 +208,7 @@ export function ReadingComponent({
                         data-question={`q-${globalNum}`}
                         data-value={letter}
                         onClick={() => handleAnswerChange(globalNum, letter)}
-                      ></td>
+                      />
                     );
                   })}
                 </tr>
@@ -215,7 +220,7 @@ export function ReadingComponent({
     );
   };
 
-  // Group matching_features together
+  // ========== GROUP AND RENDER ==========
   const grouped: { [key: string]: any[] } = {};
   passage.questions.forEach((q: any) => {
     if (!grouped[q.type]) grouped[q.type] = [];
