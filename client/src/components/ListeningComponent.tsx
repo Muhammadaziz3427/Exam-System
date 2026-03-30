@@ -37,34 +37,38 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
     if (!draggedItem) return;
 
     const optionLetter = draggedItem.letter;
-    const currentAnswer = answers[globalNum];
 
-    if (currentAnswer) {
-      const otherZone = Object.keys(answers).find(key => answers[Number(key)] === optionLetter && Number(key) !== globalNum);
-      if (otherZone) {
-        setAnswers((prev: any) => ({
-          ...prev,
-          [globalNum]: optionLetter,
-          [Number(otherZone)]: currentAnswer
-        }));
+    setAnswers((prev: any) => {
+      const currentAnswer = prev[globalNum];
+      if (currentAnswer) {
+        const otherZone = Object.keys(prev).find(key => prev[Number(key)] === optionLetter && Number(key) !== globalNum);
+        if (otherZone) {
+          return {
+            ...prev,
+            [globalNum]: optionLetter,
+            [Number(otherZone)]: currentAnswer
+          };
+        } else {
+          return { ...prev, [globalNum]: optionLetter };
+        }
       } else {
-        setAnswers((prev: any) => ({ ...prev, [globalNum]: optionLetter }));
+        return { ...prev, [globalNum]: optionLetter };
       }
-    } else {
-      setAnswers((prev: any) => ({ ...prev, [globalNum]: optionLetter }));
-    }
+    });
+
     setDraggedItem(null);
   };
 
   const returnOptionToList = (optLetter: string) => {
-    const globalNum = Object.keys(answers).find(key => answers[Number(key)] === optLetter);
-    if (globalNum) {
-      setAnswers((prev: any) => {
+    setAnswers((prev: any) => {
+      const globalNum = Object.keys(prev).find(key => prev[Number(key)] === optLetter);
+      if (globalNum) {
         const newAnswers = { ...prev };
         delete newAnswers[Number(globalNum)];
         return newAnswers;
-      });
-    }
+      }
+      return prev;
+    });
   };
 
   useEffect(() => {

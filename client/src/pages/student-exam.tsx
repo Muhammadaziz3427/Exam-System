@@ -6,25 +6,21 @@ import { Button, Textarea, Badge, Input } from "@/components/ui-kit";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import {
   ShieldCheck,
-  Flag,
   Loader2,
   AlertTriangle
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-// Import components (agar alohida fayllarda bo'lsa)
-import { ReadingComponent } from "@/components/ReadingComponent";
 import { ListeningComponent } from "@/components/ListeningComponent";
+import { ReadingComponent } from "@/components/ReadingComponent";
 
 type Section = 'listening' | 'reading' | 'writing';
 
 const STORAGE_KEY = "ielts_exam_backup_v1";
 
-const TFNG_OPTIONS = ["TRUE", "FALSE", "NOT GIVEN"];
-const YNNG_OPTIONS = ["YES", "NO", "NOT GIVEN"];
-
 const calculateBand = (score: number): number => {
+  // ... (band calculation logic unchanged)
   if (score >= 39) return 9.0;
   if (score >= 37) return 8.5;
   if (score >= 35) return 8.0;
@@ -74,7 +70,7 @@ export default function StudentExam() {
     writingTask2: ""
   });
 
-  const [reviewFlags, setReviewFlags] = useState<Record<string, boolean>>({}); // still needed for reading if flags are used
+  const [reviewFlags, setReviewFlags] = useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [audioProgress, setAudioProgress] = useState({ currentTime: 0, duration: 0, percent: 0 });
   const [isTransferring, setIsTransferring] = useState(false);
@@ -287,7 +283,6 @@ export default function StudentExam() {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  // Update navigation indicators based on answers
   useEffect(() => {
     const updateNavIndicators = () => {
       const partDefs = currentPartDefs;
@@ -758,9 +753,6 @@ export default function StudentExam() {
                         baseQNum={baseQNum}
                         answers={answers.reading}
                         setAnswers={(newReading) => setAnswers({ ...answers, reading: newReading })}
-                        reviewFlags={reviewFlags}
-                        setReviewFlags={setReviewFlags}
-                        currentSection="reading"
                       />
                     ) : (
                       <div className="h-full flex flex-col space-y-4">

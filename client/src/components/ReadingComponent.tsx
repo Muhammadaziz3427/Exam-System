@@ -1,46 +1,28 @@
-import React from 'react';
-import { Flag } from 'lucide-react';
+import React from "react";
 
 interface ReadingComponentProps {
   passage: any;
   baseQNum: number;
   answers: Record<number, any>;
   setAnswers: (answers: any) => void;
-  reviewFlags: Record<string, boolean>;
-  setReviewFlags: (flags: any) => void;
-  currentSection: string;
 }
 
 const TFNG_OPTIONS = ["TRUE", "FALSE", "NOT GIVEN"];
 const YNNG_OPTIONS = ["YES", "NO", "NOT GIVEN"];
 
-export function ReadingComponent({
-  passage,
-  baseQNum,
-  answers = {},
-  setAnswers,
-  reviewFlags,
-  setReviewFlags,
-  currentSection
-}: ReadingComponentProps) {
+export function ReadingComponent({ passage, baseQNum, answers = {}, setAnswers }: ReadingComponentProps) {
   if (!passage || !passage.questions) {
     return <div className="p-4 text-center text-slate-500">No questions available for this passage.</div>;
   }
 
   const handleAnswerChange = (globalQNum: number, value: any) => {
-    setAnswers({ ...answers, [globalQNum]: value });
+    setAnswers((prev: any) => ({ ...prev, [globalQNum]: value }));
   };
 
-  const handleFlagToggle = (globalQNum: number) => {
-    const key = `${currentSection}-${globalQNum}`;
-    setReviewFlags((prev: any) => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  // ========== GAP FILL ==========
   const renderGapFill = (q: any, globalNum: number) => {
     const hasBlank = q.text.includes('_____');
     return (
-      <div key={globalNum} id={`q-container-${currentSection}-${globalNum}`} className="tf-question" data-q-start={globalNum}>
+      <div key={globalNum} id={`q-container-reading-${globalNum}`} className="tf-question" data-q-start={globalNum}>
         <div className="tf-question-line">
           <span className="tf-question-number">{globalNum}</span>
           <span className="tf-question-text">
@@ -73,19 +55,13 @@ export function ReadingComponent({
             )}
           </span>
         </div>
-        <div className="tf-options">
-          <button onClick={() => handleFlagToggle(globalNum)} className="ml-2">
-            <Flag size={18} className={reviewFlags[`${currentSection}-${globalNum}`] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
-          </button>
-        </div>
       </div>
     );
   };
 
-  // ========== MCQ SINGLE ==========
   const renderMcqSingle = (q: any, globalNum: number) => {
     return (
-      <div key={globalNum} id={`q-container-${currentSection}-${globalNum}`} className="multi-choice-question" data-q-start={globalNum}>
+      <div key={globalNum} id={`q-container-reading-${globalNum}`} className="multi-choice-question" data-q-start={globalNum}>
         <div className="question-prompt">
           <p><strong>{globalNum}.</strong> {q.text}</p>
         </div>
@@ -108,19 +84,15 @@ export function ReadingComponent({
               </div>
             );
           })}
-          <button onClick={() => handleFlagToggle(globalNum)} className="ml-2">
-            <Flag size={18} className={reviewFlags[`${currentSection}-${globalNum}`] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
-          </button>
         </div>
       </div>
     );
   };
 
-  // ========== TRUE/FALSE/NOT GIVEN & YES/NO/NOT GIVEN ==========
   const renderTfng = (q: any, globalNum: number) => {
     const options = q.type === 'tfng' ? TFNG_OPTIONS : YNNG_OPTIONS;
     return (
-      <div key={globalNum} id={`q-container-${currentSection}-${globalNum}`} className="tf-question" data-q-start={globalNum}>
+      <div key={globalNum} id={`q-container-reading-${globalNum}`} className="tf-question" data-q-start={globalNum}>
         <div className="tf-question-line">
           <span className="tf-question-number">{globalNum}</span>
           <span className="tf-question-text">{q.text}</span>
@@ -138,19 +110,15 @@ export function ReadingComponent({
               <span>{opt}</span>
             </label>
           ))}
-          <button onClick={() => handleFlagToggle(globalNum)} className="ml-2">
-            <Flag size={18} className={reviewFlags[`${currentSection}-${globalNum}`] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
-          </button>
         </div>
       </div>
     );
   };
 
-  // ========== MATCHING HEADINGS (dropdown) ==========
   const renderMatchingHeadings = (q: any, globalNum: number) => {
     const options = q.options || q.headingList || [];
     return (
-      <div key={globalNum} id={`q-container-${currentSection}-${globalNum}`} className="tf-question" data-q-start={globalNum}>
+      <div key={globalNum} id={`q-container-reading-${globalNum}`} className="tf-question" data-q-start={globalNum}>
         <div className="tf-question-line">
           <span className="tf-question-number">{globalNum}</span>
           <span className="tf-question-text">{q.text}</span>
@@ -166,15 +134,11 @@ export function ReadingComponent({
               <option key={opt} value={opt.charAt(0)}>{opt}</option>
             ))}
           </select>
-          <button onClick={() => handleFlagToggle(globalNum)} className="ml-2">
-            <Flag size={18} className={reviewFlags[`${currentSection}-${globalNum}`] ? "text-orange-500 fill-orange-500" : "text-slate-200"} />
-          </button>
         </div>
       </div>
     );
   };
 
-  // ========== MATCHING FEATURES TABLE ==========
   const renderMatchingFeaturesTable = (questions: any[], startNum: number) => {
     const options = questions[0]?.options || [];
     if (options.length === 0) return null;
@@ -183,12 +147,11 @@ export function ReadingComponent({
       <div key="matching-table" className="table-container">
         <table className="matching-table">
           <thead>
-            <tr>
+            发展
               <th></th>
               {options.map((opt: string) => (
                 <th key={opt}>{opt.charAt(0)}</th>
               ))}
-            </tr>
             </thead>
           <tbody>
             {questions.map((q, idx) => {
@@ -220,7 +183,7 @@ export function ReadingComponent({
     );
   };
 
-  // ========== GROUP AND RENDER ==========
+  // Group matching_features together
   const grouped: { [key: string]: any[] } = {};
   passage.questions.forEach((q: any) => {
     if (!grouped[q.type]) grouped[q.type] = [];
