@@ -77,7 +77,8 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
       if (typeof val === 'string' && val.length === 1) used.add(val);
     });
     setUsedOptions(used);
-  }, [answers]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(answers)]);
 
   const getGlobalNum = (partIdx: number, qIdx: number) => {
     let count = 0;

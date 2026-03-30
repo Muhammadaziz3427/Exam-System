@@ -567,18 +567,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // 1. Avval exam va contentni olish
       const { data: sessionData } = await supabase
         .from("exam_sessions")
-        .select("exam_id")
+        .select("exam_id, examId")
         .eq("id", sessionId)
         .maybeSingle();
 
-      if (!sessionData?.exam_id) {
+      const resolvedExamId = sessionData?.exam_id || (sessionData as any)?.examId;
+
+      if (!resolvedExamId) {
         return res.status(404).json({ message: "Sessiya yoki exam topilmadi" });
       }
 
       const { data: examData } = await supabase
         .from("exams")
         .select("content")
-        .eq("id", sessionData.exam_id)
+        .eq("id", resolvedExamId)
         .maybeSingle();
 
       if (!examData) {

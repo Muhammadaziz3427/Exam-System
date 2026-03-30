@@ -147,12 +147,13 @@ export function ReadingComponent({ passage, baseQNum, answers = {}, setAnswers }
       <div key="matching-table" className="table-container">
         <table className="matching-table">
           <thead>
-            发展
+            <tr>
               <th></th>
               {options.map((opt: string) => (
                 <th key={opt}>{opt.charAt(0)}</th>
               ))}
-            </thead>
+            </tr>
+          </thead>
           <tbody>
             {questions.map((q, idx) => {
               const globalNum = startNum + idx;
