@@ -1,0 +1,45 @@
+I have an IELTS exam system built with React, TypeScript, Tailwind CSS, and Supabase. The exam has listening, reading, and writing sections. The main issue is that questions are not receiving answers properly, and answered question numbers in the bottom navigation do not turn green. There are also some minor visual glitches.
+
+Please examine the following files and fix the problems:
+
+StudentExam.tsx – contains main logic, timer, navigation, and imports ListeningComponent & ReadingComponent.
+
+ListeningComponent.tsx – renders listening questions (gap_fill, mcq_single, mcq_multi, map_select, matching).
+
+ReadingComponent.tsx – renders reading questions (gap_fill, mcq_single, tfng, ynng, matching_headings, matching_features).
+
+Current behavior:
+
+When I type an answer in a gap_fill input, select a radio button, choose a dropdown, or drag an option into a drop zone, the answer is stored in answers.listening or answers.reading (global question number as key).
+
+However, the bottom navigation numbers (1–40) do not change color to green (answered class) even after answering.
+
+Also, sometimes answers are not saved correctly (especially for drag-drop and map_select).
+
+Expected behavior:
+
+For every question, when an answer is entered (any type), the corresponding button in the bottom navigation should immediately get the answered class (green background).
+
+All answer types must reliably store the answer using the global question number as the key.
+
+Drag-drop should remove the option from the list and show it in the drop zone; clicking the filled zone should return the option to the list (swap also works).
+
+Please fix the following specific issues:
+
+Bottom navigation update: In StudentExam.tsx, the updateNavIndicators function checks answers.listening?.[q] and answers.reading?.[q] to determine if a question is answered. Ensure that answers.listening and answers.reading use the global question number (1-40) as keys. Currently, the ListeningComponent uses globalNum but stores under qId (which is a string like q-1-1). Change it to store under globalNum directly. Similarly, ReadingComponent already uses globalNum – verify.
+
+ListeningComponent answer storage: Modify handleAnswerChange to accept globalNum and store directly as answers[globalNum] = value. Remove the qId logic. Update all event handlers (input, radio, select, drag-drop) to call handleAnswerChange(globalNum, value).
+
+Map_select (dropdown) in Part 2: Ensure that the select element's onChange uses the correct globalNum.
+
+Drag-drop in Part 3: Ensure that handleDropOnZone uses globalNum and updates answers correctly with swap logic. Also, when a filled zone is clicked (via "Return" button), it should clear the answer and return the option to the list.
+
+ReadingComponent: Already uses globalNum, but double-check that the answers object uses numeric keys. The updateNavIndicators in StudentExam expects numeric keys, so this should work.
+
+CSS for .subQuestion.answered: Ensure the class is defined in index.css with green background. The CSS we have should already contain that.
+
+Flag removal: If there are any flag buttons (Flag icon) in the components, remove them entirely to simplify.
+
+Test: After changes, answer a few questions in listening and reading, and verify that the corresponding number in the bottom navigation turns green immediately.
+
+Provide the corrected code for StudentExam.tsx, ListeningComponent.tsx, and ReadingComponent.tsx. Keep the code clean and well-commented. Do not introduce new external dependencies. Focus on fixing the answer storage and navigation update logic.
