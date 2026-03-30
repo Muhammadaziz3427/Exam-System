@@ -106,7 +106,7 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
             const globalNum = getGlobalNum(pIdx, qIdx);
             const parts = q.text.split('_____');
             return (
-              <div key={globalNum} id={`q-container-${globalNum}`} style={{ marginBottom: '8px' }}>
+              <div key={globalNum} id={`q-container-listening-${globalNum}`} style={{ marginBottom: '8px' }}>
                 <p>
                   {parts.map((part: string, i: number) => (
                     <span key={i}>
@@ -150,7 +150,7 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
             {radioQ.map((q: any, qIdx: number) => {
               const globalNum = getGlobalNum(pIdx, qIdx);
               return (
-                <div key={globalNum} className="single-choice" id={`q-container-${globalNum}`} style={{ marginBottom: '15px' }}>
+                <div key={globalNum} className="single-choice" id={`q-container-listening-${globalNum}`} style={{ marginBottom: '15px' }}>
                   <p><strong>{globalNum}</strong> {q.text}</p>
                   {q.options?.map((opt: string) => (
                     <label key={opt} style={{ display: 'block', marginLeft: '20px' }}>
@@ -187,7 +187,7 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
             {mapQ.map((q: any, qIdx: number) => {
               const globalNum = getGlobalNum(pIdx, qIdx + 4);
               return (
-                <div key={globalNum} className="matching-question-item" id={`q-container-${globalNum}`} style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+                <div key={globalNum} className="matching-question-item" id={`q-container-listening-${globalNum}`} style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
                   <span className="question-text" style={{ marginRight: '10px', width: '200px' }}><strong>{globalNum}</strong> {q.text}</span>
                   <select
                     className="answer-select"
@@ -228,7 +228,7 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
             {radioQ.map((q: any, qIdx: number) => {
               const globalNum = getGlobalNum(pIdx, qIdx);
               return (
-                <div key={globalNum} className="single-choice" id={`q-container-${globalNum}`} style={{ marginBottom: '15px' }}>
+                <div key={globalNum} className="single-choice" id={`q-container-listening-${globalNum}`} style={{ marginBottom: '15px' }}>
                   <p><strong>{globalNum}</strong> {q.text}</p>
                   {q.options?.map((opt: string) => (
                     <label key={opt} style={{ display: 'block', marginLeft: '20px' }}>
@@ -258,7 +258,7 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
               {dragQ.map((q: any, qIdx: number) => {
                 const globalNum = getGlobalNum(pIdx, qIdx + 6);
                 return (
-                  <div key={globalNum} className="matching-question-item" style={{ marginBottom: '10px' }}>
+                  <div key={globalNum} id={`q-container-listening-${globalNum}`} className="matching-question-item" style={{ marginBottom: '10px' }}>
                     <div className="question-line" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <span className="question-text" style={{ flex: 1 }}>{q.text}</span>
                       <div
@@ -340,7 +340,7 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
               const globalNum = getGlobalNum(pIdx, idx);
               const parts = q.text.split('_____');
               return (
-                <li key={globalNum} id={`q-container-${globalNum}`} style={{ marginBottom: '5px' }}>
+                <li key={globalNum} id={`q-container-listening-${globalNum}`} style={{ marginBottom: '5px' }}>
                   •&nbsp;&nbsp; protect coastal areas from 
                   {parts.map((part: string, i: number) => (
                     <span key={i}>
@@ -369,7 +369,7 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
               const globalNum = getGlobalNum(pIdx, idx + 1);
               const parts = q.text.split('_____');
               return (
-                <li key={globalNum} id={`q-container-${globalNum}`} style={{ marginBottom: '5px' }}>
+                <li key={globalNum} id={`q-container-listening-${globalNum}`} style={{ marginBottom: '5px' }}>
                   •&nbsp;&nbsp;
                   {parts.map((part: string, i: number) => (
                     <span key={i}>
@@ -396,7 +396,7 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
               const globalNum = getGlobalNum(pIdx, idx + 4);
               const parts = q.text.split('_____');
               return (
-                <li key={globalNum} id={`q-container-${globalNum}`} style={{ marginBottom: '5px' }}>
+                <li key={globalNum} id={`q-container-listening-${globalNum}`} style={{ marginBottom: '5px' }}>
                   •&nbsp;&nbsp;
                   {parts.map((part: string, i: number) => (
                     <span key={i}>
@@ -424,7 +424,7 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
               const globalNum = getGlobalNum(pIdx, idx + 6);
               const parts = q.text.split('_____');
               return (
-                <li key={globalNum} id={`q-container-${globalNum}`} style={{ marginBottom: '5px' }}>
+                <li key={globalNum} id={`q-container-listening-${globalNum}`} style={{ marginBottom: '5px' }}>
                   •&nbsp;&nbsp;
                   {parts.map((part: string, i: number) => (
                     <span key={i}>
@@ -451,7 +451,7 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
               const globalNum = getGlobalNum(pIdx, idx + 10);
               const parts = q.text.split('_____');
               return (
-                <li key={globalNum} id={`q-container-${globalNum}`} style={{ marginBottom: '5px' }}>
+                <li key={globalNum} id={`q-container-listening-${globalNum}`} style={{ marginBottom: '5px' }}>
                   •&nbsp;&nbsp;
                   {parts.map((part: string, i: number) => (
                     <span key={i}>

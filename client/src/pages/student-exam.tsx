@@ -660,7 +660,13 @@ export default function StudentExam() {
               content={examContent?.listening}
               currentPart={currentPart}
               answers={answers.listening}
-              setAnswers={(newAnswers: any) => setAnswers({ ...answers, listening: newAnswers })}
+              setAnswers={(updater: any) => {
+                if (typeof updater === 'function') {
+                  setAnswers((prev: any) => ({ ...prev, listening: updater(prev.listening) }));
+                } else {
+                  setAnswers((prev: any) => ({ ...prev, listening: updater }));
+                }
+              }}
             />
           ) : (
             <ResizablePanelGroup direction="horizontal" className="flex-1 h-full">
@@ -752,7 +758,13 @@ export default function StudentExam() {
                         passage={readingPassages[activePassageIdx]}
                         baseQNum={baseQNum}
                         answers={answers.reading}
-                        setAnswers={(newReading) => setAnswers({ ...answers, reading: newReading })}
+                        setAnswers={(updater: any) => {
+                          if (typeof updater === 'function') {
+                            setAnswers((prev: any) => ({ ...prev, reading: updater(prev.reading) }));
+                          } else {
+                            setAnswers((prev: any) => ({ ...prev, reading: updater }));
+                          }
+                        }}
                       />
                     ) : (
                       <div className="h-full flex flex-col space-y-4">
