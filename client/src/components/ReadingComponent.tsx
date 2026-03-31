@@ -21,6 +21,7 @@ export function ReadingComponent({ passage, baseQNum, answers = {}, setAnswers }
 
   const renderGapFill = (q: any, globalNum: number) => {
     const hasBlank = q.text.includes('_____');
+    const instruction = q.instruction || "Complete the notes below. Choose ONE WORD ONLY from the passage for each answer.";
     return (
       <div key={globalNum} id={`q-container-reading-${globalNum}`} className="tf-question" data-q-start={globalNum}>
         <div className="tf-question-line">
@@ -55,15 +56,20 @@ export function ReadingComponent({ passage, baseQNum, answers = {}, setAnswers }
             )}
           </span>
         </div>
+        <div className="tf-options">
+          <em className="text-xs text-gray-500 block mt-1">{instruction}</em>
+        </div>
       </div>
     );
   };
 
   const renderMcqSingle = (q: any, globalNum: number) => {
+    const instruction = q.instruction || "Choose the correct letter.";
     return (
       <div key={globalNum} id={`q-container-reading-${globalNum}`} className="multi-choice-question" data-q-start={globalNum}>
         <div className="question-prompt">
           <p><strong>{globalNum}.</strong> {q.text}</p>
+          <em className="text-xs text-gray-500">{instruction}</em>
         </div>
         <div className="space-y-2">
           {q.options?.map((opt: string) => {
@@ -91,6 +97,7 @@ export function ReadingComponent({ passage, baseQNum, answers = {}, setAnswers }
 
   const renderTfng = (q: any, globalNum: number) => {
     const options = q.type === 'tfng' ? TFNG_OPTIONS : YNNG_OPTIONS;
+    const instruction = q.instruction || "Do the following statements agree with the information given in the text?";
     return (
       <div key={globalNum} id={`q-container-reading-${globalNum}`} className="tf-question" data-q-start={globalNum}>
         <div className="tf-question-line">
@@ -98,6 +105,7 @@ export function ReadingComponent({ passage, baseQNum, answers = {}, setAnswers }
           <span className="tf-question-text">{q.text}</span>
         </div>
         <div className="tf-options">
+          <em className="text-xs text-gray-500 block mb-2">{instruction}</em>
           {options.map(opt => (
             <label key={opt} className="tf-option">
               <input
@@ -117,6 +125,7 @@ export function ReadingComponent({ passage, baseQNum, answers = {}, setAnswers }
 
   const renderMatchingHeadings = (q: any, globalNum: number) => {
     const options = q.options || q.headingList || [];
+    const instruction = q.instruction || "Choose the correct heading for each paragraph from the list of headings below.";
     return (
       <div key={globalNum} id={`q-container-reading-${globalNum}`} className="tf-question" data-q-start={globalNum}>
         <div className="tf-question-line">
@@ -124,6 +133,7 @@ export function ReadingComponent({ passage, baseQNum, answers = {}, setAnswers }
           <span className="tf-question-text">{q.text}</span>
         </div>
         <div className="tf-options">
+          <em className="text-xs text-gray-500 block mb-2">{instruction}</em>
           <select
             className="answer-select"
             value={answers[globalNum] || ''}
@@ -142,9 +152,10 @@ export function ReadingComponent({ passage, baseQNum, answers = {}, setAnswers }
   const renderMatchingFeaturesTable = (questions: any[], startNum: number) => {
     const options = questions[0]?.options || [];
     if (options.length === 0) return null;
-
+    const instruction = questions[0]?.instruction || "Match each statement with the correct option.";
     return (
       <div key="matching-table" className="table-container">
+        <em className="text-xs text-gray-500 block mb-2">{instruction}</em>
         <table className="matching-table">
           <thead>
             <tr>
@@ -153,7 +164,7 @@ export function ReadingComponent({ passage, baseQNum, answers = {}, setAnswers }
                 <th key={opt}>{opt.charAt(0)}</th>
               ))}
             </tr>
-          </thead>
+            </thead>
           <tbody>
             {questions.map((q, idx) => {
               const globalNum = startNum + idx;
@@ -184,7 +195,6 @@ export function ReadingComponent({ passage, baseQNum, answers = {}, setAnswers }
     );
   };
 
-  // Group matching_features together
   const grouped: { [key: string]: any[] } = {};
   passage.questions.forEach((q: any) => {
     if (!grouped[q.type]) grouped[q.type] = [];

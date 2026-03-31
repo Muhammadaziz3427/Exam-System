@@ -20,7 +20,6 @@ type Section = 'listening' | 'reading' | 'writing';
 const STORAGE_KEY = "ielts_exam_backup_v1";
 
 const calculateBand = (score: number): number => {
-  // ... (band calculation logic unchanged)
   if (score >= 39) return 9.0;
   if (score >= 37) return 8.5;
   if (score >= 35) return 8.0;
@@ -70,7 +69,6 @@ export default function StudentExam() {
     writingTask2: ""
   });
 
-  const [reviewFlags, setReviewFlags] = useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [audioProgress, setAudioProgress] = useState({ currentTime: 0, duration: 0, percent: 0 });
   const [isTransferring, setIsTransferring] = useState(false);
@@ -183,8 +181,10 @@ export default function StudentExam() {
     if (examContent) setupSectionTimer(currentSection, examContent);
   }, [currentSection, examContent]);
 
+  // Timer effect for reading and writing
   useEffect(() => {
     if (!hasStarted || timeLeft <= 0 || currentSection === 'listening') return;
+    if (mainTimerRef.current) clearInterval(mainTimerRef.current);
     mainTimerRef.current = setInterval(() => {
       setTimeLeft((prev: number) => {
         if (prev <= 1) {
@@ -198,7 +198,7 @@ export default function StudentExam() {
     return () => {
       if (mainTimerRef.current) clearInterval(mainTimerRef.current);
     };
-  }, [hasStarted, currentSection]);
+  }, [hasStarted, currentSection, timeLeft]);
 
   const handleSectionAutoTransition = () => {
     if (transferTimerRef.current) {
@@ -703,44 +703,39 @@ export default function StudentExam() {
                         </article>
                       ) : (
                         <div className="space-y-8">
-                          <div className="part-header">
-                            <p><strong>Part {activeWritingTask + 1}</strong></p>
-                            <p>
-                              {activeWritingTask === 0
-                                ? "You should spend about 20 minutes on this task. Write at least 150 words."
-                                : "You should spend about 40 minutes on this task. Write at least 250 words."}
-                            </p>
-                          </div>
-                          {activeWritingTask === 0 ? (
-                            <div className="space-y-6">
+                          {writingTasks.map((task: any, idx: number) => (
+                            <div
+                              key={idx}
+                              className={`space-y-4 ${activeWritingTask === idx ? '' : 'hidden'}`}
+                              style={{ display: activeWritingTask === idx ? 'block' : 'none' }}
+                            >
+                              <div className="part-header">
+                                <p><strong>Task {idx + 1}</strong></p>
+                                <p>
+                                  {idx === 0
+                                    ? "You should spend about 20 minutes on this task. Write at least 150 words."
+                                    : "You should spend about 40 minutes on this task. Write at least 250 words."}
+                                </p>
+                              </div>
                               <div className="task-prompt">
-                                <p><strong>The provided chart illustrates the percentage of age of visitors from the UK to Spain in 1983 and in 2003.</strong></p>
-                                <p><strong>Summarize the information by selecting and reporting the main points and make comparisons where relevant.</strong></p>
+                                <p><strong>{task.content}</strong></p>
+                                {task.image && (
+                                  <div className="chart-container mt-4">
+                                    <img
+                                      src={task.image}
+                                      alt={`Task ${idx + 1} diagram`}
+                                      className="max-w-full h-auto border border-gray-300 mx-auto"
+                                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                    />
+                                  </div>
+                                )}
                               </div>
-                              <div className="chart-container">
-                                <img
-                                  src="https://engnovatewebsitestorage.blob.core.windows.net/ielts-writing-task-1-images/a4139b6692197c1b"
-                                  alt="Bar chart"
-                                  className="max-w-full h-auto border border-gray-300 mx-auto"
-                                />
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="space-y-6">
-                              <div className="instructions">
-                                <p><strong>Write about the following topic:</strong></p>
-                                <div className="task-prompt">
-                                  <p><em><strong>In some countries, students pay their college or university fees, while in others, the government pays them.</strong></em></p>
-                                  <p><em><strong>Do you think the advantages outweigh the disadvantages?</strong></em></p>
-                                </div>
-                                <p>Give reasons for your answer and include any relevant examples from your own knowledge or experience.</p>
+                              <div className="flex items-start gap-2 text-slate-500 text-sm">
+                                <AlertTriangle size={16} />
+                                <p>Eslatma: Javoblaringizni o'ng tomondagi maydonga yozing.</p>
                               </div>
                             </div>
-                          )}
-                          <div className="flex items-start gap-2 text-slate-500 text-sm">
-                            <AlertTriangle size={16} />
-                            <p>Eslatma: Javoblaringizni o'ng tomondagi maydonga yozing.</p>
-                          </div>
+                          ))}
                         </div>
                       )}
                     </div>

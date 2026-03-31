@@ -556,13 +556,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // ------------------------------------------------------------
-  // SUBMISSION & AUTO-GRADING (TAKOMILLASHTIRILGAN)
+  // SUBMISSION & AUTO-GRADING (TO'G'RILANGAN)
   // ------------------------------------------------------------
-  app.post(api.sessions.submit.path, async (req, res) => {
+  app.post("/api/sessions/:id/submit", async (req, res) => {
     try {
       const sessionId = Number(req.params.id);
-      const { answers, isFinal } = req.body;
-      let autoGrading: any = { listening: { score: 0, total: 0 }, reading: { score: 0, total: 0 } };
+      const { answers, scores, isFinal } = req.body;
+
+      if (!answers) {
+        return res.status(400).json({ message: "Javoblar topilmadi" });
+      }
 
       // 1. Avval exam va contentni olish
       const { data: sessionData } = await supabase
@@ -591,84 +594,75 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const listeningParts = content?.listening?.parts || [];
       const readingPassages = content?.reading?.passages || [];
 
-      // 2. Listening savollarini baholash
+      // 2. Listening savollarini baholash (global raqamlar bilan)
       let listeningTotal = 0;
       let listeningScore = 0;
       listeningParts.forEach((part: any) => {
-        part.questions?.forEach((q: any) => {
+        part.questions?.forEach((q: any, idx: number) => {
           listeningTotal++;
-          const qId = `q-${q.q}`;
-          const studentAns = answers.listening?.[qId];
+          // Global question number: part ichidagi indeks bo'yicha hisoblanadi
+          // Ammo biz frontenddan kelgan answers.listening da global raqam kalit sifatida saqlangan
+          // Shuning uchun q ning global raqamini topish kerak. Buning uchun part va question index dan hisoblaymiz.
+          // Oddiy usul: q.id dan foydalanamiz (agar JSON da id maydoni bo'lsa, u global raqam bo'lishi mumkin)
+          // Yoki part ichidagi ketma-ket raqam: oldingi partlardagi questionlar sonini qo'shib topamiz.
+          let globalNum = idx + 1;
+          for (let i = 0; i < listeningParts.indexOf(part); i++) {
+            globalNum += listeningParts[i].questions?.length || 0;
+          }
+          const studentAns = answers.listening?.[globalNum];
           if (studentAns === undefined || studentAns === null) return;
 
           const correctAns = q.answer;
           if (!correctAns) return;
 
           // Turiga qarab solishtirish
-          if (q.type === "multiple") {
-            if (Array.isArray(correctAns)) {
-              // Ko'p tanlovli – massivni solishtirish (tartib muhim emas)
-              const studentArr = Array.isArray(studentAns) ? studentAns : [studentAns];
-              const correctArr = correctAns;
-              if (studentArr.length === correctArr.length && studentArr.every(v => correctArr.includes(v))) {
-                listeningScore++;
-              }
-            } else {
-              // Yagona tanlov
-              if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
-                listeningScore++;
-              }
+          if (q.type === "mcq_multi" && Array.isArray(correctAns)) {
+            const studentArr = Array.isArray(studentAns) ? studentAns : [studentAns];
+            const correctArr = correctAns;
+            if (studentArr.length === correctArr.length && studentArr.every(v => correctArr.includes(v))) {
+              listeningScore++;
             }
-          } else if (q.type === "matching") {
-            // Matching – oddiy string solishtirish
+          } else if (q.type === "map_select" || q.type === "matching") {
+            // Oddiy string solishtirish
             if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
               listeningScore++;
             }
-          } else if (q.type === "tfng" || q.type === "ynng" || q.type === "completion" || q.type === "note" || q.type === "short_answer") {
-            // To'liq moslik
+          } else if (q.type === "tfng" || q.type === "ynng" || q.type === "gap_fill" || q.type === "mcq_single") {
             if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
               listeningScore++;
             }
           } else {
-            // Default – oddiy solishtirish
+            // Default
             if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
               listeningScore++;
             }
           }
         });
       });
-      autoGrading.listening = { score: listeningScore, total: listeningTotal };
 
-      // 3. Reading savollarini baholash
+      // 3. Reading savollarini baholash (global raqamlar bilan)
       let readingTotal = 0;
       let readingScore = 0;
-      readingPassages.forEach((passage: any) => {
-        passage.questions?.forEach((q: any) => {
+      readingPassages.forEach((passage: any, passageIdx: number) => {
+        let passageStart = 1;
+        for (let i = 0; i < passageIdx; i++) {
+          passageStart += readingPassages[i].questions?.length || 0;
+        }
+        passage.questions?.forEach((q: any, idx: number) => {
           readingTotal++;
-          const qId = `q-${q.q}`;
-          const studentAns = answers.reading?.[qId];
+          const globalNum = passageStart + idx;
+          const studentAns = answers.reading?.[globalNum];
           if (studentAns === undefined || studentAns === null) return;
 
           const correctAns = q.answer;
           if (!correctAns) return;
 
-          if (q.type === "multiple") {
-            if (Array.isArray(correctAns)) {
-              const studentArr = Array.isArray(studentAns) ? studentAns : [studentAns];
-              const correctArr = correctAns;
-              if (studentArr.length === correctArr.length && studentArr.every(v => correctArr.includes(v))) {
-                readingScore++;
-              }
-            } else {
-              if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
-                readingScore++;
-              }
-            }
-          } else if (q.type === "matching") {
+          if (q.type === "mcq_single" || q.type === "tfng" || q.type === "ynng" || q.type === "gap_fill" || q.type === "matching_headings") {
             if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
               readingScore++;
             }
-          } else if (q.type === "tfng" || q.type === "ynng" || q.type === "completion" || q.type === "note" || q.type === "short_answer") {
+          } else if (q.type === "matching_features") {
+            // matching_features jadvalda bosiladigan katakchalar – javob bir harf
             if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
               readingScore++;
             }
@@ -679,9 +673,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           }
         });
       });
-      autoGrading.reading = { score: readingScore, total: readingTotal };
 
-      // 4. Javoblarni saqlash
+      const autoGrading = {
+        listening: { score: listeningScore, total: listeningTotal },
+        reading: { score: readingScore, total: readingTotal }
+      };
+
+      // 4. Javoblarni submissions jadvaliga saqlash
       await supabase
         .from("submissions")
         .upsert({ session_id: sessionId, answers }, { onConflict: "session_id" });
@@ -715,10 +713,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           .eq("id", sessionId);
       }
 
-      res.json({ message: "Yakunlandi", autoGrading });
+      res.json({ message: "Imtihon yakunlandi", autoGrading });
     } catch (error) {
       console.error("Submit xatosi:", error);
-      res.status(500).json({ message: "Xatolik" });
+      res.status(500).json({ message: "Serverda xatolik yuz berdi" });
     }
   });
 
