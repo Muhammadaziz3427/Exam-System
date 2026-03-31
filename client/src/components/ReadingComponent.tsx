@@ -164,7 +164,7 @@ export function ReadingComponent({ passage, baseQNum, answers = {}, setAnswers }
                 <th key={opt}>{opt.charAt(0)}</th>
               ))}
             </tr>
-            </thead>
+          </thead>
           <tbody>
             {questions.map((q, idx) => {
               const globalNum = startNum + idx;

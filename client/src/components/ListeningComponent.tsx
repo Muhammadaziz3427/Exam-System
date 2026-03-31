@@ -7,6 +7,7 @@ export function ListeningComponent({ content, currentPart, answers = {}, setAnsw
     setAnswers((prev: any) => ({ ...prev, [globalNum]: value }));
   };
 
+  // Drag & Drop
   const [draggedItem, setDraggedItem] = useState<any>(null);
   const [usedOptions, setUsedOptions] = useState<Set<string>>(new Set());
 

@@ -6,9 +6,10 @@ hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 channel = "stable-24_05"
 packages = ["run", "psmisc", "lsof"]
 
+# ✅ Fixed: external port 80 routes to your app on port 5000
 [[ports]]
 localPort = 5000
-externalPort = 5000
+externalPort = 80
 
 [env]
 PORT = "5000"

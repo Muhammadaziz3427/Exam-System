@@ -181,7 +181,6 @@ export default function StudentExam() {
     if (examContent) setupSectionTimer(currentSection, examContent);
   }, [currentSection, examContent]);
 
-  // Timer effect for reading and writing
   useEffect(() => {
     if (!hasStarted || timeLeft <= 0 || currentSection === 'listening') return;
     if (mainTimerRef.current) clearInterval(mainTimerRef.current);
