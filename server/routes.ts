@@ -2,144 +2,9 @@ import type { Express } from "express";
 import { type Server } from "http";
 import { api } from "@shared/routes";
 import { sendExamResultsEmail } from "./email";
-import multer from "multer";
-import path from "path";
-import fs from "fs";
-import * as pdfLib from "pdf-parse";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { uploadToSupabase } from "./supabase-service";
 import { supabase } from "./db";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-
-const uploadDir = "uploads";
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const multerStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadDir),
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  },
-});
-
-const upload = multer({
-  storage: multerStorage,
-  limits: { fileSize: 50 * 1024 * 1024 },
-});
-
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
-  // ------------------------------------------------------------
-  // AI EXAM GENERATION ROUTES
-  // ------------------------------------------------------------
-  app.post("/api/exams/analyze-pdf", upload.single("pdf"), async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ message: "PDF yuklanmadi" });
-      }
-
-      const dataBuffer = fs.readFileSync(req.file.path);
-      const pdfParser = (pdfLib as any).default || pdfLib;
-      const pdfData = await pdfParser(dataBuffer);
-      const pdfText = pdfData.text;
-
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-      const prompt = `
-        You are an expert IELTS exam creator. Extract questions from the following PDF text.
-        TEXT CONTENT: ${pdfText.substring(0, 15000)}
-        INSTRUCTIONS: Create a valid JSON object containing questions.
-        REQUIRED JSON STRUCTURE:
-        { "questions": [ { "id": 1, "questionText": "...", "options": ["..."], "answer": "...", "type": "multiple-choice" } ] }
-        IMPORTANT: Return ONLY raw JSON. No markdown.
-      `;
-
-      const result = await model.generateContent(prompt);
-      let responseText = result.response.text().replace(/```json|```/gi, "").trim();
-
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) responseText = jsonMatch[0];
-
-      let parsedData;
-      try {
-        parsedData = JSON.parse(responseText);
-      } catch (e) {
-        console.error("AI javobini parse qilishda xatolik:", e);
-        return res.status(500).json({ message: "AI javobini o‘qib bo‘lmadi" });
-      }
-
-      if (fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
-
-      res.json(parsedData);
-    } catch (error) {
-      console.error("AI tahlil xatosi:", error);
-      res.status(500).json({ message: "AI tahlilida xatolik" });
-    }
-  });
-
-  app.post("/api/exams/save", upload.fields([{ name: "audio", maxCount: 1 }]), async (req, res) => {
-    try {
-      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-      const { title, type, questions } = req.body;
-
-      if (!title || !type || !questions) {
-        return res.status(400).json({ message: "title, type va questions majburiy" });
-      }
-
-      let audioUrl = "";
-      if (files?.audio?.[0]) {
-        audioUrl = await uploadToSupabase(files.audio[0].path, files.audio[0].originalname);
-        if (fs.existsSync(files.audio[0].path)) {
-          fs.unlinkSync(files.audio[0].path);
-        }
-      }
-
-      const parsedQuestions = JSON.parse(questions);
-      const examContent: any = {};
-
-      if (type === "reading") {
-        examContent.reading = {
-          passages: [
-            {
-              id: Date.now(),
-              title,
-              content: "Generated",
-              questions: parsedQuestions,
-            },
-          ],
-        };
-      } else if (type === "writing") {
-        examContent.writing = parsedQuestions.writing;
-      } else {
-        examContent.listening = { audioUrl, questions: parsedQuestions };
-      }
-
-      const { data: exam, error: insertError } = await supabase
-        .from("exams")
-        .insert([
-          {
-            title,
-            content: examContent,
-            time_limit: 60,
-            is_published: false,
-          },
-        ])
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
-
-      res.status(201).json(exam);
-    } catch (error) {
-      console.error("Exam saqlashda xatolik:", error);
-      res.status(500).json({ message: "Testni saqlashda xatolik" });
-    }
-  });
-
   // ------------------------------------------------------------
   // AUTH ROUTES
   // ------------------------------------------------------------
@@ -174,7 +39,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // ---------- STUDENT LOGIN (TO‘G‘RILANGAN) ----------
+  // ---------- STUDENT LOGIN ----------
   app.post(api.auth.studentLogin.path, async (req, res) => {
     try {
       const { accessCode, password } = req.body;
@@ -278,47 +143,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (error) {
       console.error("[LOGIN] 12. Kutilmagan xatolik:", error);
       res.status(500).json({ message: "Serverda ichki xatolik" });
-    }
-  });
-
-  app.post("/api/exams/save-from-json", async (req, res) => {
-    try {
-      const { title, jsonContent } = req.body;
-      if (!title || !jsonContent) {
-        return res.status(400).json({ message: "title va jsonContent majburiy" });
-      }
-
-      let parsed;
-      try {
-        parsed = typeof jsonContent === "string" ? JSON.parse(jsonContent) : jsonContent;
-      } catch (e) {
-        return res.status(400).json({ message: "JSON formati noto'g'ri" });
-      }
-
-      if (!parsed.listening && !parsed.reading && !parsed.writing) {
-        return res.status(400).json({
-          message: "JSON ichida listening, reading yoki writing kalitlari bo'lishi shart",
-        });
-      }
-
-      const { data: exam, error } = await supabase
-        .from("exams")
-        .insert([
-          {
-            title,
-            content: parsed,
-            time_limit: 60,
-            is_published: true,
-          },
-        ])
-        .select()
-        .single();
-
-      if (error) throw error;
-      res.status(201).json(exam);
-    } catch (error) {
-      console.error("JSON dan saqlash xatosi:", error);
-      res.status(500).json({ message: "JSON orqali saqlashda xatolik" });
     }
   });
 
@@ -556,7 +380,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // ------------------------------------------------------------
-  // SUBMISSION & AUTO-GRADING (TO'G'RILANGAN)
+  // SUBMISSION & AUTO-GRADING
   // ------------------------------------------------------------
   app.post("/api/sessions/:id/submit", async (req, res) => {
     try {
@@ -600,11 +424,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       listeningParts.forEach((part: any) => {
         part.questions?.forEach((q: any, idx: number) => {
           listeningTotal++;
-          // Global question number: part ichidagi indeks bo'yicha hisoblanadi
-          // Ammo biz frontenddan kelgan answers.listening da global raqam kalit sifatida saqlangan
-          // Shuning uchun q ning global raqamini topish kerak. Buning uchun part va question index dan hisoblaymiz.
-          // Oddiy usul: q.id dan foydalanamiz (agar JSON da id maydoni bo'lsa, u global raqam bo'lishi mumkin)
-          // Yoki part ichidagi ketma-ket raqam: oldingi partlardagi questionlar sonini qo'shib topamiz.
           let globalNum = idx + 1;
           for (let i = 0; i < listeningParts.indexOf(part); i++) {
             globalNum += listeningParts[i].questions?.length || 0;
@@ -615,24 +434,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           const correctAns = q.answer;
           if (!correctAns) return;
 
-          // Turiga qarab solishtirish
           if (q.type === "mcq_multi" && Array.isArray(correctAns)) {
             const studentArr = Array.isArray(studentAns) ? studentAns : [studentAns];
             const correctArr = correctAns;
-            if (studentArr.length === correctArr.length && studentArr.every(v => correctArr.includes(v))) {
-              listeningScore++;
-            }
-          } else if (q.type === "map_select" || q.type === "matching") {
-            // Oddiy string solishtirish
-            if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
-              listeningScore++;
-            }
-          } else if (q.type === "tfng" || q.type === "ynng" || q.type === "gap_fill" || q.type === "mcq_single") {
-            if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
+            if (studentArr.length === correctArr.length && studentArr.every((v: any) => correctArr.includes(v))) {
               listeningScore++;
             }
           } else {
-            // Default
             if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
               listeningScore++;
             }
@@ -657,19 +465,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           const correctAns = q.answer;
           if (!correctAns) return;
 
-          if (q.type === "mcq_single" || q.type === "tfng" || q.type === "ynng" || q.type === "gap_fill" || q.type === "matching_headings") {
-            if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
-              readingScore++;
-            }
-          } else if (q.type === "matching_features") {
-            // matching_features jadvalda bosiladigan katakchalar – javob bir harf
-            if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
-              readingScore++;
-            }
-          } else {
-            if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
-              readingScore++;
-            }
+          if (studentAns.toString().trim().toLowerCase() === correctAns.toString().trim().toLowerCase()) {
+            readingScore++;
           }
         });
       });
@@ -684,7 +481,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         .from("submissions")
         .upsert({ session_id: sessionId, answers }, { onConflict: "session_id" });
 
-      // 5. Agar imtihon yakunlangan bo'lsa, auto-grading natijalarini saqlash va sessiya statusini yangilash
+      // 5. Agar imtihon yakunlangan bo'lsa, auto-grading natijalarini saqlash
       if (isFinal) {
         const { data: sub } = await supabase
           .from("submissions")
@@ -699,7 +496,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           .update({ grading: updatedGrading })
           .eq("session_id", sessionId);
 
-        // Writing mavjudligini tekshirish
         const hasWriting = content?.writing?.tasks?.length > 0 || content?.writing?.questions?.length > 0;
 
         await supabase

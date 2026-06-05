@@ -1,0 +1,148 @@
+We are building an IELTS exam platform with React + TypeScript + Tailwind on the frontend, Express backend, and Supabase database.
+
+Current state:
+- Admin panel has exam creation, editing, deletion (which we want to remove).
+- Student exam page works fine and supports both JSON and HTML test content.
+- Exam sessions are stored in `exam_sessions` table with access_code, password, is_used flag.
+
+We need to SIMPLIFY the admin panel:
+
+1. **Remove all exam creation, editing, deletion UI and API endpoints**.
+   - Exams will be pre-created by developers (either manually inserted into Supabase `exams` table or seeded).
+   - No need for any form to add/edit exam metadata or content.
+
+2. **Keep only**:
+   - A list of existing exams (read-only, display title, id, and maybe content_type).
+   - For each exam, a button "Create session" that generates a unique `access_code` (6 characters) and `password` (8 characters), inserts a new row into `exam_sessions` with:
+     - exam_id
+     - access_code
+     - password
+     - status = 'created'
+     - is_used = false
+     - student_name and email can be optional (or left empty, but we can allow admin to fill them in a simple modal).
+   - After creation, show the generated code and password to the admin (to give to student).
+
+3. **Student login page** must check that the session is not used (`is_used = false`) and then mark it as used when the student starts or submits (already implemented). Keep existing logic.
+
+4. **HTML test support** (already discussed, but ensure it's present):
+   - Admin can upload an HTML file for an exam (optional). This should store the file in Supabase Storage and update the exam's `content_type = 'html'` and `html_file_url`.
+   - Student exam page renders HTML inside an iframe with sandbox.
+
+5. **API changes**:
+   - Remove endpoints: `POST /api/exams`, `PUT /api/exams/:id`, `DELETE /api/exams/:id`.
+   - Keep `GET /api/exams` (list) and `POST /api/exams/:id/sessions` (create session).
+   - Ensure session creation respects that the exam exists.
+
+6. **Frontend changes**:
+   - Replace `admin-exams.tsx` with a simplified version (see example below).
+   - Remove any edit/delete buttons.
+   - Add a modal to collect student name/email (optional) and then generate session.
+
+7. **Database constraints** (optional but recommended):
+   - Add foreign key constraint on `exam_sessions.exam_id` references `exams(id)`.
+
+Please locate the existing files:
+- `client/src/pages/admin-exams.tsx`
+- `server/routes.ts`
+- `client/src/pages/student-exam.tsx` (no changes needed except ensure HTML rendering works)
+
+Implement the changes accordingly. Provide the new code for `admin-exams.tsx` and update `routes.ts` by removing exam mutation endpoints and adding a session creation endpoint if not already present.
+
+Use the following simplified admin panel code as a reference:
+
+```tsx
+// client/src/pages/admin-exams.tsx
+import { AdminLayout } from "@/components/layout/AdminLayout";
+import { Button, Card, Input, Label, Dialog, DialogContent, DialogTrigger } from "@/components/ui-kit";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+
+export default function AdminExams() {
+  const { toast } = useToast();
+  const [selectedExam, setSelectedExam] = useState<any>(null);
+  const [studentName, setStudentName] = useState("");
+  const [studentEmail, setStudentEmail] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const { data: exams, refetch } = useQuery({
+    queryKey: ['exams'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('exams').select('id, title, content_type').order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const createSession = useMutation({
+    mutationFn: async ({ examId, name, email }: { examId: number; name: string; email: string }) => {
+      const accessCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const password = Math.random().toString(36).substring(2, 10);
+      const { data, error } = await supabase.from('exam_sessions').insert([{
+        exam_id: examId,
+        access_code: accessCode,
+        password: password,
+        student_name: name,
+        email: email,
+        status: 'created',
+        is_used: false,
+      }]).select().single();
+      if (error) throw error;
+      return { accessCode, password, session: data };
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Session yaratildi",
+        description: `Kod: ${data.accessCode} | Parol: ${data.password}`,
+        duration: 10000,
+      });
+      setOpen(false);
+      setStudentName("");
+      setStudentEmail("");
+      refetch();
+    },
+    onError: (error) => toast({ title: "Xatolik", description: error.message, variant: "destructive" }),
+  });
+
+  if (!exams) return <div>Yuklanmoqda...</div>;
+
+  return (
+    <AdminLayout>
+      <div className="p-8">
+        <h1 className="text-2xl font-bold mb-6">Imtihonlar</h1>
+        <div className="grid gap-4">
+          {exams.map((exam) => (
+            <Card key={exam.id} className="p-4 flex justify-between items-center">
+              <div>
+                <h3 className="font-semibold">{exam.title}</h3>
+                <p className="text-sm text-gray-500">ID: {exam.id} | Type: {exam.content_type || 'json'}</p>
+              </div>
+              <Dialog open={open && selectedExam?.id === exam.id} onOpenChange={(isOpen) => { if (!isOpen) setSelectedExam(null); setOpen(isOpen); }}>
+                <DialogTrigger asChild>
+                  <Button onClick={() => { setSelectedExam(exam); setOpen(true); }}>Sessiya yaratish</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <h2 className="text-xl font-bold mb-4">Yangi sessiya - {exam.title}</h2>
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Student ismi</Label>
+                      <Input value={studentName} onChange={(e) => setStudentName(e.target.value)} />
+                    </div>
+                    <div>
+                      <Label>Student email (ixtiyoriy)</Label>
+                      <Input value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} />
+                    </div>
+                    <Button onClick={() => createSession.mutate({ examId: exam.id, name: studentName, email: studentEmail })} disabled={!studentName}>
+                      Yaratish
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </AdminLayout>
+  );
+}
