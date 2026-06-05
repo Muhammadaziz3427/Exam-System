@@ -1,0 +1,69 @@
+We have an IELTS exam platform built with React (TypeScript, Tailwind), Express backend, Supabase database. The student exam page (StudentExam.tsx) currently supports dynamic JSON-based tests with listening, reading, writing sections. We need to modify the exam flow to match the following exact behavior:
+
+## Required Exam Flow
+
+### Listening Section
+- The listening section contains an audio player that:
+  - Has ONLY a "Play" button (no pause, no seek, no volume control).
+  - When clicked, the audio starts playing and cannot be stopped.
+  - No progress bar or time display (or very simple display without seeking).
+- When the audio ends, automatically start a 2-minute "transfer time" (review time).
+- During these 2 minutes, the student can review and edit their listening answers.
+- A visible countdown timer (2:00 to 0:00) is shown.
+- After the 2 minutes end, automatically move to the Reading section.
+- The student cannot manually go to Reading before the transfer time ends.
+
+### Reading Section
+- Timer starts at 60:00 (60 minutes).
+- The student can navigate between reading passages and questions (already implemented).
+- When timer reaches 0:00, automatically move to Writing section.
+- Student cannot manually go to Writing before timer ends (or can, but with a warning? Better to enforce auto transition).
+
+### Writing Section
+- Timer starts at 60:00 (60 minutes) covering both Task 1 and Task 2.
+- When timer reaches 0:00, automatically submit the entire exam.
+- Before auto-submit, show a warning modal: "Time is up! Your exam will be submitted now."
+- After submission, redirect to a "Thank you" page or show results.
+
+### Submission & Scoring
+- Listening and Reading answers are auto-graded on the backend (already implemented in routes.ts).
+- Writing answers are saved as text (not auto-graded). Teacher will grade later.
+- Speaking is offline – teacher will enter score later via admin panel.
+- Final exam submission stores all answers (listening, reading, writing) and sets status = 'completed'.
+
+## Admin & Teacher Grading Flow
+
+1. **Teacher Panel** (`/teacher` route, accessible only to users with role='teacher'):
+   - Show list of completed exam sessions with student name, email, exam title.
+   - Click on a session to view:
+     - Writing Task 1 and Task 2 answers (read-only text).
+     - Input fields to enter Writing score (0-9 band, e.g., 6.5) and Speaking score (0-9).
+   - Save scores to `submissions` table (or `exam_sessions` table add columns: `writing_score`, `speaking_score`).
+
+2. **Admin Panel** (existing admin-exams.tsx simplified):
+   - Show all completed sessions with student details, auto-graded listening/reading scores, and teacher-graded writing/speaking scores.
+   - Calculate overall band (average of 4 skills).
+   - Button "Send Results to Students" – sends an email to each student with a breakdown of their scores (listening, reading, writing, speaking, overall band).
+   - Use the existing email sending function (nodemailer).
+
+## Technical Implementation Steps
+
+1. **Modify StudentExam.tsx**:
+   - Add state for `examStage: 'listening' | 'transfer' | 'reading' | 'writing'`.
+   - Implement custom audio player component (`AudioPlayer.tsx`) with only play button, no pause/seek. Use HTMLAudioElement with `controlsList="nodownload"` and remove default controls. Add event listener for `ended` to start transfer timer.
+   - Implement transfer timer (2 minutes) using setInterval, when 0 -> move to reading.
+   - Implement reading timer (60 minutes) and writing timer (60 minutes) using existing timer logic but ensure they auto-transition on zero.
+   - Disable manual section switching via bottom navigation until the respective timers expire (or completely remove bottom nav during listening/transfer? But better to show but disable other parts).
+   - Ensure answers are saved to localStorage and backend periodically.
+
+2. **Backend routes**:
+   - Add `POST /api/sessions/:id/grade-writing` (teacher) to update writing_score and speaking_score.
+   - Add `POST /api/sessions/:id/send-results` (admin) to trigger email sending.
+   - Ensure `GET /api/sessions` returns all sessions with student info, exam title, scores.
+
+3. **Database updates** (run SQL in Supabase):
+   ```sql
+   ALTER TABLE exam_sessions ADD COLUMN writing_score NUMERIC(3,1);
+   ALTER TABLE exam_sessions ADD COLUMN speaking_score NUMERIC(3,1);
+   ALTER TABLE exam_sessions ADD COLUMN overall_band NUMERIC(3,1);
+   -- also add teacher_id? optional.

@@ -7,7 +7,8 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/componen
 import {
   ShieldCheck,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  Play
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -70,9 +71,10 @@ export default function StudentExam() {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [audioProgress, setAudioProgress] = useState({ currentTime: 0, duration: 0, percent: 0 });
+  const [audioPlaying, setAudioPlaying] = useState(false);
   const [isTransferring, setIsTransferring] = useState(false);
   const [transferTimeLeft, setTransferTimeLeft] = useState(120);
+  const [showTimeUpModal, setShowTimeUpModal] = useState(false);
   const transferTimerRef = useRef<NodeJS.Timeout | null>(null);
   const mainTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -208,12 +210,16 @@ export default function StudentExam() {
 
     if (currentSection === 'listening') {
       setCurrentSection('reading');
-      toast({ title: "Time's Up", description: "Moving to Reading section." });
+      toast({ title: "Transfer Time Ended", description: "Moving to Reading section." });
     } else if (currentSection === 'reading') {
       setCurrentSection('writing');
       toast({ title: "Time's Up", description: "Moving to Writing section." });
     } else {
-      handleFinalSubmit(true);
+      setShowTimeUpModal(true);
+      setTimeout(() => {
+        setShowTimeUpModal(false);
+        handleFinalSubmit(true);
+      }, 4000);
     }
   };
 
@@ -221,26 +227,15 @@ export default function StudentExam() {
     const audio = audioRef.current;
     if (!audio || !hasStarted || currentSection !== 'listening') return;
 
-    const updateProgress = () => {
-      setAudioProgress({
-        currentTime: audio.currentTime,
-        duration: audio.duration,
-        percent: (audio.currentTime / audio.duration) * 100 || 0,
-      });
-    };
-
     const handleEnded = () => {
       setIsTransferring(true);
       setTransferTimeLeft(120);
+      setAudioPlaying(false);
     };
 
-    audio.addEventListener('timeupdate', updateProgress);
-    audio.addEventListener('loadedmetadata', updateProgress);
     audio.addEventListener('ended', handleEnded);
 
     return () => {
-      audio.removeEventListener('timeupdate', updateProgress);
-      audio.removeEventListener('loadedmetadata', updateProgress);
       audio.removeEventListener('ended', handleEnded);
     };
   }, [hasStarted, currentSection]);
@@ -262,19 +257,6 @@ export default function StudentExam() {
       if (transferTimerRef.current) clearInterval(transferTimerRef.current);
     };
   }, [isTransferring]);
-
-  const goToNextSection = () => {
-    if (transferTimerRef.current) {
-      clearInterval(transferTimerRef.current);
-      transferTimerRef.current = null;
-    }
-    if (mainTimerRef.current) {
-      clearInterval(mainTimerRef.current);
-      mainTimerRef.current = null;
-    }
-    setIsTransferring(false);
-    handleSectionAutoTransition();
-  };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -420,7 +402,9 @@ export default function StudentExam() {
       toast({ title: "Cannot finish yet", description: "You must complete all sections before finishing the test.", variant: "destructive" });
       return;
     }
-    handleFinalSubmit();
+    if (window.confirm("Imtihonni yakunlamoqchimisiz? Bu amalni qaytarib bo'lmaydi.")) {
+      handleFinalSubmit();
+    }
   };
 
   const getImageUrl = (path: string) => {
@@ -559,15 +543,15 @@ export default function StudentExam() {
                 <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
                 <div className="absolute top-2 right-2 bg-green-500 w-3 h-3 rounded-full border-2 border-white animate-pulse"></div>
               </div>
-              <Input 
-                placeholder="Email manzilingiz" 
-                className="h-12 text-center text-lg rounded-xl border-2" 
-                value={email} 
-                onChange={(e) => setEmail(e.target.value)} 
+              <Input
+                placeholder="Email manzilingiz"
+                className="h-12 text-center text-lg rounded-xl border-2"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
-              <Button 
-                className="w-full h-14 text-lg font-bold bg-[#2c3e50] hover:bg-[#1a252f]" 
-                onClick={startExamFlow} 
+              <Button
+                className="w-full h-14 text-lg font-bold bg-[#2c3e50] hover:bg-[#1a252f]"
+                onClick={startExamFlow}
                 disabled={!email.includes("@") || isLoadingContent}
               >
                 {isLoadingContent ? <Loader2 className="animate-spin mr-2" /> : "Imtihonni Boshlash"}
@@ -589,66 +573,95 @@ export default function StudentExam() {
 
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden select-none font-sans" translate="no">
+
+      {/* TIME UP MODAL */}
+      {showTimeUpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-10 max-w-md w-full text-center shadow-2xl mx-4">
+            <div className="text-6xl mb-4">⏰</div>
+            <h2 className="text-2xl font-black text-slate-900 mb-2">Vaqt tugadi!</h2>
+            <p className="text-slate-500 mb-6">Imtihon avtomatik ravishda yuborilmoqda...</p>
+            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+              <div className="bg-blue-600 h-2 rounded-full animate-[shrink_4s_linear_forwards]" style={{ width: '100%' }}></div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="header">
         <div className="timer-container">
-          {currentSection !== 'listening' && (
-            <span className="timer-display">
+          {isTransferring ? (
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-black uppercase tracking-widest text-amber-600">Transfer Time</span>
+              <span className="timer-display" style={{ color: '#d97706' }}>
+                {Math.floor(transferTimeLeft / 60)}:{String(transferTimeLeft % 60).padStart(2, '0')}
+              </span>
+            </div>
+          ) : currentSection !== 'listening' ? (
+            <span className={`timer-display ${timeLeft < 300 ? 'text-red-600' : ''}`}>
               {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
             </span>
-          )}
-          {isTransferring && (
-            <span className="ml-4 text-amber-600 font-bold">
-              Transfer: {Math.floor(transferTimeLeft / 60)}:{String(transferTimeLeft % 60).padStart(2, '0')}
-            </span>
-          )}
+          ) : null}
         </div>
         <div className="header-icons flex items-center gap-4">
-          {currentSection === 'listening' && (
-            <button
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold transition"
-              onClick={goToNextSection}
-            >
-              Next →
-            </button>
-          )}
-          {currentSection === 'reading' && (
-            <button
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold transition"
-              onClick={goToNextSection}
-            >
-              Next →
-            </button>
-          )}
           {currentSection === 'writing' && (
             <button
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-bold transition"
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-bold transition disabled:opacity-50"
               onClick={handleFinishClick}
+              disabled={isSubmitting}
             >
-              Finish Exam
+              {isSubmitting ? "Yuborilmoqda..." : "Finish Exam"}
             </button>
           )}
         </div>
       </header>
 
+      {/* AUDIO PLAYER — Listening section only */}
       {currentSection === 'listening' && (
         <div className="audio-player-container">
           <audio
             ref={audioRef}
             src={examContent?.listening?.audioUrl}
-            autoPlay
             preload="auto"
             style={{ display: 'none' }}
           />
-          <div className="progress-container">
-            <span id="current-time">{formatTime(audioProgress.currentTime)}</span>
-            <div className="relative w-full h-1 bg-gray-300 rounded">
-              <div 
-                className="absolute top-0 left-0 h-1 bg-blue-600 rounded"
-                style={{ width: `${audioProgress.percent}%` }}
-              ></div>
+          {isTransferring ? (
+            <div className="flex items-center justify-center gap-3 py-1">
+              <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+              <span className="text-amber-600 font-bold text-sm">
+                Audio tugadi — Javoblaringizni ko'rib chiqing. Qolgan vaqt: {Math.floor(transferTimeLeft / 60)}:{String(transferTimeLeft % 60).padStart(2, '0')}
+              </span>
             </div>
-            <span id="total-duration">{formatTime(audioProgress.duration)}</span>
-          </div>
+          ) : !audioPlaying ? (
+            <div className="flex items-center justify-center py-1">
+              <button
+                data-testid="button-play-audio"
+                onClick={() => {
+                  if (audioRef.current) {
+                    audioRef.current.play().catch(() => {});
+                    setAudioPlaying(true);
+                  }
+                }}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 rounded-lg font-bold transition-colors shadow-md"
+              >
+                <Play size={18} fill="white" />
+                Audio boshlash
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center gap-3 py-1">
+              <div className="flex gap-1 items-end h-5">
+                {[0.4, 0.7, 1, 0.7, 0.4].map((h, i) => (
+                  <div
+                    key={i}
+                    className="w-1 bg-blue-600 rounded-full animate-pulse"
+                    style={{ height: `${h * 100}%`, animationDelay: `${i * 0.1}s` }}
+                  />
+                ))}
+              </div>
+              <span className="text-blue-600 font-bold text-sm">Audio ijro etilmoqda — tabni yopmang</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -705,7 +718,6 @@ export default function StudentExam() {
                           {writingTasks.map((task: any, idx: number) => (
                             <div
                               key={idx}
-                              className={`space-y-4 ${activeWritingTask === idx ? '' : 'hidden'}`}
                               style={{ display: activeWritingTask === idx ? 'block' : 'none' }}
                             >
                               <div className="part-header">
@@ -729,7 +741,7 @@ export default function StudentExam() {
                                   </div>
                                 )}
                               </div>
-                              <div className="flex items-start gap-2 text-slate-500 text-sm">
+                              <div className="flex items-start gap-2 text-slate-500 text-sm mt-4">
                                 <AlertTriangle size={16} />
                                 <p>Eslatma: Javoblaringizni o'ng tomondagi maydonga yozing.</p>
                               </div>

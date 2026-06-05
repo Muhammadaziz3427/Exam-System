@@ -190,7 +190,7 @@ export default function TeacherDashboard() {
                             {session.status === 'graded' && <CheckCircle2 size={16} className="text-emerald-400" />}
                         </div>
                         <div className="flex items-center gap-3 mt-2 opacity-60 text-[10px] font-bold uppercase tracking-widest">
-                            <span className="flex items-center gap-1"><Clock size={10} /> {new Date(session.createdAt!).toLocaleDateString()}</span>
+                            <span className="flex items-center gap-1"><Clock size={10} /> {session.startTime ? new Date(session.startTime).toLocaleDateString() : "—"}</span>
                             <span className="bg-blue-500/20 px-2 py-0.5 rounded text-blue-400 font-mono">{session.accessCode}</span>
                         </div>
                         {selectedSessionId === session.id && (

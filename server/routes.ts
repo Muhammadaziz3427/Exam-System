@@ -547,5 +547,34 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  app.get("/api/sessions/:id/submission", async (req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from("submissions")
+        .select("*")
+        .eq("session_id", Number(req.params.id))
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) return res.status(404).json({ message: "Submission topilmadi" });
+      res.json(data);
+    } catch (error) {
+      res.status(500).json({ message: "Submission olishda xatolik" });
+    }
+  });
+
+  app.delete("/api/sessions/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      await supabase.from("violations").delete().eq("session_id", id);
+      await supabase.from("submissions").delete().eq("session_id", id);
+      const { error } = await supabase.from("exam_sessions").delete().eq("id", id);
+      if (error) throw error;
+      res.json({ message: "Sessiya o'chirildi" });
+    } catch (error) {
+      res.status(500).json({ message: "Sessionni o'chirishda xatolik" });
+    }
+  });
+
   return httpServer;
 }
