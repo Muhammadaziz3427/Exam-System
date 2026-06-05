@@ -72,6 +72,7 @@ export default function StudentExam() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [audioPlaying, setAudioPlaying] = useState(false);
+  const [showAudioModal, setShowAudioModal] = useState(true);
   const [isTransferring, setIsTransferring] = useState(false);
   const [transferTimeLeft, setTransferTimeLeft] = useState(120);
   const [showTimeUpModal, setShowTimeUpModal] = useState(false);
@@ -616,40 +617,63 @@ export default function StudentExam() {
         </div>
       </header>
 
-      {/* AUDIO PLAYER — Listening section only */}
+      {/* HIDDEN AUDIO ELEMENT — always mounted while listening */}
       {currentSection === 'listening' && (
+        <audio
+          ref={audioRef}
+          src={examContent?.listening?.audioUrl}
+          preload="auto"
+          style={{ display: 'none' }}
+        />
+      )}
+
+      {/* AUDIO MODAL — full-screen dark overlay before audio starts (IELTS standard) */}
+      {currentSection === 'listening' && showAudioModal && !isTransferring && (
+        <div className="audio-modal-overlay">
+          <div className="audio-modal-content">
+            <div className="audio-modal-icon">
+              <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+                <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+              </svg>
+            </div>
+            <p>Quloqchinlaringizni kiyib, "Audio boshlash" tugmasini bosing.</p>
+            <p className="warning">⚠ Audio bir marta ijro etiladi va to'xtatib bo'lmaydi.</p>
+            <button
+              data-testid="button-play-audio"
+              className="modal-play-btn"
+              onClick={() => {
+                if (audioRef.current) {
+                  audioRef.current.play().then(() => {
+                    setAudioPlaying(true);
+                    setShowAudioModal(false);
+                  }).catch(() => {
+                    setAudioPlaying(true);
+                    setShowAudioModal(false);
+                  });
+                } else {
+                  setShowAudioModal(false);
+                }
+              }}
+            >
+              ▶&nbsp; Audio boshlash
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* AUDIO STATUS BAR — shown while audio is playing or transfer time */}
+      {currentSection === 'listening' && !showAudioModal && (
         <div className="audio-player-container">
-          <audio
-            ref={audioRef}
-            src={examContent?.listening?.audioUrl}
-            preload="auto"
-            style={{ display: 'none' }}
-          />
           {isTransferring ? (
-            <div className="flex items-center justify-center gap-3 py-1">
+            <div className="flex items-center justify-center gap-3 py-1 w-full">
               <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
               <span className="text-amber-600 font-bold text-sm">
                 Audio tugadi — Javoblaringizni ko'rib chiqing. Qolgan vaqt: {Math.floor(transferTimeLeft / 60)}:{String(transferTimeLeft % 60).padStart(2, '0')}
               </span>
             </div>
-          ) : !audioPlaying ? (
-            <div className="flex items-center justify-center py-1">
-              <button
-                data-testid="button-play-audio"
-                onClick={() => {
-                  if (audioRef.current) {
-                    audioRef.current.play().catch(() => {});
-                    setAudioPlaying(true);
-                  }
-                }}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 rounded-lg font-bold transition-colors shadow-md"
-              >
-                <Play size={18} fill="white" />
-                Audio boshlash
-              </button>
-            </div>
           ) : (
-            <div className="flex items-center justify-center gap-3 py-1">
+            <div className="flex items-center justify-center gap-3 py-1 w-full">
               <div className="flex gap-1 items-end h-5">
                 {[0.4, 0.7, 1, 0.7, 0.4].map((h, i) => (
                   <div
@@ -665,7 +689,7 @@ export default function StudentExam() {
         </div>
       )}
 
-      <main className="main-container" style={{ marginTop: currentSection === 'listening' ? '115px' : '60px' }}>
+      <main className="main-container" style={{ marginTop: (currentSection === 'listening' && !showAudioModal) ? '115px' : '60px' }}>
         <div className="left-panel" style={{ height: 'calc(100vh - 60px - 80px)', overflowY: 'auto' }}>
           {currentSection === 'listening' ? (
             <ListeningComponent
@@ -797,39 +821,78 @@ export default function StudentExam() {
         </div>
       </main>
 
-      <nav className="nav-row perScorableItem" aria-label="Questions">
-        {currentPartDefs.map((def: any) => (
-          <div
-            key={def.partIndex}
-            className={`footer__questionWrapper___1tZ46 multiple ${currentPart === def.partIndex ? 'selected' : ''}`}
-            role="tablist"
-            data-section={currentSection}
-            data-part-index={def.partIndex}
-          >
-            <button role="tab" className="footer__questionNo___3WNct" onClick={() => switchToPart(def.partIndex)}>
-              <span>
-                <span aria-hidden="true" className="section-prefix">Part </span>
-                <span className="sectionNr" aria-hidden="true">{def.partIndex}</span>
-                <span className="attemptedCount" aria-hidden="true">0 of {def.count}</span>
-              </span>
-            </button>
-            <div className="footer__subquestionWrapper___9GgoP">
-              {Array.from({ length: def.end - def.start + 1 }, (_, i) => def.start + i).map((q: number) => (
+      {currentSection === 'writing' ? (
+        <nav className="nav-row writing-nav perScorableItem" aria-label="Questions">
+          {writingPartDefs.map((def: any) => {
+            const text = def.partIndex === 1 ? answers.writingTask1 : answers.writingTask2;
+            const words = text ? text.trim().split(/\s+/).filter((w: string) => w.length > 0).length : 0;
+            const minWords = def.partIndex === 1 ? 150 : 250;
+            const isCompleted = words >= minWords;
+            return (
+              <div
+                key={def.partIndex}
+                className={`footer__questionWrapper___1tZ46 single ${currentPart === def.partIndex ? 'selected' : ''} ${isCompleted ? 'completed' : ''}`}
+                role="tablist"
+                data-section="writing"
+                data-part-index={def.partIndex}
+              >
                 <button
-                  key={q}
-                  data-section={currentSection}
-                  data-q={q}
-                  className={`subQuestion scorable-item ${currentQuestion === q ? 'active' : ''}`}
-                  onClick={() => goToQuestion(q)}
+                  role="tab"
+                  className="footer__questionNo___3WNct writing"
+                  onClick={() => switchToPart(def.partIndex)}
+                  data-testid={`button-writing-part-${def.partIndex}`}
                 >
-                  <span className="sr-only">Question {q}</span>
-                  <span aria-hidden="true">{q}</span>
+                  <div className="part-title">{def.label}</div>
+                  <div className="attemptedCount">{isCompleted ? '1 of 1' : '0 of 1'}</div>
                 </button>
-              ))}
+              </div>
+            );
+          })}
+          <button
+            className="footer__deliverButton___3FM07"
+            onClick={handleFinishClick}
+            disabled={isSubmitting}
+            data-testid="button-finish-writing"
+            aria-label="Submit writing"
+          >
+            {isSubmitting ? "..." : "✓"}
+          </button>
+        </nav>
+      ) : (
+        <nav className="nav-row perScorableItem" aria-label="Questions">
+          {currentPartDefs.map((def: any) => (
+            <div
+              key={def.partIndex}
+              className={`footer__questionWrapper___1tZ46 multiple ${currentPart === def.partIndex ? 'selected' : ''}`}
+              role="tablist"
+              data-section={currentSection}
+              data-part-index={def.partIndex}
+            >
+              <button role="tab" className="footer__questionNo___3WNct" onClick={() => switchToPart(def.partIndex)}>
+                <span>
+                  <span aria-hidden="true" className="section-prefix">Part </span>
+                  <span className="sectionNr" aria-hidden="true">{def.partIndex}</span>
+                  <span className="attemptedCount" aria-hidden="true">0 of {def.count}</span>
+                </span>
+              </button>
+              <div className="footer__subquestionWrapper___9GgoP">
+                {Array.from({ length: def.end - def.start + 1 }, (_, i) => def.start + i).map((q: number) => (
+                  <button
+                    key={q}
+                    data-section={currentSection}
+                    data-q={q}
+                    className={`subQuestion scorable-item ${currentQuestion === q ? 'active' : ''}`}
+                    onClick={() => goToQuestion(q)}
+                  >
+                    <span className="sr-only">Question {q}</span>
+                    <span aria-hidden="true">{q}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </nav>
+          ))}
+        </nav>
+      )}
     </div>
   );
 }

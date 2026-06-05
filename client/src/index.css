@@ -836,6 +836,64 @@ body {
   margin: 0 4px;
 }
 
+/* Audio modal overlay (Listening – IELTS standard dark start screen) */
+.audio-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(30, 30, 30, 0.92);
+  z-index: 2000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  text-align: center;
+}
+.audio-modal-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  max-width: 500px;
+  padding: 40px 20px;
+}
+.audio-modal-icon {
+  margin-bottom: 8px;
+  opacity: 0.9;
+}
+.audio-modal-content p {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #e0e0e0;
+  margin: 0;
+}
+.audio-modal-content p.warning {
+  font-size: 14px;
+  color: #ffcc66;
+}
+.modal-play-btn {
+  margin-top: 8px;
+  background-color: #000;
+  color: white;
+  border: 2px solid white;
+  padding: 14px 32px;
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background-color 0.2s, transform 0.1s;
+  letter-spacing: 0.5px;
+}
+.modal-play-btn:hover {
+  background-color: #222;
+  transform: scale(1.03);
+}
+
 /* Bottom navigation */
 .nav-row {
   position: fixed;
@@ -843,6 +901,7 @@ body {
   left: 0;
   right: 0;
   background: #ffffff;
+  border-top: 1px solid #e0e0e0;
   padding: 0;
   display: flex;
   align-items: center;
@@ -852,6 +911,62 @@ body {
   overflow-y: hidden;
   white-space: nowrap;
   -webkit-overflow-scrolling: touch;
+}
+/* Writing section nav – stretch layout */
+.nav-row.writing-nav {
+  height: 60px;
+  align-items: stretch;
+  overflow: visible;
+  position: relative;
+}
+.nav-row.writing-nav .footer__questionWrapper___1tZ46 {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  position: relative;
+  overflow: visible;
+}
+.nav-row.writing-nav .footer__questionWrapper___1tZ46.completed::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background-color: #28a745;
+  z-index: 1;
+}
+.nav-row.writing-nav .footer__questionNo___3WNct {
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding-left: 20px;
+  gap: 12px;
+}
+.nav-row.writing-nav .footer__questionWrapper___1tZ46.selected .footer__questionNo___3WNct {
+  background-color: #f5f5f5;
+}
+.nav-row.writing-nav .footer__questionWrapper___1tZ46.selected .attemptedCount {
+  display: none;
+}
+.part-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #333;
+  line-height: 1.2;
+}
+.nav-row.writing-nav .footer__deliverButton___3FM07 {
+  margin-left: auto;
+  margin-right: 20px;
+  position: static;
+  transform: none;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  min-width: unset;
+  flex-shrink: 0;
 }
 .footer__questionWrapper___1tZ46 {
   display: flex;
