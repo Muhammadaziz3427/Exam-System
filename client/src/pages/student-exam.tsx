@@ -8,7 +8,9 @@ import {
   ShieldCheck,
   Loader2,
   AlertTriangle,
-  Play
+  Play,
+  Settings,
+  FileText
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -70,6 +72,13 @@ export default function StudentExam() {
     writingTask2: ""
   });
 
+  const [flaggedQuestions, setFlaggedQuestions] = useState<{ [key in Section]?: number[] }>({
+    listening: [],
+    reading: [],
+    writing: []
+  });
+  const [showTime, setShowTime] = useState(true);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [audioPlaying, setAudioPlaying] = useState(false);
   const [showAudioModal, setShowAudioModal] = useState(true);
@@ -81,6 +90,23 @@ export default function StudentExam() {
 
   const startSession = useStartSession();
   const logViolation = useLogViolation();
+
+  // Phase 2 UI States
+  const [theme, setTheme] = useState<'standard' | 'dark' | 'yellow'>('standard');
+  const [fontSize, setFontSize] = useState<'standard' | 'large' | 'xlarge'>('standard');
+  const [showSettings, setShowSettings] = useState(false);
+
+  const [showNotes, setShowNotes] = useState(false);
+  const [notesText, setNotesText] = useState("");
+
+  const [contextMenu, setContextMenu] = useState<{show: boolean, x: number, y: number}>({ show: false, x: 0, y: 0 });
+  
+  // Apply theme classes to root
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.remove('theme-standard', 'theme-dark', 'theme-yellow', 'text-size-standard', 'text-size-large', 'text-size-xlarge');
+    root.classList.add(`theme-${theme}`, `text-size-${fontSize}`);
+  }, [theme, fontSize]);
 
   const listeningParts = examContent?.listening?.parts || [];
   const readingPassages = examContent?.reading?.passages || [];
@@ -368,6 +394,17 @@ export default function StudentExam() {
     };
   };
 
+  const toggleReview = (qNum: number) => {
+    setFlaggedQuestions(prev => {
+      const sectionFlags = prev[currentSection] || [];
+      if (sectionFlags.includes(qNum)) {
+        return { ...prev, [currentSection]: sectionFlags.filter(q => q !== qNum) };
+      } else {
+        return { ...prev, [currentSection]: [...sectionFlags, qNum] };
+      }
+    });
+  };
+
   const handleFinalSubmit = async (autoSubmit: boolean = false) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
@@ -413,19 +450,42 @@ export default function StudentExam() {
     return path.startsWith('http') ? path : `/uploads/${path}`;
   };
 
-  const handleTextHighlight = () => {
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) return;
+  const handleContextMenu = (e: React.MouseEvent) => {
     if (currentSection !== 'reading') return;
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed) {
+      e.preventDefault();
+      setContextMenu({ show: true, x: e.clientX, y: e.clientY });
+    }
+  };
+
+  const applyHighlight = (remove: boolean = false) => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) {
+      setContextMenu({ show: false, x: 0, y: 0 });
+      return;
+    }
+    
     try {
-      const range = selection.getRangeAt(0);
-      const span = document.createElement("span");
-      span.style.backgroundColor = "#fde047";
-      span.style.color = "#000";
-      range.surroundContents(span);
+      if (remove) {
+        document.execCommand('removeFormat', false, '');
+      } else {
+        const range = selection.getRangeAt(0);
+        const span = document.createElement("span");
+        span.className = "cdi-highlighted-text";
+        range.surroundContents(span);
+      }
       selection.removeAllRanges();
     } catch (e) {}
+    setContextMenu({ show: false, x: 0, y: 0 });
   };
+
+  // Close context menu on outside click
+  useEffect(() => {
+    const closeMenu = () => setContextMenu(prev => ({...prev, show: false}));
+    document.addEventListener('click', closeMenu);
+    return () => document.removeEventListener('click', closeMenu);
+  }, []);
 
   const checkCamera = async () => {
     try {
@@ -589,33 +649,136 @@ export default function StudentExam() {
         </div>
       )}
 
-      <header className="header">
-        <div className="timer-container">
+      <header className="cdi-header">
+        <div className="cdi-header-left">
+          <div className="candidate-info">
+            <span className="candidate-name">{email.split('@')[0]}</span>
+          </div>
+          <div className="test-info">
+            <span className="test-name">IELTS {currentSection.charAt(0).toUpperCase() + currentSection.slice(1)}</span>
+          </div>
+        </div>
+        <div className="cdi-header-center">
           {isTransferring ? (
-            <div className="flex items-center gap-3">
-              <span className="text-[10px] font-black uppercase tracking-widest text-amber-600">Transfer Time</span>
-              <span className="timer-display" style={{ color: '#d97706' }}>
+            <div className="timer-block">
+              <span className="timer-label text-amber-600">Transfer Time</span>
+              <span className="timer-value text-amber-600">
                 {Math.floor(transferTimeLeft / 60)}:{String(transferTimeLeft % 60).padStart(2, '0')}
               </span>
             </div>
           ) : currentSection !== 'listening' ? (
-            <span className={`timer-display ${timeLeft < 300 ? 'text-red-600' : ''}`}>
-              {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
-            </span>
+            <div className="timer-block">
+              {showTime ? (
+                <span className={`timer-value ${timeLeft < 300 ? 'timer-flash text-red-600' : ''}`}>
+                  {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+                </span>
+              ) : (
+                <span className="timer-value text-slate-400">--:--</span>
+              )}
+              <div className="timer-controls">
+                <button onClick={() => setShowTime(!showTime)} className="timer-toggle-btn">
+                  {showTime ? 'Hide Time' : 'Show Time'}
+                </button>
+              </div>
+            </div>
           ) : null}
         </div>
-        <div className="header-icons flex items-center gap-4">
+        <div className="cdi-header-right">
+          {currentSection === 'listening' && (
+            <button className="cdi-icon-btn" title="Volume">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+            </button>
+          )}
+          {currentSection === 'reading' && (
+            <button className="cdi-icon-btn" title="Notes" onClick={() => setShowNotes(!showNotes)}>
+              <FileText size={20} />
+            </button>
+          )}
+          <button className="cdi-icon-btn" title="Settings" onClick={() => setShowSettings(!showSettings)}>
+            <Settings size={20} />
+          </button>
+          <button className="cdi-icon-btn" title="Help">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          </button>
           {currentSection === 'writing' && (
             <button
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-bold transition disabled:opacity-50"
+              className="cdi-finish-btn"
               onClick={handleFinishClick}
               disabled={isSubmitting}
             >
-              {isSubmitting ? "Yuborilmoqda..." : "Finish Exam"}
+              {isSubmitting ? "Submitting..." : "Finish Exam"}
             </button>
           )}
         </div>
       </header>
+
+      {/* SECTION TABS */}
+      <div className="cdi-section-tabs-container">
+        <div className="cdi-section-tabs">
+          <div className={`cdi-tab ${currentSection === 'listening' ? 'active' : 'completed'}`}>
+            Listening {currentSection !== 'listening' && '✓'}
+          </div>
+          <div className={`cdi-tab ${currentSection === 'reading' ? 'active' : (currentSection === 'writing' ? 'completed' : '')}`}>
+            Reading {currentSection === 'writing' && '✓'}
+          </div>
+          <div className={`cdi-tab ${currentSection === 'writing' ? 'active' : ''}`}>
+            Writing
+          </div>
+        </div>
+      </div>
+
+      {/* SETTINGS DROPDOWN */}
+      {showSettings && (
+        <div className="cdi-settings-dropdown">
+          <h4>Settings</h4>
+          <div className="cdi-settings-row">
+            <label>Text size</label>
+            <div className="cdi-settings-options">
+              <button className={`cdi-setting-btn ${fontSize === 'standard' ? 'active' : ''}`} onClick={() => setFontSize('standard')}>Standard</button>
+              <button className={`cdi-setting-btn ${fontSize === 'large' ? 'active' : ''}`} onClick={() => setFontSize('large')}>Large</button>
+              <button className={`cdi-setting-btn ${fontSize === 'xlarge' ? 'active' : ''}`} onClick={() => setFontSize('xlarge')}>Extra Large</button>
+            </div>
+          </div>
+          <div className="cdi-settings-row">
+            <label>Colours</label>
+            <div className="cdi-settings-options">
+              <button className={`cdi-setting-btn ${theme === 'standard' ? 'active' : ''}`} onClick={() => setTheme('standard')}>Standard</button>
+              <button className={`cdi-setting-btn ${theme === 'dark' ? 'active' : ''}`} onClick={() => setTheme('dark')}>Dark</button>
+              <button className={`cdi-setting-btn ${theme === 'yellow' ? 'active' : ''}`} onClick={() => setTheme('yellow')}>Yellow on Black</button>
+            </div>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setShowSettings(false)} className="mt-2">OK</Button>
+        </div>
+      )}
+
+      {/* CONTEXT MENU */}
+      {contextMenu.show && (
+        <div className="cdi-context-menu" style={{ top: contextMenu.y, left: contextMenu.x }}>
+          <div className="cdi-context-menu-item" onClick={() => applyHighlight(false)}>
+            Highlight
+          </div>
+          <div className="cdi-context-menu-item" onClick={() => applyHighlight(true)}>
+            Clear Highlight
+          </div>
+        </div>
+      )}
+
+      {/* NOTES PANEL */}
+      {showNotes && (
+        <div className="cdi-notes-panel">
+          <div className="cdi-notes-header">
+            <span>Notes</span>
+            <button className="cdi-notes-close" onClick={() => setShowNotes(false)}>×</button>
+          </div>
+          <textarea
+            className="cdi-notes-textarea"
+            value={notesText}
+            onChange={(e) => setNotesText(e.target.value)}
+            placeholder="Type your notes here..."
+            spellCheck={false}
+          />
+        </div>
+      )}
 
       {/* HIDDEN AUDIO ELEMENT — always mounted while listening */}
       {currentSection === 'listening' && (
@@ -710,8 +873,8 @@ export default function StudentExam() {
                 <div className="h-full flex flex-col">
                   <ScrollArea className="flex-1 h-full">
                     <div
-                      className="p-12 max-w-3xl mx-auto select-text selection:bg-yellow-300 selection:text-black"
-                      onMouseUp={handleTextHighlight}
+                      className="p-12 max-w-3xl mx-auto select-text selection:bg-yellow-300 selection:text-black cdi-scaled-text"
+                      onContextMenu={handleContextMenu}
                     >
                       {currentSection === 'reading' ? (
                         <article>
@@ -733,8 +896,13 @@ export default function StudentExam() {
                               onError={(e) => { e.currentTarget.style.display = 'none'; }}
                             />
                           )}
-                          <div className="text-xl leading-[1.8] text-slate-800 font-serif whitespace-pre-wrap">
-                            {readingPassages[activePassageIdx]?.content}
+                          <div className="font-serif">
+                            {readingPassages[activePassageIdx]?.content?.split(/\n\n+/).map((para: string, i: number) => (
+                              <p key={i} className="mb-4">
+                                <span className="cdi-paragraph-label">{String.fromCharCode(65 + i)}</span>
+                                {para}
+                              </p>
+                            ))}
                           </div>
                         </article>
                       ) : (
@@ -797,21 +965,39 @@ export default function StudentExam() {
                         }}
                       />
                     ) : (
-                      <div className="h-full flex flex-col space-y-4">
-                        <div className="flex justify-between items-center mb-2 sticky top-0 bg-[#f8fafc] py-2 z-10">
-                          <h3 className="font-bold text-slate-700">Writing Response Area</h3>
-                          <Badge className={`${getWordCount < (activeWritingTask === 0 ? 150 : 250) ? 'bg-orange-500' : 'bg-green-600'} px-4 py-1 font-mono text-sm border-none transition-colors`}>
-                            WORDS: {getWordCount}
-                          </Badge>
+                        <div className="h-full flex flex-col space-y-0">
+                          <div className="flex justify-between items-center mb-2 sticky top-0 bg-[#f8fafc] py-2 z-10">
+                            <h3 className="font-bold text-slate-700">Writing Response Area</h3>
+                            <Badge className={`${getWordCount < (activeWritingTask === 0 ? 150 : 250) ? 'bg-orange-500' : 'bg-green-600'} px-4 py-1 font-mono text-sm border-none transition-colors`}>
+                              WORDS: {getWordCount}
+                            </Badge>
+                          </div>
+                          
+                          <div className="cdi-writing-toolbar">
+                            <button className="cdi-toolbar-btn" onClick={() => document.execCommand('cut')}>✂ Cut</button>
+                            <button className="cdi-toolbar-btn" onClick={() => document.execCommand('copy')}>📋 Copy</button>
+                            <button className="cdi-toolbar-btn" onClick={async () => {
+                              try {
+                                const text = await navigator.clipboard.readText();
+                                document.execCommand('insertText', false, text);
+                              } catch(e) {
+                                document.execCommand('paste');
+                              }
+                            }}>📌 Paste</button>
+                            <button className="cdi-toolbar-btn" onClick={() => document.execCommand('undo')}>↩ Undo</button>
+                            <button className="cdi-toolbar-btn" onClick={() => document.execCommand('redo')}>↪ Redo</button>
+                          </div>
+                          
+                          <Textarea
+                            id="writing-textarea"
+                            className="flex-1 p-8 text-xl leading-[1.8] font-serif border-2 border-slate-300 border-t-0 rounded-b-2xl focus:border-blue-600 focus:outline-none shadow-inner bg-white resize-y"
+                            style={{ minHeight: '500px' }}
+                            placeholder="Start writing your response here..."
+                            value={activeWritingTask === 0 ? answers.writingTask1 : answers.writingTask2}
+                            spellCheck={false}
+                            onChange={(e) => setAnswers({...answers, [activeWritingTask === 0 ? 'writingTask1' : 'writingTask2']: e.target.value})}
+                          />
                         </div>
-                        <Textarea
-                          className="min-h-[500px] p-8 text-xl leading-[1.8] font-serif border-2 border-slate-200 rounded-2xl focus:border-blue-600 shadow-inner bg-white resize-y"
-                          placeholder="Start writing your response here..."
-                          value={activeWritingTask === 0 ? answers.writingTask1 : answers.writingTask2}
-                          spellCheck={false}
-                          onChange={(e) => setAnswers({...answers, [activeWritingTask === 0 ? 'writingTask1' : 'writingTask2']: e.target.value})}
-                        />
-                      </div>
                     )}
                   </div>
                 </ScrollArea>
@@ -822,76 +1008,79 @@ export default function StudentExam() {
       </main>
 
       {currentSection === 'writing' ? (
-        <nav className="nav-row writing-nav perScorableItem" aria-label="Questions">
-          {writingPartDefs.map((def: any) => {
-            const text = def.partIndex === 1 ? answers.writingTask1 : answers.writingTask2;
-            const words = text ? text.trim().split(/\s+/).filter((w: string) => w.length > 0).length : 0;
-            const minWords = def.partIndex === 1 ? 150 : 250;
-            const isCompleted = words >= minWords;
-            return (
-              <div
-                key={def.partIndex}
-                className={`footer__questionWrapper___1tZ46 single ${currentPart === def.partIndex ? 'selected' : ''} ${isCompleted ? 'completed' : ''}`}
-                role="tablist"
-                data-section="writing"
-                data-part-index={def.partIndex}
-              >
+        <div className="cdi-bottom-bar">
+          <nav className="cdi-nav-row" aria-label="Questions">
+            {writingPartDefs.map((def: any) => {
+              const text = def.partIndex === 1 ? answers.writingTask1 : answers.writingTask2;
+              const words = text ? text.trim().split(/\s+/).filter((w: string) => w.length > 0).length : 0;
+              const minWords = def.partIndex === 1 ? 150 : 250;
+              const isCompleted = words >= minWords;
+              return (
                 <button
-                  role="tab"
-                  className="footer__questionNo___3WNct writing"
+                  key={def.partIndex}
+                  className={`cdi-nav-btn ${currentPart === def.partIndex ? 'active' : ''} ${isCompleted ? 'answered' : ''}`}
                   onClick={() => switchToPart(def.partIndex)}
-                  data-testid={`button-writing-part-${def.partIndex}`}
                 >
-                  <div className="part-title">{def.label}</div>
-                  <div className="attemptedCount">{isCompleted ? '1 of 1' : '0 of 1'}</div>
+                  {def.label}
                 </button>
-              </div>
-            );
-          })}
-          <button
-            className="footer__deliverButton___3FM07"
-            onClick={handleFinishClick}
-            disabled={isSubmitting}
-            data-testid="button-finish-writing"
-            aria-label="Submit writing"
-          >
-            {isSubmitting ? "..." : "✓"}
-          </button>
-        </nav>
+              );
+            })}
+          </nav>
+        </div>
       ) : (
-        <nav className="nav-row perScorableItem" aria-label="Questions">
-          {currentPartDefs.map((def: any) => (
-            <div
-              key={def.partIndex}
-              className={`footer__questionWrapper___1tZ46 multiple ${currentPart === def.partIndex ? 'selected' : ''}`}
-              role="tablist"
-              data-section={currentSection}
-              data-part-index={def.partIndex}
-            >
-              <button role="tab" className="footer__questionNo___3WNct" onClick={() => switchToPart(def.partIndex)}>
-                <span>
-                  <span aria-hidden="true" className="section-prefix">Part </span>
-                  <span className="sectionNr" aria-hidden="true">{def.partIndex}</span>
-                  <span className="attemptedCount" aria-hidden="true">0 of {def.count}</span>
-                </span>
-              </button>
-              <div className="footer__subquestionWrapper___9GgoP">
-                {Array.from({ length: def.end - def.start + 1 }, (_, i) => def.start + i).map((q: number) => (
-                  <button
-                    key={q}
-                    data-section={currentSection}
-                    data-q={q}
-                    className={`subQuestion scorable-item ${currentQuestion === q ? 'active' : ''}`}
-                    onClick={() => goToQuestion(q)}
-                  >
-                    <span className="sr-only">Question {q}</span>
-                    <span aria-hidden="true">{q}</span>
-                  </button>
-                ))}
+        <div className="cdi-bottom-bar">
+          <div className="cdi-review-section">
+            <label className="cdi-review-label">
+              <input 
+                type="checkbox" 
+                checked={flaggedQuestions[currentSection]?.includes(currentQuestion) || false}
+                onChange={() => toggleReview(currentQuestion)}
+              />
+              <span className="checkbox-text">Review</span>
+            </label>
+          </div>
+          <nav className="cdi-nav-row" aria-label="Questions">
+            {currentPartDefs.map((def: any) => (
+              <div key={def.partIndex} className={`cdi-part-group footer__questionWrapper___1tZ46`} data-section={currentSection} data-part-index={def.partIndex}>
+                <div className="cdi-part-header">
+                  <span className="cdi-part-header-title">Part {def.partIndex}</span>
+                  <span className="cdi-part-header-count attemptedCount">
+                    0 of {def.count}
+                  </span>
+                </div>
+                <div className="flex gap-1">
+                  {Array.from({ length: def.end - def.start + 1 }, (_, i) => def.start + i).map((q: number) => {
+                    const isFlagged = flaggedQuestions[currentSection]?.includes(q);
+                    return (
+                      <button
+                        key={q}
+                        data-section={currentSection}
+                        data-q={q}
+                        className={`cdi-nav-btn ${currentQuestion === q ? 'active' : ''} ${isFlagged ? 'flagged' : ''} scorable-item subQuestion`}
+                        onClick={() => goToQuestion(q)}
+                      >
+                        {q}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
-        </nav>
+            ))}
+          </nav>
+          <div className="cdi-nav-arrows">
+            <button className="cdi-arrow-btn" onClick={() => {
+              if (currentQuestion > 1) goToQuestion(currentQuestion - 1);
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <button className="cdi-arrow-btn" onClick={() => {
+              const maxQ = currentPartDefs[currentPartDefs.length - 1]?.end || 40;
+              if (currentQuestion < maxQ) goToQuestion(currentQuestion + 1);
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

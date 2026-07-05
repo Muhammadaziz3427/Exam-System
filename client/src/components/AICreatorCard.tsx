@@ -23,7 +23,7 @@ interface ExtractedQuestion {
   questionText: string;
   options?: string[];
   answer: string;
-  type: string; // "multiple-choice", "true-false", "fill-in"
+  type: string;
 }
 
 export function AICreatorCard() {
@@ -32,17 +32,16 @@ export function AICreatorCard() {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [images, setImages] = useState<FileList | null>(null);
-  const [extractedData, setExtractedData] = useState<ExtractedQuestion[]>([]);
+  const [extractedData, setExtractedData] = useState<any>(null);
   const [examTitle, setExamTitle] = useState("");
 
-  // 1. PDF-ni AI orqali tahlil qilish mutatsiyasi (oldincha saqlangan, chunki AI server-side bo'lishi mumkin)
   const analyzeMutation = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append("pdf", file);
-      formData.append("type", sectionType);
+      formData.append("section", sectionType);
 
-      const res = await fetch("/api/exams/analyze-pdf", {
+      const res = await fetch("/api/exams/parse-pdf", {
         method: "POST",
         body: formData,
       });
@@ -50,16 +49,16 @@ export function AICreatorCard() {
       return res.json();
     },
     onSuccess: (data) => {
-      setExtractedData(data.questions);
+      setExtractedData(data);
       toast({
         title: "Tahlil yakunlandi",
-        description: `AI ${data.questions.length} ta savolni aniqladi.`,
+        description: `Imtihon muvaffaqiyatli tahlil qilindi.`,
       });
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         title: "Xatolik",
-        description: "PDF-ni o'qib bo'lmadi. Fayl formatini tekshiring.",
+        description: error.message || "PDF-ni o'qib bo'lmadi.",
         variant: "destructive",
       });
     },
@@ -92,32 +91,30 @@ export function AICreatorCard() {
         }
       }
 
-      // Exam ma'lumotlarini tayyorlash
+      const content = { ...extractedData };
+      if (audioUrl && content.listening) {
+        content.listening.audioUrl = audioUrl;
+      }
+      
       const examData = {
         title: examTitle,
-        content: {
-          [sectionType]: {
-            questions: extractedData.map((q, idx) => ({
-              ...q,
-              imageUrl: imageUrls[idx] || null  // Har bir savolga mos rasm (agar bo'lsa)
-            })),
-            audioUrl: audioUrl || null  // Listening uchun audio
-          }
-        },
-        timeLimit: sectionType === 'reading' ? 60 : 30,  // Misol, haqiqiy qiymatni qo'ying
-        isPublished: true,
-        created_at: new Date().toISOString()
+        content: content,
+        timeLimit: sectionType === 'reading' ? 60 : sectionType === 'listening' ? 30 : 60,
       };
 
-      const { data, error } = await supabase.from('exams').insert([examData]).select();
-      if (error) throw error;
-      return data[0];
+      const res = await fetch("/api/exams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(examData)
+      });
+      if (!res.ok) throw new Error("Saqlashda xato yuz berdi");
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['exams'] });
       toast({ title: "Muvaffaqiyatli", description: "Imtihon bazaga saqlandi!" });
       // Reset state
-      setExtractedData([]);
+      setExtractedData(null);
       setPdfFile(null);
       setAudioFile(null);
       setImages(null);
@@ -237,7 +234,7 @@ export function AICreatorCard() {
 
             <Button 
               className="w-full h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black shadow-lg shadow-blue-100 transition-all active:scale-95"
-              disabled={saveMutation.isPending || extractedData.length === 0}
+              disabled={saveMutation.isPending || !extractedData}
               onClick={() => saveMutation.mutate()}
             >
               {saveMutation.isPending ? <Loader2 className="mr-2 animate-spin" /> : <Save className="mr-2" />}
@@ -258,56 +255,19 @@ export function AICreatorCard() {
               </h3>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Savollarni tekshiring va tahrirlang</p>
             </div>
-            {extractedData.length > 0 && (
+            {extractedData && (
               <Badge className="bg-blue-600 px-4 py-1.5 rounded-full font-black italic shadow-md shadow-blue-100">
-                {extractedData.length} Savol topildi
+                JSON Tayyor
               </Badge>
             )}
           </div>
 
           <ScrollArea className="flex-1 p-8">
-            {extractedData.length > 0 ? (
+            {extractedData ? (
               <div className="space-y-4">
-                {extractedData.map((q, index) => (
-                  <div key={index} className="group p-6 rounded-[1.5rem] border border-slate-100 bg-white hover:border-blue-200 hover:shadow-xl hover:shadow-slate-100 transition-all relative">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="h-6 w-6 rounded-lg bg-slate-900 text-white text-[10px] font-bold flex items-center justify-center italic">
-                            #{q.id}
-                          </span>
-                          <Badge variant="outline" className="text-[9px] uppercase font-bold border-slate-200">
-                            {q.type}
-                          </Badge>
-                        </div>
-                        <p className="font-bold text-slate-800 leading-tight mb-4">{q.questionText}</p>
-
-                        {q.options && q.options.length > 0 && (
-                          <div className="grid grid-cols-2 gap-2 mb-4">
-                            {q.options.map((opt, i) => (
-                              <div key={i} className="text-xs p-2 rounded-lg bg-slate-50 border border-slate-100 text-slate-500">
-                                <span className="font-bold mr-2">{String.fromCharCode(65 + i)})</span> {opt}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-black uppercase text-emerald-500 italic">Correct Answer:</span>
-                          <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-md text-xs font-black">{q.answer}</span>
-                        </div>
-                      </div>
-
-                      <Button variant="ghost" size="icon" className="text-slate-300 hover:text-red-500 rounded-xl" onClick={() => {
-                        const newData = [...extractedData];
-                        newData.splice(index, 1);
-                        setExtractedData(newData);
-                      }}>
-                        <Trash2 size={18} />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                <pre className="p-4 bg-slate-900 text-slate-50 rounded-xl overflow-x-auto text-xs font-mono shadow-inner">
+                  {JSON.stringify(extractedData, null, 2)}
+                </pre>
               </div>
             ) : (
               <div className="h-[400px] flex flex-col items-center justify-center text-center space-y-4 opacity-30">

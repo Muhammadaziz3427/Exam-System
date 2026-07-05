@@ -3,6 +3,10 @@ import { type Server } from "http";
 import { api } from "@shared/routes";
 import { sendExamResultsEmail } from "./email";
 import { supabase } from "./db";
+import multer from "multer";
+import { parseExamPdf } from "./ai";
+
+const upload = multer({ dest: "uploads/" });
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   // ------------------------------------------------------------
@@ -214,6 +218,80 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json(exam);
     } catch (error) {
       res.status(500).json({ message: "Examni olishda xatolik" });
+    }
+  });
+
+  app.post(api.exams.create.path, async (req, res) => {
+    try {
+      const { data: exam, error } = await supabase
+        .from("exams")
+        .insert([req.body])
+        .select()
+        .single();
+      if (error) throw error;
+      res.status(201).json(exam);
+    } catch (error) {
+      res.status(500).json({ message: "Exam yaratishda xatolik" });
+    }
+  });
+
+  app.put(api.exams.update.path, async (req, res) => {
+    try {
+      const { data: exam, error } = await supabase
+        .from("exams")
+        .update(req.body)
+        .eq("id", Number(req.params.id))
+        .select()
+        .single();
+      if (error) throw error;
+      res.json(exam);
+    } catch (error) {
+      res.status(500).json({ message: "Examni yangilashda xatolik" });
+    }
+  });
+
+  app.delete(api.exams.delete.path, async (req, res) => {
+    try {
+      const { error } = await supabase
+        .from("exams")
+        .delete()
+        .eq("id", Number(req.params.id));
+      if (error) throw error;
+      res.sendStatus(204);
+    } catch (error) {
+      res.status(500).json({ message: "Examni o'chirishda xatolik" });
+    }
+  });
+
+  app.post("/api/exams/import", async (req, res) => {
+    try {
+      const { title, content } = req.body;
+      if (!title || !content) {
+        return res.status(400).json({ message: "Title va content majburiy" });
+      }
+      const { data: exam, error } = await supabase
+        .from("exams")
+        .insert([{ title, content }])
+        .select()
+        .single();
+      if (error) throw error;
+      res.status(201).json(exam);
+    } catch (error) {
+      res.status(500).json({ message: "Imtihonni import qilishda xatolik" });
+    }
+  });
+
+  app.post("/api/exams/parse-pdf", upload.single("pdf"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "PDF fayl yuklanmadi" });
+      }
+      const section = req.body.section || 'listening';
+      const parsedContent = await parseExamPdf(req.file.path, section);
+      res.json(parsedContent);
+    } catch (error) {
+      console.error("PDF parse error:", error);
+      res.status(500).json({ message: "PDF faylni tahlil qilishda xatolik" });
     }
   });
 

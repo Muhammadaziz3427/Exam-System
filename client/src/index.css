@@ -1566,3 +1566,472 @@ body {
   white-space: nowrap;
   border: 0;
 }
+
+/* CD-IELTS Styling */
+.cdi-header {
+  background-color: #f1f2f6;
+  border-bottom: 2px solid #ccc;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  z-index: 100;
+  padding: 0 20px;
+  font-family: Arial, sans-serif;
+}
+.cdi-header-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  color: #333;
+}
+.cdi-header-left .candidate-name {
+  font-weight: bold;
+  font-size: 16px;
+}
+.cdi-header-left .test-name {
+  color: #004691;
+  font-weight: bold;
+  font-size: 16px;
+}
+.cdi-header-center .timer-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cdi-header-center .timer-value {
+  font-size: 24px;
+  font-weight: bold;
+  color: #333;
+  min-width: 70px;
+  text-align: center;
+}
+.cdi-header-center .timer-toggle-btn {
+  background: none;
+  border: none;
+  color: #004691;
+  font-weight: bold;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 14px;
+}
+.cdi-header-right {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+.cdi-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #004691;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+  border-radius: 4px;
+}
+.cdi-icon-btn:hover {
+  background-color: #e0e0e0;
+}
+.cdi-finish-btn {
+  background-color: #00823b;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  font-weight: bold;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.cdi-finish-btn:disabled {
+  background-color: #8c9b93;
+  cursor: not-allowed;
+}
+.cdi-bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #f1f2f6;
+  border-top: 2px solid #ccc;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  z-index: 100;
+  padding: 0 10px;
+}
+.cdi-review-section {
+  padding-right: 15px;
+  border-right: 1px solid #ccc;
+  margin-right: 15px;
+}
+.cdi-review-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  color: #333;
+  font-size: 14px;
+}
+.cdi-review-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
+.cdi-nav-row {
+  display: flex;
+  flex: 1;
+  gap: 5px;
+  overflow-x: auto;
+  align-items: center;
+  height: 100%;
+}
+.cdi-nav-row::-webkit-scrollbar {
+  height: 6px;
+}
+.cdi-nav-row::-webkit-scrollbar-thumb {
+  background-color: #ccc;
+  border-radius: 3px;
+}
+.cdi-nav-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #999;
+  background-color: #fff;
+  color: #333;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+}
+.cdi-nav-btn.answered::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background-color: #333;
+}
+.cdi-nav-btn.active {
+  background-color: #004691;
+  color: #fff;
+  border-color: #004691;
+}
+.cdi-nav-btn.flagged {
+  border-radius: 50%;
+}
+.cdi-nav-btn.flagged.active {
+  border-radius: 50%;
+}
+.cdi-nav-arrows {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 15px;
+  padding-left: 15px;
+  border-left: 1px solid #ccc;
+}
+.cdi-arrow-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #fff;
+  border: 1px solid #999;
+  cursor: pointer;
+  border-radius: 50%;
+}
+.cdi-arrow-btn:hover {
+  background-color: #e0e0e0;
+}
+
+/* Phase 2: CD-IELTS Authentic UI Extensions */
+
+/* Timer Flash Animation */
+@keyframes timer-flash {
+  0% { background-color: transparent; color: #d32f2f; }
+  50% { background-color: #d32f2f; color: white; }
+  100% { background-color: transparent; color: #d32f2f; }
+}
+.timer-flash {
+  animation: timer-flash 1s infinite;
+  padding: 0 5px;
+  border-radius: 4px;
+}
+
+/* Section Tabs Bar */
+.cdi-section-tabs-container {
+  background-color: #e0e6ed;
+  border-bottom: 2px solid #ccc;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: fixed;
+  top: 60px; /* Below header */
+  left: 0;
+  right: 0;
+  height: 40px;
+  z-index: 99;
+}
+.cdi-section-tabs {
+  display: flex;
+  gap: 2px;
+}
+.cdi-tab {
+  background-color: #cdd4dc;
+  color: #555;
+  padding: 8px 30px;
+  font-weight: bold;
+  font-size: 14px;
+  border-radius: 6px 6px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cdi-tab.active {
+  background-color: #fff;
+  color: #004691;
+  border-top: 3px solid #004691;
+}
+.cdi-tab.completed {
+  color: #00823b;
+}
+
+/* Settings Dropdown */
+.cdi-settings-dropdown {
+  position: absolute;
+  top: 50px;
+  right: 20px;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  padding: 15px;
+  width: 280px;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  color: #333;
+}
+.cdi-settings-dropdown h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: bold;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 5px;
+}
+.cdi-settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cdi-settings-row label {
+  font-size: 13px;
+  font-weight: bold;
+}
+.cdi-settings-options {
+  display: flex;
+  gap: 5px;
+}
+.cdi-setting-btn {
+  flex: 1;
+  padding: 6px;
+  border: 1px solid #ccc;
+  background: #f9f9f9;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 12px;
+  text-align: center;
+}
+.cdi-setting-btn.active {
+  background: #004691;
+  color: white;
+  border-color: #004691;
+}
+
+/* Themes via CSS Variables */
+.theme-standard {
+  --cdi-bg: #ffffff;
+  --cdi-text: #333333;
+  --cdi-panel-bg: #f8fafc;
+  --cdi-border: #e0e0e0;
+  --cdi-highlight: #fff000;
+}
+.theme-dark {
+  --cdi-bg: #1a1a1a;
+  --cdi-text: #e0e0e0;
+  --cdi-panel-bg: #2d2d2d;
+  --cdi-border: #444444;
+  --cdi-highlight: #776a00;
+}
+.theme-yellow {
+  --cdi-bg: #000000;
+  --cdi-text: #ffff00;
+  --cdi-panel-bg: #111100;
+  --cdi-border: #ffff00;
+  --cdi-highlight: #ffffff;
+  --cdi-highlight-text: #000000;
+}
+.main-container.theme-dark, .main-container.theme-yellow {
+  background-color: var(--cdi-bg);
+  color: var(--cdi-text);
+}
+.main-container.theme-dark .left-panel, 
+.main-container.theme-dark .right-panel,
+.main-container.theme-dark .part-header,
+.main-container.theme-yellow .left-panel, 
+.main-container.theme-yellow .right-panel,
+.main-container.theme-yellow .part-header {
+  background-color: var(--cdi-panel-bg) !important;
+  color: var(--cdi-text) !important;
+  border-color: var(--cdi-border) !important;
+}
+
+.text-size-standard { --cdi-font-scale: 1; }
+.text-size-large { --cdi-font-scale: 1.25; }
+.text-size-xlarge { --cdi-font-scale: 1.5; }
+
+.cdi-scaled-text {
+  font-size: calc(15px * var(--cdi-font-scale, 1)) !important;
+  line-height: 1.8;
+}
+
+/* Writing Toolbar */
+.cdi-writing-toolbar {
+  display: flex;
+  gap: 5px;
+  background: #f1f2f6;
+  border: 1px solid #ccc;
+  border-bottom: none;
+  padding: 5px 10px;
+  border-radius: 4px 4px 0 0;
+}
+.cdi-toolbar-btn {
+  background: white;
+  border: 1px solid #ccc;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.cdi-toolbar-btn:hover {
+  background: #e0e0e0;
+}
+
+/* Right-Click Context Menu */
+.cdi-context-menu {
+  position: fixed;
+  background: white;
+  border: 1px solid #ccc;
+  box-shadow: 2px 2px 8px rgba(0,0,0,0.2);
+  padding: 5px 0;
+  z-index: 3000;
+  min-width: 150px;
+}
+.cdi-context-menu-item {
+  padding: 8px 15px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+}
+.cdi-context-menu-item:hover {
+  background: #f0f0f0;
+}
+.cdi-highlighted-text {
+  background-color: var(--cdi-highlight, #fff000);
+  color: var(--cdi-highlight-text, #000);
+}
+
+/* Notes / Scratchpad */
+.cdi-notes-panel {
+  position: fixed;
+  top: 120px;
+  right: 40px;
+  width: 300px;
+  height: 250px;
+  background: #fffae6; /* light yellow note color */
+  border: 1px solid #f4c242;
+  box-shadow: 2px 4px 12px rgba(0,0,0,0.15);
+  z-index: 1500;
+  display: flex;
+  flex-direction: column;
+  resize: both;
+  overflow: hidden;
+}
+.cdi-notes-header {
+  background: #f4c242;
+  color: #555;
+  padding: 5px 10px;
+  font-size: 13px;
+  font-weight: bold;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: move;
+}
+.cdi-notes-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+.cdi-notes-textarea {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 10px;
+  resize: none;
+  outline: none;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+/* Bottom Nav Part Groups */
+.cdi-part-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border-right: 1px solid #ccc;
+}
+.cdi-part-group:last-child {
+  border-right: none;
+}
+.cdi-part-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-right: 5px;
+  min-width: 60px;
+}
+.cdi-part-header-title {
+  font-size: 12px;
+  font-weight: bold;
+  color: #333;
+}
+.cdi-part-header-count {
+  font-size: 10px;
+  color: #666;
+}
+
+/* Paragraph Labels */
+.cdi-paragraph-label {
+  font-weight: bold;
+  margin-right: 12px;
+  font-size: 1.1em;
+}

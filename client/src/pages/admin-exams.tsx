@@ -35,6 +35,8 @@ export default function AdminExams() {
   const [studentEmail, setStudentEmail] = useState("");
   const [createdSession, setCreatedSession] = useState<CreatedSession | null>(null);
   const [copiedField, setCopiedField] = useState<"code" | "password" | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importJsonText, setImportJsonText] = useState("");
 
   const { data: exams, isLoading } = useQuery<Exam[]>({
     queryKey: ["/api/exams"],
@@ -70,6 +72,26 @@ export default function AdminExams() {
     },
   });
 
+  const importExam = useMutation({
+    mutationFn: async (content: string) => {
+      const parsed = JSON.parse(content);
+      const title = parsed.title || "Imported Exam";
+      await apiRequest("POST", "/api/exams/import", {
+        title,
+        content: parsed.content || parsed
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Muvaffaqiyatli", description: "Imtihon import qilindi", className: "bg-green-600 text-white" });
+      setIsImportModalOpen(false);
+      setImportJsonText("");
+      queryClient.invalidateQueries({ queryKey: ["/api/exams"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Xatolik", description: error.message || "Import qilishda xatolik", variant: "destructive" });
+    }
+  });
+
   function closeModal() {
     setOpenExamId(null);
     setStudentName("");
@@ -87,9 +109,14 @@ export default function AdminExams() {
   return (
     <AdminLayout>
       <div className="p-8 max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-slate-900">Imtihonlar</h1>
-          <p className="text-sm text-slate-500 mt-1">Har bir imtihon uchun yangi sessiya yarating va talabaga kodni bering.</p>
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Imtihonlar</h1>
+            <p className="text-sm text-slate-500 mt-1">Har bir imtihon uchun yangi sessiya yarating va talabaga kodni bering.</p>
+          </div>
+          <uiKit.Button onClick={() => setIsImportModalOpen(true)} className="gap-2 bg-[#2c3e50] hover:bg-[#1a252f]">
+            <Plus size={16} /> Import JSON
+          </uiKit.Button>
         </div>
 
         {isLoading ? (
@@ -242,6 +269,48 @@ export default function AdminExams() {
                   </uiKit.Button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
+              <h2 className="font-bold text-slate-800 text-lg">JSON fayldan import qilish</h2>
+              <button
+                onClick={() => setIsImportModalOpen(false)}
+                className="p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 flex-1 overflow-y-auto">
+              <uiKit.Textarea 
+                value={importJsonText}
+                onChange={(e) => setImportJsonText(e.target.value)}
+                placeholder="JSON formatidagi imtihon ma'lumotlarini bu yerga joylashtiring..."
+                className="min-h-[300px] font-mono text-sm"
+              />
+            </div>
+            <div className="p-6 border-t border-slate-100 shrink-0 flex justify-end gap-3">
+              <uiKit.Button variant="outline" onClick={() => setIsImportModalOpen(false)}>Bekor qilish</uiKit.Button>
+              <uiKit.Button 
+                onClick={() => {
+                  try {
+                    JSON.parse(importJsonText);
+                    importExam.mutate(importJsonText);
+                  } catch(e) {
+                    toast({ title: "Xato", description: "Yaroqsiz JSON format", variant: "destructive" });
+                  }
+                }}
+                disabled={importExam.isPending || !importJsonText.trim()}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {importExam.isPending ? <Loader2 className="animate-spin mr-2" size={16} /> : null}
+                Import qilish
+              </uiKit.Button>
             </div>
           </div>
         </div>
